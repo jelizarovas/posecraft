@@ -1,0 +1,52 @@
+import {assertDocument} from './schema.js';
+
+const identity=()=>[1,0,0,1,0,0];
+export const multiply=(a,b)=>[a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]];
+const inverse=m=>{const d=m[0]*m[3]-m[1]*m[2];if(Math.abs(d)<1e-10)throw Error('A zero-scale transform cannot be edited.');return [m[3]/d,-m[1]/d,-m[2]/d,m[0]/d,(m[2]*m[5]-m[3]*m[4])/d,(m[1]*m[4]-m[0]*m[5])/d];};
+export const matrixText=m=>`matrix(${m.map(n=>+n.toFixed(8)).join(' ')})`;
+export function parseTransform(text=''){
+ let m=identity(),end=0;const re=/(translate|scale|rotate|matrix)\s*\(([^)]*)\)/g;let match;
+ while((match=re.exec(text))){if(text.slice(end,match.index).trim())throw Error('Only translate, scale, rotate and matrix transforms are supported.');const raw=match[2].trim();if(!/^[-+\d.eE,\s]+$/.test(raw))throw Error('Invalid transform numbers.');const v=raw.split(/[\s,]+/).map(Number);if(v.some(n=>!Number.isFinite(n)||Math.abs(n)>10000))throw Error('Invalid transform numbers.');let t;
+ if(match[1]==='translate'&&[1,2].includes(v.length))t=[1,0,0,1,v[0],v[1]||0];
+ if(match[1]==='scale'&&[1,2].includes(v.length))t=[v[0],0,0,v[1]??v[0],0,0];
+ if(match[1]==='matrix'&&v.length===6)t=v;
+ if(match[1]==='rotate'&&[1,3].includes(v.length)){const c=Math.cos(v[0]*Math.PI/180),s=Math.sin(v[0]*Math.PI/180);t=[c,s,-s,c,0,0];if(v.length===3)t=multiply(multiply([1,0,0,1,v[1],v[2]],t),[1,0,0,1,-v[1],-v[2]]);}
+ if(!t)throw Error('Invalid transform arguments.');m=multiply(m,t);end=re.lastIndex;
+ }if(text.slice(end).trim())throw Error('Unsupported transform.');if(m.some(n=>!Number.isFinite(n)||Math.abs(n)>1e6))throw Error('Transform exceeds limits.');return m;
+}
+export function createDrawing(){return {schemaVersion:1,kind:'scene',id:'drawing',name:'New character',revision:0,bounds:{width:640,height:480},packs:{drawing:{name:'New character',joints:[{id:'root',parent:null,x:0,y:0,rotation:0,min:-180,max:180,length:30}],parts:[],clips:{idle:{duration:2,loop:true,tracks:{}}},inputs:{},initial:'idle',states:{idle:{clip:'idle'}}}},actors:[{id:'character',name:'New character',pack:'drawing',transform:{x:0,y:0,rotation:0,scale:1},inputs:{}}]};}
+export function shapePath(kind,x=240,y=160,w=120,h=120){if(![x,y,w,h].every(Number.isFinite)||w<=0||h<=0)throw Error('Shape dimensions must be positive.');if(kind==='rectangle')return `M${x} ${y}h${w}v${h}h${-w}Z`;if(kind==='ellipse')return `M${x} ${y+h/2}a${w/2} ${h/2} 0 1 0 ${w} 0a${w/2} ${h/2} 0 1 0 ${-w} 0Z`;if(kind==='triangle')return `M${x+w/2} ${y}L${x+w} ${y+h}H${x}Z`;throw Error('Unknown shape.');}
+export function jointMatrices(pack){const world={};for(const j of pack.joints)world[j.id]=multiply(j.parent?world[j.parent]:identity(),parseTransform(`translate(${j.x} ${j.y}) rotate(${j.rotation})`));return world;}
+export function assignArtwork(pack,partId,jointId){const next=structuredClone(pack),p=next.parts.find(p=>p.id===partId),world=jointMatrices(pack);if(!p||!world[jointId])throw Error('Choose existing artwork and joint.');p.transform=matrixText(multiply(multiply(inverse(world[jointId]),world[p.joint]),parseTransform(p.transform)));p.joint=jointId;return next;}
+export function movePivot(pack,id,x,y){const next=structuredClone(pack),j=next.joints.find(j=>j.id===id);if(!j||![x,y].every(Number.isFinite))throw Error('Invalid pivot.');const before=jointMatrices(pack);j.x=x;j.y=y;const after=jointMatrices(next),delta=multiply(inverse(after[id]),before[id]);for(const p of next.parts.filter(p=>p.joint===id))p.transform=matrixText(multiply(delta,parseTransform(p.transform)));for(const child of next.joints.filter(j=>j.parent===id)){const p=multiply(delta,[1,0,0,1,child.x,child.y]);child.x=p[4];child.y=p[5];}return next;}
+export function reparentJoint(pack,id,parent){const next=structuredClone(pack),j=next.joints.find(j=>j.id===id),world=jointMatrices(pack);if(!j||parent===id||parent!==null&&!world[parent])throw Error('Invalid parent.');for(let p=parent;p;p=pack.joints.find(j=>j.id===p)?.parent)if(p===id)throw Error('A joint cannot parent its own ancestor.');const local=multiply(parent?inverse(world[parent]):identity(),world[id]);j.parent=parent;j.x=local[4];j.y=local[5];j.rotation=Math.atan2(local[1],local[0])*180/Math.PI;j.min=Math.min(j.min,j.rotation);j.max=Math.max(j.max,j.rotation);const sorted=[];while(sorted.length<next.joints.length){const ready=next.joints.filter(j=>!sorted.includes(j)&&(!j.parent||sorted.some(p=>p.id===j.parent)));if(!ready.length)throw Error('Joint cycle.');sorted.push(...ready);}next.joints=sorted;return next;}
+
+// Import a deliberately small SVG grammar. Never attach imported nodes to the page.
+export function importSVG(source,Parser=globalThis.DOMParser){
+ if(typeof source!=='string'||source.length>1000000)throw Error('SVG must be smaller than 1 MB.');if(/<!DOCTYPE|<!ENTITY/i.test(source))throw Error('SVG declarations and entities are not supported.');if(!Parser)throw Error('SVG import requires a DOMParser.');const xml=new Parser().parseFromString(source,'image/svg+xml'),root=xml.documentElement;if(xml.querySelector('parsererror')||root.localName!=='svg')throw Error('Invalid SVG document.');
+ const doc=createDrawing(),pack=doc.packs.drawing;let count=0;
+ const common=['id','fill','stroke','stroke-width','stroke-linecap','stroke-linejoin','transform'];const attrs={svg:['xmlns','width','height','viewBox'],g:[],path:['d'],rect:['x','y','width','height'],circle:['cx','cy','r'],ellipse:['cx','cy','rx','ry'],line:['x1','y1','x2','y2'],polygon:['points'],polyline:['points']};
+ function num(el,name,fallback=0){const value=el.getAttribute(name);if(value===null)return fallback;if(!/^[-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?$/i.test(value.trim()))throw Error(`${name} must use plain numeric units.`);const n=Number(value);if(!Number.isFinite(n)||Math.abs(n)>10000)throw Error('Geometry exceeds limits.');return n;}
+ const vb=root.getAttribute('viewBox')?.trim().split(/[\s,]+/).map(Number);if(vb&&(vb.length!==4||vb.some(n=>!Number.isFinite(n))||vb[2]<=0||vb[3]<=0))throw Error('Invalid viewBox.');doc.bounds={width:vb?.[2]??num(root,'width',640),height:vb?.[3]??num(root,'height',480)};
+ function visit(el,parent,paint,isRoot=false){if(++count>1000)throw Error('At most 1000 SVG elements.');const tag=el.localName;if(isRoot&&el.hasAttribute('transform'))throw Error('Move root SVG transforms into a group before importing.');if(!Object.hasOwn(attrs,tag)||tag==='svg'&&!isRoot||el.namespaceURI!=='http://www.w3.org/2000/svg')throw Error(`Unsupported SVG element: ${tag}.`);for(const a of el.attributes)if(![...common,...attrs[tag]].includes(a.name))throw Error(`Unsupported SVG attribute: ${a.name}. Remove styles, effects and external references before import.`);
+ const style={...paint};for(const [attr,key] of [['fill','fill'],['stroke','stroke'],['stroke-width','strokeWidth']])if(el.hasAttribute(attr)){const value=el.getAttribute(attr);if(key==='strokeWidth'){style[key]=num(el,attr);if(style[key]<0||style[key]>30)throw Error('Stroke width must be 0..30.');}else {if(!/^(#[0-9a-f]{3}|#[0-9a-f]{6}|none)$/i.test(value))throw Error('Use hex colors or none. Gradients and named colors are not supported.');style[key]=value;}}
+ for(const attr of ['stroke-linecap','stroke-linejoin'])if(el.hasAttribute(attr)){if(el.getAttribute(attr)!=='round')throw Error('Only round SVG stroke caps and joins are supported. Expand other strokes to filled paths.');style[attr]=el.getAttribute(attr);}
+ const transform=multiply(parent,parseTransform(el.getAttribute('transform')||''));let d;
+ if(tag==='path'){d=el.getAttribute('d');if(!d||!/^\s*[Mm]/.test(d)||!/^[MmZzLlHhVvCcSsQqTtAaEe0-9.,+\s-]+$/.test(d))throw Error('Invalid SVG path.');}
+ if(tag==='rect')d=shapePath('rectangle',num(el,'x'),num(el,'y'),num(el,'width'),num(el,'height'));
+ if(tag==='circle'||tag==='ellipse'){const rx=num(el,tag==='circle'?'r':'rx'),ry=tag==='circle'?rx:num(el,'ry');d=shapePath('ellipse',num(el,'cx')-rx,num(el,'cy')-ry,rx*2,ry*2);}
+ if(tag==='line')d=`M${num(el,'x1')} ${num(el,'y1')}L${num(el,'x2')} ${num(el,'y2')}`;
+ if(tag==='polygon'||tag==='polyline'){const raw=el.getAttribute('points')||'';if(!/^[-+\d.eE,\s]+$/.test(raw))throw Error('Invalid points.');const points=raw.trim().split(/[\s,]+/).map(Number);if(points.length<4||points.length%2||points.some(n=>!Number.isFinite(n)||Math.abs(n)>10000))throw Error('Invalid points.');d='M'+points.slice(0,2).join(' ')+'L'+points.slice(2).join(' ')+(tag==='polygon'?'Z':'');}
+ if(d){if(style.stroke!=='none'&&style.strokeWidth>0&&(style['stroke-linecap']!=='round'||style['stroke-linejoin']!=='round'))throw Error('Stroked SVG artwork needs explicit round caps and joins. Expand other strokes to filled paths.');validatePath(d);pack.parts.push({id:'part-'+pack.parts.length,joint:'root',d,fill:style.fill,stroke:style.stroke,strokeWidth:style.strokeWidth,transform:matrixText(transform)});}
+ for(const node of el.childNodes){if(node.nodeType===1){if(d)throw Error('Shapes cannot contain child elements.');visit(node,transform,style);}else if(node.nodeType===3&&node.textContent.trim())throw Error('SVG text is not supported.');else if(![3,8].includes(node.nodeType))throw Error('SVG processing instructions are not supported.');}
+ }
+ visit(root,[1,0,0,1,-(vb?.[0]||0),-(vb?.[1]||0)],{fill:'#000000',stroke:'none',strokeWidth:1},true);if(!pack.parts.length)throw Error('SVG contains no supported artwork.');return assertDocument(doc);
+}
+
+export function validatePath(path){
+ const tokens=path.match(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g)||[];
+ if(!tokens.length||!/^\s*[Mm]/.test(path)||path.replace(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?|[\s,]/g,''))throw Error('Invalid path syntax.');
+ const arity={M:2,L:2,H:1,V:1,C:6,S:4,Q:4,T:2,A:7,Z:0};let i=0;
+ while(i<tokens.length){const cmd=tokens[i++].toUpperCase(),n=arity[cmd];if(n===undefined)throw Error('Invalid path command.');const start=i;while(i<tokens.length&&!/^[a-zA-Z]$/.test(tokens[i])){if(!Number.isFinite(Number(tokens[i]))||Math.abs(Number(tokens[i]))>10000)throw Error('Path coordinates exceed limits.');i++;}const count=i-start;if(n===0?count!==0:count===0||count%n!==0)throw Error('Path command has missing coordinates.');if(cmd==='A')for(let k=start;k<i;k+=7)if(Number(tokens[k])<0||Number(tokens[k+1])<0||!['0','1'].includes(tokens[k+3])||!['0','1'].includes(tokens[k+4]))throw Error('Invalid arc arguments.');
+ }return path;
+}

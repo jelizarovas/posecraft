@@ -1,6 +1,6 @@
 # From demos to a production studio
 
-Status: proposal, September 17, 2026. These are priorities, not implemented features or delivery estimates. Existing behavior is documented in the linked guides.
+Status: implementation started, September 17, 2026. The first coordinated milestone is tracked below. The broader roadmap remains planned work, not a claim of completed features or delivery estimates. Existing behavior is documented in the linked guides.
 
 ## What is already usable
 
@@ -38,4 +38,20 @@ Keep four controls distinct: cel coverage describes how far the dark region exte
 
 ## Current limits that affect this plan
 
-The [performance guide](performance.md) documents capped simulation catch-up and dropped elapsed time under load. That policy is useful for bounded interactive work but must not control movie or music timing. Physics worlds are per character; routing does not provide crowd avoidance or drive general locomotion. Depth rigs are visual approximations. Point shadows are planar and there is no prop shadowing, self-shadowing or multiple-light system. Director lacks audio tracks and encoded movie export. Reference images are not yet bundled with project JSON. Webcam capture currently maps a limited set of joints and discrete expressions, not full-body or finger performance.
+The [performance guide](performance.md) documents capped simulation catch-up and dropped elapsed time under load. That policy is useful for bounded interactive work but must not control movie or music timing. Physics worlds are per character; routing does not provide crowd avoidance or drive general locomotion. Depth rigs are visual approximations. Point shadows are planar and there is no prop shadowing, self-shadowing or multiple-light system. Director lacks audio tracks and encoded movie export. Portable Director project files now bundle referenced raster images; plain episode JSON excludes them. Webcam capture currently maps a limited set of joints and discrete expressions, not full-body or finger performance.
+
+## Implementation milestone 1: author, retime and reopen
+
+Three agents own separate workstreams. Integration, cross-workspace checks and publication are coordinated by the parent task. Existing campfire fixes remain the baseline.
+
+| Workstream | Owner | First deliverable | Acceptance check | Status |
+| --- | --- | --- | --- | --- |
+| Timeline editing | timeline | Multi-track key selection; atomic move, copy, scale, delete and easing | Edit multiple tracks, undo, reload and sample the resulting timing without silent key collisions | Implemented and verified |
+| Draw and rig | draw_rig | Basic vector authoring, supported SVG import, joint/pivot editing and Studio transfer | Create an original rig, save validated scene data and open it in Character Studio | Implemented and verified |
+| Portable projects | portable_projects | Director project bundle containing referenced raster images | Reopen in a clean browser context with media intact; errors preserve the current project | Implemented and verified |
+
+Integration gate passed: `test/studio-workflow-browser.mjs` creates original artwork and a joint in Draw, opens the isolated Studio draft, retimes authored keys, imports the result into Director, and reopens the portable project in a fresh phone-sized browser context. Artwork, timing and reference pixels survive the transfer. Individual workspace browser checks cover undo/reload, import rejection and compact layouts. The existing Studio/React, Director/video-capture and campfire-stability browser suites also passed on the production build.
+
+User guides: [Draw / Rig](draw.md), [timeline editing](timeline.md), [portable projects](project-files.md). Each module is exported as an SDK subpath and included in the package type check.
+
+This milestone establishes three priority-1 foundations. It does not complete the 30-second production-film milestone. Next dependencies are audio tracks and frame-accurate output, contact/attachment authoring, and deeper timeline tools such as curve handles and onion skinning. Physics baking, multiple lights, transitions and team workflows remain in their existing priority order.

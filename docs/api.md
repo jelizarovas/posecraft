@@ -8,7 +8,7 @@ The new scene API supplements the original skeletal API in `posecraft`. Existing
 
 A scene contains an ID, name, revision, bounds, embedded reusable packs, and independent actors. An actor has an ID, pack ID, name, transform, appearance overrides, and optional persisted input values. Pack edits affect every instance of that pack; appearance and placement edits affect one actor. Duplicate a pack under a new ID to give an actor independent authored animation. No external asset fetches or account are required.
 
-Each pack has parent-first joints, ordered path parts bound to joints, typed inputs, clips, states, an initial state, and optional spring settings. Parts contain path geometry and allowlisted numeric transforms. Importing arbitrary SVG, images, masks, gradients, text, mesh deformation, attachments, and nested scene instances is deferred. Unrecognized extension metadata is retained but never executed.
+Each pack has parent-first joints, ordered path parts bound to joints, typed inputs, clips, states, an initial state, and optional spring settings. Parts contain path geometry and allowlisted numeric transforms. Draw / Rig imports a documented subset of SVG paths and basic shapes. Images, masks, gradients, text, mesh deformation, attachments, and nested scene instances remain deferred. Unrecognized extension metadata is retained but never executed.
 
 Angles use degrees. Positive X goes right and positive Y goes down. Joint translations and art use SVG units; time uses seconds. Scale-to-fit uses the viewBox and preserves aspect ratio. Container resizing changes presentation only, not world dimensions, gravity, or authored transforms. The current inertial response is intentionally tuned in CSS pixels, independent of device pixel ratio.
 
@@ -31,6 +31,14 @@ store.redo();
 ```
 
 Transactions apply to a cloned document and commit only if all commands and the resulting scene validate. Every commit, undo, and redo advances revision. The history holds 60 authored versions. Persistent documents contain no runtime or DOM state.
+
+### Authoring helpers
+
+`posecraft/timeline-editing` exports `editTimelineKeys(clip, selection, operation)`. Select keys with `{track, time}` and move, copy, scale, delete or change their outgoing easing. It returns a new clip and selection. Collisions, stale selections and out-of-range times reject the complete edit. Commit the returned clip through `DocumentStore`. See [timeline editing](timeline.md).
+
+`posecraft/vector-authoring` exports `createDrawing`, `shapePath`, `importSVG`, `assignArtwork`, `movePivot` and `reparentJoint`. Pivot and parent changes preserve the resting artwork. `importSVG` needs a DOMParser, supplied by the browser or passed explicitly. It rejects unsupported SVG rather than silently dropping effects. See [Draw / Rig](draw.md).
+
+`posecraft/project-bundle` exports asynchronous `createProjectBundle(episode, loadReference)` and `readProjectBundle(bundle)`. The reader returns `{project, assets}`, where assets maps reference IDs to image Blobs. Bundles include referenced PNG, JPEG or WebP images and verify their checksums and size limits. Browser callers can supply `validateImage` to check decoding before importing. These helpers do not write browser storage. See [portable project files](project-files.md).
 
 ## Runtime and SVG
 

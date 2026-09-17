@@ -56,3 +56,17 @@ scene.packs[scene.actors[0].pack].parts[0].opacityChannel="root.opacity";
 
 const campfireSettings: import("../src/schema.js").SceneDocument["ensemble"]={type:"campfire",seed:20260917,members:["a","b","c","d"],sky:"night"};
 void campfireSettings;
+
+import {editTimelineKeys} from 'posecraft/timeline-editing';
+import {createDrawing,shapePath,movePivot} from 'posecraft/vector-authoring';
+import {createProjectBundle,readProjectBundle} from 'posecraft/project-bundle';
+const drawing=createDrawing();
+const drawingPack=drawing.packs[drawing.actors[0].pack];
+shapePath('ellipse',0,0,40,60);
+movePivot(drawingPack,drawingPack.joints[0].id,10,20);
+declare const editableClip:import('../src/schema.js').Clip;
+editTimelineKeys(editableClip,[{track:'head.rotation',time:0}],{type:'move',offset:.5});
+// @ts-expect-error Easing choices match the runtime.
+editTimelineKeys(editableClip,[],{type:'easing',easing:'bounce'});
+const bundle=createProjectBundle(episode.project,async()=>new Blob());
+bundle.then(value=>readProjectBundle(value)).then(value=>value.assets.get('reference'));

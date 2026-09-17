@@ -53,6 +53,18 @@
     "./device-motion": {
       "types": "./src/device-motion.d.ts",
       "default": "./src/device-motion.js"
+    },
+    "./timeline-editing": {
+      "types": "./src/timeline-editing.d.ts",
+      "default": "./src/timeline-editing.js"
+    },
+    "./vector-authoring": {
+      "types": "./src/vector-authoring.d.ts",
+      "default": "./src/vector-authoring.js"
+    },
+    "./project-bundle": {
+      "types": "./src/project-bundle.d.ts",
+      "default": "./src/project-bundle.js"
     }
   },
   "bin": {
@@ -72,7 +84,11 @@
     "docs/capture.md",
     "docs/demos.md",
     "docs/spatial.md",
-    "docs/lighting.md"
+    "docs/lighting.md",
+    "docs/timeline.md",
+    "docs/draw.md",
+    "docs/project-files.md",
+    "docs/studio-roadmap.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -92,7 +108,11 @@
     "test:spatial": "node test/spatial-browser.mjs",
     "test:lighting": "node test/lighting-browser.mjs",
     "test:lighting-turn": "node test/lighting-turn-browser.mjs",
-    "test:campfire": "node test/campfire-browser.mjs"
+    "test:campfire": "node test/campfire-browser.mjs",
+    "test:timeline": "node test/timeline-browser.mjs",
+    "test:draw": "node test/draw-browser.mjs",
+    "test:projects": "node test/project-bundle-browser.mjs",
+    "test:workflow": "node test/studio-workflow-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

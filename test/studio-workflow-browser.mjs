@@ -1,0 +1,38 @@
+import {chromium} from '@playwright/test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const base=(process.env.POSECRAFT_URL||'http://127.0.0.1:5178').replace(/\/$/,'');
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+const page=await browser.newPage({viewport:{width:1366,height:768},reducedMotion:'reduce'}),errors=[];
+page.on('pageerror',e=>errors.push(e.message));
+const drawing=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('posecraft.studio.v2.draw')));
+try{
+ await page.goto(base+'/draw.html');await page.locator('#studio').waitFor();
+ await page.evaluate(()=>localStorage.setItem('posecraft.studio.v2','{"preserve":"existing studio draft"}'));
+ await page.locator('[data-shape="ellipse"]').click();await page.locator('#fill').fill('#3377cc');await page.locator('#fill').press('Tab');
+ await page.locator('#add-joint').click();await page.locator('#pivot-x').fill('320');await page.locator('#pivot-y').fill('240');await page.locator('#pivot').click();
+ await page.locator('#art-tab').click();await page.locator('#attached').selectOption('joint-1');
+ await page.locator('#studio').click();await page.waitForURL('**/?from=draw');await page.locator('#edit-keys').waitFor();
+ assert.equal(await page.evaluate(()=>localStorage.getItem('posecraft.studio.v2')),'{"preserve":"existing studio draft"}');
+ assert.equal(await page.evaluate(()=>localStorage.getItem('posecraft.studio-transfer.v1')),null);
+ const original=await drawing();assert.equal(original.packs.drawing.parts[0].fill,'#3377cc');assert.equal(original.packs.drawing.parts[0].joint,'joint-1');
+ await page.locator('#add-key').click();await page.locator('#key-time').fill('1');await page.locator('#key-time').press('Tab');await page.locator('#rotation-number').fill('25');await page.locator('#rotation-number').dispatchEvent('input');await page.locator('#add-key').click();
+ await page.locator('#edit-keys').click();await page.locator('[data-key="1"]').click();await page.locator('#keys-offset').fill('.25');await page.locator('#keys-move').click();await page.locator('#keys-close').click();
+ const animated=await drawing(),tracks=animated.packs.drawing.clips.idle.tracks;assert.ok(Object.values(tracks).some(keys=>keys.some(k=>k[0]===1.25&&k[1]===25)));
+ await page.reload();await page.locator('#edit-keys').waitFor();assert.deepEqual(await drawing(),animated);
+ await page.goto(base+'/director.html');await page.locator('#studio-source').selectOption('posecraft.studio.v2.draw');await page.locator('#from-studio').click();
+ await page.locator('[data-panel="reference"]').click();
+ const png=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=32;c.height=24;const ctx=c.getContext('2d');ctx.fillStyle='#ffaa33';ctx.fillRect(0,0,32,24);return c.toDataURL().split(',')[1];});
+ await page.locator('#media-file').setInputFiles({name:'original-reference.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});await page.locator('#reference-overlay:not(.hidden)').waitFor();
+ const download=page.waitForEvent('download');await page.locator('#save').click();await(await download).saveAs('test-results/studio-workflow.posecraft.json');
+ const bundle=JSON.parse(fs.readFileSync('test-results/studio-workflow.posecraft.json','utf8')),shot=bundle.project.shots.at(-1);
+ assert.deepEqual(bundle.project.scenes[shot.scene],animated);assert.equal(bundle.assets.length,1);
+ const fresh=await browser.newPage({viewport:{width:390,height:844}});fresh.on('pageerror',e=>errors.push(e.message));await fresh.goto(base+'/director.html');
+ await fresh.locator('#project-file').setInputFiles('test-results/studio-workflow.posecraft.json');await fresh.waitForFunction(()=>JSON.parse(localStorage.getItem('posecraft.director.v1'))?.shots.length===4);
+ const restored=await fresh.evaluate(()=>JSON.parse(localStorage.getItem('posecraft.director.v1')));assert.deepEqual(restored.scenes[shot.scene],animated);assert.notEqual(restored.shots.at(-1).reference.id,shot.reference.id);
+ await fresh.locator('#shots-panel').click();await fresh.locator(`[data-shot="${shot.id}"]`).click();await fresh.locator('#reference-overlay:not(.hidden)').waitFor();
+ const pixel=await fresh.locator('#reference-overlay').evaluate(async img=>{await img.decode();const c=document.createElement('canvas');c.width=c.height=1;const ctx=c.getContext('2d');ctx.drawImage(img,0,0,1,1);return [...ctx.getImageData(0,0,1,1).data];});assert.deepEqual(pixel,[255,170,51,255]);
+ assert.ok(await fresh.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1&&document.documentElement.scrollHeight<=innerHeight+1));await fresh.screenshot({path:'test-results/studio-workflow-mobile.png'});
+ assert.deepEqual(errors,[]);console.log('Studio workflow passed: original rig → isolated Studio draft → retimed keys → Director → portable reference project → fresh mobile session.');
+}finally{await browser.close();}
+
