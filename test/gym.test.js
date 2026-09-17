@@ -10,7 +10,7 @@ const sample=(d,time,mode='workout')=>sampleClip(d.packs.atlas.clips[mode],time)
 const world=(d,time,mode='workout')=>spatialKinematics(d.packs.atlas,sample(d,time,mode));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 test('gym is portable editable scene data with cached independent copies and bounded tracks',()=>{
- const d=assertDocument(JSON.parse(JSON.stringify(createGym())));assert.deepEqual(Object.keys(d.packs.atlas.clips),gymModes);assert.equal(d.packs.atlas.clips.workout.duration,180);assert.ok(d.groups.some(g=>g.id==='athlete'));assert.ok(d.packs.atlas.parts.some(p=>p.spatial?.softLimb));
+ const d=assertDocument(JSON.parse(JSON.stringify(createGym())));assert.deepEqual(Object.keys(d.packs.atlas.clips).slice(0,gymModes.length),gymModes);for(const id of ['drink-at-bar','drink-at-bench','bench-failed'])assert.ok(d.packs.atlas.clips[id]);assert.equal(d.packs.atlas.clips.workout.duration,180);assert.ok(d.groups.some(g=>g.id==='athlete'));assert.ok(d.packs.atlas.parts.some(p=>p.spatial?.softLimb));
  for(const c of Object.values(d.packs.atlas.clips))for(const keys of Object.values(c.tracks)){assert.ok(keys.length<=1000);assert.ok(keys.every(k=>k.every(v=>typeof v==='string'||Number.isFinite(v))));}
  d.packs.atlas.parts[0].fill='#000000';assert.notEqual(createGym().packs.atlas.parts[0].fill,'#000000');assert.equal(d.actors.find(a=>a.id==='atlas').inputs.action,'workout');
 });

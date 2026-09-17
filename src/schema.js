@@ -3,7 +3,7 @@ import {validateInteractions} from './pointer-interactions.js';
 import {validateBehaviorGraph} from './behaviors.js';
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid'], unavailable: ['general-fluid-dynamics', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations'], unavailable: ['general-fluid-dynamics', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);

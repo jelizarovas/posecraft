@@ -37,7 +37,7 @@ Open the localhost address printed by Vite. `npm run build` creates the static G
 
 Use **Add Dummy** in the character library. Use **+** beside the Props selector to add a platform, then drag it into place. Its **Collision box** tab controls size, offset, friction, bounce, and whether it collides. Test falls through **Feel**. The React playground has a Platforms toggle.
 
-This is the first MVP. Ona's arms rotate at the shoulder. Full foot planting, corrective steps, grip constraints, quadruped locomotion, fluids and the ship in a bottle remain later milestones. See the [scope and requirements mapping](docs/mvp-status.md) and [full product brief](POSECRAFT_REQUIREMENTS.md). The portable wwwzard pack uses sampled actions, solid fills, and rigid sleeves; the original demo retains procedural cloth and typing. Ukis has not been migrated.
+The Studio includes authored limb rotation, contact constraints, live event graphs, [action variations and stats](docs/actions.md), and a [ship-in-a-bottle slosh model](docs/fluids.md). General fluid dynamics, full physical balance and quadruped locomotion remain later milestones. See the [scope and requirements mapping](docs/mvp-status.md) and [full product brief](POSECRAFT_REQUIREMENTS.md). The portable wwwzard pack uses sampled actions, solid fills, and rigid sleeves; the original demo retains procedural cloth and typing. Ukis has not been migrated.
 
 ## Studio controls
 

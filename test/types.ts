@@ -108,3 +108,8 @@ void BottleFluid;void waterSurface;void BottleMotionSignal;void mountBottleContr
 player.fluidInput({type:"wind",value:.8});
 declare const website:import("posecraft/browser").Player;website.enableMotion();website.disableMotion();
 background.fluidInput({type:"motion",ax:10,ay:0,turn:15,gravityX:0,gravityY:1});
+
+import type {ActivityRecipe,ActionSummary} from "posecraft/action-variations";
+const recipe:ActivityRecipe={actor:"ona",variants:[{id:"wave",clip:"wave",weight:1,speed:{min:.8,max:1.2}}],success:{base:.9,modifiers:[{variable:"fatigue",weight:-.005}]},onStart:[{type:"add",variable:"fatigue",value:2}],onSuccess:[],onFailure:[]};
+const summary:ActionSummary={activity:"wave",variant:"wave",speed:1,success:true,progress:.5,active:true};
+void recipe;void summary;

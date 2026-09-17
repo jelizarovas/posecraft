@@ -109,6 +109,10 @@
     "./bottle-browser": {
       "types": "./src/bottle-browser.d.ts",
       "default": "./src/bottle-browser.js"
+    },
+    "./action-variations": {
+      "types": "./src/action-variations.d.ts",
+      "default": "./src/action-variations.js"
     }
   },
   "bin": {
@@ -138,7 +142,8 @@
     "tools/build-export-runtimes.mjs",
     "tools/compile-scene.mjs",
     "docs/live-scenes.md",
-    "docs/fluids.md"
+    "docs/fluids.md",
+    "docs/actions.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",

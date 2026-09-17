@@ -28,9 +28,11 @@ export function removeSceneEntity(document,kind,id){
   if(next.ensemble&&(next.ensemble.sky===id||next.ensemble.members.includes(id)))delete next.ensemble;
  }
  if(next.behaviorGraph){
-  const keep=action=>!(action.actor&&action.actor!=='$actor'&&!next.actors.some(a=>a.id===action.actor))&&!(action.type==='emitter'&&!next.emitters?.some(e=>e.id===action.emitter))&&!(action.type==='ensemble'&&!next.ensemble)&&!(action.type==='input'&&action.actor==='$actor'&&!next.actors.some(a=>validBehaviorInput(next,a.id,action.input,action.value)));
+  if(kind==='actor'&&next.behaviorGraph.activities)for(const [key,activity]of Object.entries(next.behaviorGraph.activities))if(activity.actor===id)delete next.behaviorGraph.activities[key];
+  const keep=action=>!(action.type==='perform'&&!next.behaviorGraph.activities?.[action.activity])&&!(action.actor&&action.actor!=='$actor'&&!next.actors.some(a=>a.id===action.actor))&&!(action.type==='emitter'&&!next.emitters?.some(e=>e.id===action.emitter))&&!(action.type==='ensemble'&&!next.ensemble)&&!(action.type==='input'&&action.actor==='$actor'&&!next.actors.some(a=>validBehaviorInput(next,a.id,action.input,action.value)));
   for(const state of Object.values(next.behaviorGraph.states))state.actions=state.actions.filter(keep);
   for(const handler of next.behaviorGraph.handlers||[])handler.actions=handler.actions.filter(keep);
+  for(const activity of Object.values(next.behaviorGraph.activities||{}))for(const key of ['onStart','onSuccess','onFailure'])activity[key]=(activity[key]||[]).filter(keep);
  }
  if(next.lighting?.emitter&&!next.emitters?.some(e=>e.id===next.lighting.emitter)){delete next.lighting.emitter;next.lighting.enabled=false;}
  return next;

@@ -161,3 +161,7 @@ A scene may set `presentation: "live"` and a saved `behaviorGraph` with variable
 ## Bottle water and buoyancy
 
 A scene can declare `fluid` and the `bottle-fluid` capability. `posecraft/bottle-fluid` provides `BottleFluid`, area-conserving polygon helpers and types; `posecraft/bottle-browser` provides the shared grab/touch/phone adapter. Scene, worker and illustration controllers expose `fluidInput(command)` and frames expose `fluid`. Commands distinguish grab/move/release/cancel point sets, motion acceleration and gravity, wind, and an impulse nudge. See [bottle liquid scenes](fluids.md) for saved fields, controls and approximation limits.
+
+## Action variations and stats
+
+`behaviorGraph.activities` defines weighted clips, time windows, speed ranges, pose offsets and stat-dependent success. `variableBounds` limits numeric stats; `perform` and `add` actions run attempts and update values. Scene, worker and illustration players share seeded results. Frames expose `behavior.actions` and `behavior.variables`. See [action variations and stats](actions.md) for authoring, outcome timing and examples.

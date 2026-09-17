@@ -48,7 +48,7 @@ export class SceneController {
   applyGraphAction(action,payload){this.applyingGraph=true;try{if(action.type==='input')this.setInput(action.actor,action.input,action.value);else if(action.type==='ensemble')this.triggerEnsemble(action.event,payload);else if(action.type==='emitter')this.ensemble?.setEmitterEnabled?.(action.emitter,action.enabled);}finally{this.applyingGraph=false;}}
   dispatch(event,payload={}){const safe=validateBehaviorEvent(this.document,event,payload);if(!this.graph)return false;if(!this.replaying)this.record({type:'dispatch',event,payload:safe});const accepted=this.graph.dispatch(event,safe);this.graph.tick(0);return accepted;}
   setVariable(name,value){validateBehaviorVariable(this.document.behaviorGraph,name,value);if(!this.graph)return;if(!this.replaying)this.record({type:'variable',name,value});this.graph.setVariable(name,value);this.graph.tick(0);}
-  triggerEnsemble(type,payload={}){payload=validateBehaviorEvent(this.document,type,payload);if(!this.ensemble||!ensembleEvents.includes(type))throw new Error('Unknown ensemble event.');this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));this.ensemble.trigger(type,payload);if(!this.replaying)this.record({type:'ensemble',event:type,payload});}
+  triggerEnsemble(type,payload={}){payload=validateBehaviorEvent(this.document,type,payload);if(!this.ensemble||!ensembleEvents.includes(type))throw new Error('Unknown ensemble event.');this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));this.ensemble.trigger(type,payload);if(!this.replaying)this.record({type:'ensemble',event:type,payload});}
   subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit(event){if(!this.replaying)for(const fn of this.listeners)fn({...event,time:this.time});}
   respond(a,state,duration=.2,strength=1){
@@ -142,11 +142,11 @@ export class SceneController {
   tick() {
     this.time += STEP;
     if(this.fluid&&!this.reducedMotion&&this.animationPlaying)this.fluid.tick(STEP);
-    if(this.graph&&this.ensemble){this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));if(this.ensemble.drainEvents)for(const {event,...payload} of this.ensemble.drainEvents())this.graph.dispatch(event,payload);}
-    this.graph?.tick(STEP);
+    if(this.graph&&this.ensemble){this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));if(this.ensemble.drainEvents)for(const {event,...payload} of this.ensemble.drainEvents())this.graph.dispatch(event,payload);}
+    this.graph?.tick(this.reducedMotion||!this.animationPlaying?0:STEP);
     this.pointers?.step(STEP);
     for (const a of this.actors) {
-      const directed=this.ensemble&&a.behavior.mode==='animated'&&!a.preview&&(a.actor.unlit||a.runtime.inputs.action==='campfire'&&a.runtime.layers[0].state==='campfire');
+      const directed=this.graph?.hasActivity(a.actor.id)||this.ensemble&&a.behavior.mode==='animated'&&!a.preview&&(a.actor.unlit||a.runtime.inputs.action==='campfire'&&a.runtime.layers[0].state==='campfire');
       if(!directed)a.runtime.step(this.reducedMotion || !this.animationPlaying ? 0 : STEP);
       if (this.reducedMotion) { a.runtime.layers.forEach(layer => layer.transition = null); a.runtime.frame = a.runtime.evaluate(); }
       const r = a.pack.reaction, s = a.spring;
@@ -177,7 +177,8 @@ export class SceneController {
   }
   frame() {
     const frame={ time: this.time, effectsTime:this.reducedMotion?0:this.time, actors: this.actors.map(({ actor, pack, runtime, spring, preview,behavior,response,physics,recovery }) => {
-      let pose = preview ? { ...runtime.definition.defaults, ...sampleClip({ ...pack.clips[preview.clip], loop: false }, preview.time), ...preview.overrides } : { ...runtime.frame.pose };
+      const action=!preview&&behavior.mode==='animated'?this.graph?.actionPose?.(actor.id):null;
+      let pose = preview ? { ...runtime.definition.defaults, ...sampleClip({ ...pack.clips[preview.clip], loop: false }, preview.time), ...preview.overrides } : { ...(action?.pose||runtime.frame.pose) };
       const inputs={...runtime.inputs};
       const emotion={startled:'surprised',scared:'scared',falling:'scared',bracing:'focused',protecting:'scared',curling:'scared',hurt:'hurt',recovering:'dizzy','getting-up':'focused',returning:'relieved',walking:'happy',relieved:'relieved',happy:'happy'}[response.state];
       if(behavior.autoFace&&emotion&&pack.inputs.emotion?.options.includes(emotion))inputs.emotion=emotion;
@@ -192,10 +193,10 @@ export class SceneController {
       if(recovery){const authored=pose;pose={...pose,...recovery.pose};if(recovery.phase==='home'){const blend=clamp((recovery.time-recovery.standDuration-recovery.duration)/.35,0,1);for(const key of Object.keys(pose))if(!key.startsWith(pack.physics.root+'.'))pose[key]+=(authored[key]-pose[key])*blend;}}
       let world=forwardKinematics(runtime.joints,pose);
       if(physics&&behavior.mode!=='animated')({pose,world}=physics.apply(pose));
-      const clip=preview?.clip||pack.states[runtime.layers[0].state]?.clip,definition=pack.clips[clip],elapsed=preview?.time??runtime.layers[0].time,clipTime=preview?elapsed:definition?.loop?elapsed%definition.duration:Math.min(elapsed,definition?.duration??elapsed);
-      return { id: actor.id, clip, clipTime, pose, inputs, world, response:response.state, physics:behavior.mode==='animated'?null:physics?.diagnostics||null, recovery:recovery?{phase:recovery.phase,blocked:recovery.blocked,target:{x:recovery.to.x,y:recovery.to.y}}:null,state: recovery?.phase==='walking'||recovery?.phase==='returning'?'walk':preview?.clip || runtime.layers[0].state, spring: { ...spring } };
+      const clip=preview?.clip||action?.clip||pack.states[runtime.layers[0].state]?.clip,definition=pack.clips[clip],elapsed=preview?.time??action?.clipTime??runtime.layers[0].time,clipTime=preview||action?elapsed:definition?.loop?elapsed%definition.duration:Math.min(elapsed,definition?.duration??elapsed);
+      return { id: actor.id, clip, clipTime, ...(action?{activity:action.activity}:{}), pose, inputs, world, response:response.state, physics:behavior.mode==='animated'?null:physics?.diagnostics||null, recovery:recovery?{phase:recovery.phase,blocked:recovery.blocked,target:{x:recovery.to.x,y:recovery.to.y}}:null,state: recovery?.phase==='walking'||recovery?.phase==='returning'?'walk':preview?.clip || action?.activity || runtime.layers[0].state, spring: { ...spring } };
     }) };
-    let evaluated=this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
+    let evaluated=this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
     if(this.fluid)evaluated=this.fluid.apply(evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
     if(this.graph){evaluated.behavior=this.graph.snapshot();evaluated.emitterOverrides={...this.graph.emitterOverrides,...evaluated.emitterOverrides};}
     return applyContacts(this.document,this.pointers?.apply(evaluated)||evaluated);
