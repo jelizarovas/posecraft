@@ -7,6 +7,7 @@ import { WorkerSceneController } from '../src/worker.js';
 import { mountSVG, renderSVG } from '../src/svg.js';
 import { SoundEffects } from '../src/audio.js';
 import { behaviorConfig } from '../src/physics.js';
+import {spatialChannels} from '../src/spatial.js';
 import { sampleClip, clamp, wrapAngle } from '../src/index.js';
 
 const $ = id => document.getElementById(id);
@@ -23,6 +24,7 @@ const media = matchMedia('(prefers-reduced-motion: reduce)');
 let store;
 try {const raw=localStorage.getItem(key),old=JSON.parse(raw)||initialScene,upgrade=upgradeLibraryDocument(old);store=new DocumentStore(upgrade.document);if(upgrade.changed){localStorage.setItem(key+'.before-responses',raw);localStorage.setItem(key,JSON.stringify(store.document));}}catch{store=new DocumentStore(initialScene);}
 let selected=store.document.actors[0]?.id, joint='head', clip='idle', controller, renderer, playing=!media.matches;
+let poseChannel='rotation';
 let inspector='pose', tab='timeline', previewTime=0, overrides={}, bones=true, limits=true, dragMode=false, motionMode='system';
 let selectedProp=null, propPanel='shape', colliders=true;
 const prop=()=>store.document.props?.find(p=>p.id===selectedProp);
@@ -46,10 +48,12 @@ document.querySelector('#app').innerHTML=`
 function toast(message){$('toast').textContent=message;$('toast').classList.remove('hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.add('hidden'),5000);}
 function persist(){try{localStorage.setItem(key,JSON.stringify(store.document));$('saved').textContent='Saved locally';}catch{toast('Storage full. Save project to keep your changes.');}}
 function transact(commands,message){try{store.transact(commands);persist();rebuild();if(message)toast(message);}catch(e){toast(e.message);}}
-function baseValue(){const j=rigJoint();return overrides[joint+'.rotation']??sampleClip({...pack().clips[clip],loop:false},previewTime)[joint+'.rotation']??j.rotation;}
+function channel(){return pack()?.spatial?poseChannel:'rotation';}
+function channelRange(){return spatialChannels[channel()]||rigJoint();}
+function baseValue(){return overrides[joint+'.'+channel()]??sampleClip({...pack().clips[clip],loop:false},previewTime)[joint+'.'+channel()]??(channel()==='rotation'?rigJoint().rotation:0);}
 function frame(){if(actor()&&tab==='timeline')controller.previewClip(selected,clip,previewTime,overrides);return controller.frame();}
 function mount(){renderer=mountSVG($('art'),store.document,frame(),{bones:!selectedProp&&bones,limits,selectedActor:selectedProp?undefined:selected,selectedJoint:joint,physicsDebug:inspector==='feel',colliders,selectedProp});}
-function refresh(){renderer.update(frame());updateTime();if($('rotation')){$('rotation').value=baseValue();$('rotation-number').value=Math.round(baseValue()*10)/10;}}
+function refresh(){renderer.update(frame());updateTime();if($('rotation')){$('rotation').value=baseValue();$('rotation-number').value=Math.round(baseValue()*(channel()==='bend'?100:10))/(channel()==='bend'?100:10);}}
 function rebuild(){
  controller?.dispose();if(!prop())selectedProp=null;if(!actor())selected=store.document.actors[0]?.id;
  if(pack()&&!pack().joints.some(j=>j.id===joint))joint=pack().joints[0].id;
@@ -76,13 +80,16 @@ function drawHierarchy(){
 function selectJoint(actorId,jointId){selectedProp=null;if(selected!==actorId){controller.clearPreview(selected);overrides={};}selected=actorId;joint=jointId;if(!pack().clips[clip])clip=Object.keys(pack().clips)[0];previewTime=Math.min(previewTime,pack().clips[clip].duration);inspector='pose';drawHierarchy();drawInspector();drawTimeline();drawDemo();mount();}
 function field(label,id,value,attrs=''){return `<label class="field">${label}<input id="${id}" value="${esc(value)}" ${attrs}></label>`;}
 function drawInspector(){
+ $('inspector').classList.toggle('spatial-panel',!!pack()?.spatial&&inspector==='pose');
  $('inspector').classList.toggle('feel-panel',inspector==='feel'||!!selectedProp);
  if(prop()){drawPropInspector();return;}
  document.querySelectorAll('[data-panel]').forEach(b=>b.classList.toggle('active',b.dataset.panel===inspector));
  const a=actor(),p=pack(),j=rigJoint();if(!a){$('inspector').innerHTML='<p class="note">Add a character from the library.</p>';return;}
  const index=store.document.actors.indexOf(a);
  if(inspector==='pose'){
- $('inspector').innerHTML=`<div class="inspector-heading"><span>${title(joint)}</span><small>${esc(a.name)}</small></div><div class="selected-part">${icon('skeleton')} ${j.parent?`Attached to ${title(j.parent)}`:'Root of character'}</div><label class="field">Rotation<div class="rotation-controls"><input id="rotation" type="range" min="${j.min}" max="${j.max}" step="1" value="${baseValue()}"><input id="rotation-number" aria-label="Joint rotation degrees" type="number" min="${j.min}" max="${j.max}" value="${Math.round(baseValue()*10)/10}" step="1"></div></label><div class="section-label">Joint limits</div><div class="two-col">${field('Minimum','limit-min',j.min,'type="number" min="-180" max="180"')}${field('Maximum','limit-max',j.max,'type="number" min="-180" max="180"')}</div><p class="note">Drag this body part on the canvas. The arc shows its allowed rotation. New limits also clamp its existing keys.</p><div class="section-label">Pivot / rest position</div><div class="two-col">${field('X','pivot-x',j.x,'type="number" step="1"')}${field('Y','pivot-y',j.y,'type="number" step="1"')}</div><div class="section-label">Character placement</div><div class="two-col">${field('X','pos-x',a.transform.x,'type="number"')}${field('Y','pos-y',a.transform.y,'type="number"')}${field('Scale','scale',a.transform.scale,'type="number" min=".05" max="10" step=".1"')}${field('Turn','turn',a.transform.rotation,'type="number" min="-180" max="180"')}</div>`;
+ const range=channelRange();
+ $('inspector').innerHTML=`<div class="inspector-heading"><span>${title(joint)}</span><small>${esc(a.name)}</small></div><div class="selected-part">${icon('skeleton')} ${j.parent?`Attached to ${title(j.parent)}`:'Root of character'}</div>${p.spatial?`<label class="field">Pose channel<select id="pose-channel" aria-label="Pose channel">${[['rotation','Rotation in screen'],['yaw','Yaw / turn toward camera'],['pitch','Pitch / tilt'],['z','Depth / front and back'],['bend','Shape / bend']].map(([id,label])=>`<option value="${id}" ${channel()===id?'selected':''}>${label}</option>`).join('')}</select></label>`:''}<label class="field">${channel()==='rotation'?'Rotation':title(channel())}<div class="rotation-controls"><input id="rotation" type="range" min="${range.min}" max="${range.max}" step="${channel()==='bend'?.01:1}" value="${baseValue()}"><input id="rotation-number" aria-label="Joint rotation degrees" type="number" min="${range.min}" max="${range.max}" value="${baseValue()}" step="${channel()==='bend'?.01:1}"></div></label><div class="section-label">Joint limits</div><div class="two-col">${field('Minimum','limit-min',j.min,'type="number" min="-180" max="180"')}${field('Maximum','limit-max',j.max,'type="number" min="-180" max="180"')}</div><p class="note">${p.spatial?'Use the channel slider, then + to key it. Yaw and Pitch rotate in depth. Depth changes overlap. Shape blends authored artwork.':'Drag this body part on the canvas. The arc shows its allowed rotation. New limits also clamp its existing keys.'}</p><div class="section-label">Pivot / rest position</div><div class="two-col">${field('X','pivot-x',j.x,'type="number" step="1"')}${field('Y','pivot-y',j.y,'type="number" step="1"')}</div><div class="section-label">Character placement</div><div class="two-col">${field('X','pos-x',a.transform.x,'type="number"')}${field('Y','pos-y',a.transform.y,'type="number"')}${field('Scale','scale',a.transform.scale,'type="number" min=".05" max="10" step=".1"')}${field('Turn','turn',a.transform.rotation,'type="number" min="-180" max="180"')}</div>`;
+ if($('pose-channel'))$('pose-channel').onchange=e=>{poseChannel=e.target.value;drawInspector();drawTimeline();refresh();};
  for(const id of ['rotation','rotation-number'])$(id).oninput=e=>pose(Number(e.target.value));
  $('limit-min').onchange=$('limit-max').onchange=changeLimits;
  for(const axis of ['x','y'])$('pivot-'+axis).onchange=e=>transact([set(['packs',a.pack,'joints',p.joints.indexOf(j),axis],Number(e.target.value))]);
@@ -125,7 +132,7 @@ function drawFeel(){
  $('inspector').querySelectorAll('[data-interact]').forEach(b=>b.onclick=()=>runInteraction(b.dataset.interact));
 }
 
-function pose(value){if(behaviorConfig(actor().behavior).mode!=='animated'){toast('Choose Animated in Feel to edit keyframes.');return;}if(!Number.isFinite(value))return;playing=false;tab='timeline';overrides[joint+'.rotation']=clamp(value,rigJoint().min,rigJoint().max);refresh();}
+function pose(value){if(behaviorConfig(actor().behavior).mode!=='animated'){toast('Choose Animated in Feel to edit keyframes.');return;}if(!Number.isFinite(value))return;playing=false;tab='timeline';overrides[joint+'.'+channel()]=clamp(value,channelRange().min,channelRange().max);refresh();}
 function changeLimits(){const p=pack(),j=rigJoint(),min=Number($('limit-min').value),max=Number($('limit-max').value);if(!Number.isFinite(min)||!Number.isFinite(max)||min>max||min<-180||max>180){toast('Limits must be ordered between -180° and 180°.');drawInspector();return;}
  const joints=structuredClone(p.joints),clips=structuredClone(p.clips);Object.assign(joints[p.joints.indexOf(j)],{min,max,rotation:clamp(j.rotation,min,max)});
  let count=0;for(const c of Object.values(clips))for(const pair of c.tracks[joint+'.rotation']||[]){const v=clamp(pair[1],min,max);if(v!==pair[1])count++;pair[1]=v;}
@@ -144,8 +151,8 @@ function drawTimeline(){
  $('timeline-content').innerHTML=`<div class="state-editor"><div class="state-node">${esc(stateId)}</div>${icon('link')}${t?`<select id="transition" aria-label="Transition">${transitions.map((t,i)=>`<option value="${i}" ${i===transitionIndex?'selected':''}>${esc(t.to)}</option>`).join('')}</select><span class="caption" id="condition">${esc(t.when.input)} = ${esc(t.when.equals)}</span><label>Blend <input id="blend" aria-label="Transition blend seconds" type="number" min="0" max="2" step=".05" value="${t.duration}"> s</label>`:'<span class="note">No outgoing transitions.</span>'}<span id="active-state" class="caption"></span></div>`;
  if(t){$('transition').onchange=e=>{transitionIndex=+e.target.value;drawTimeline();};$('blend').onchange=e=>transact([set(['packs',actor().pack,'states',stateId,'transitions',transitionIndex,'duration'],Number(e.target.value))]);}
  }else{
- const track=c.tracks[joint+'.rotation']||[];
- $('timeline-content').innerHTML=`<div class="timeline-body"><div class="track-label">${title(joint)}<small>Rotation · degrees</small></div><div class="track-area"><div class="ruler">${[0,.25,.5,.75,1].map(t=>`<span>${(t*c.duration).toFixed(2)} s</span>`).join('')}</div><div class="key-lane">${track.map(([t,v])=>`<button class="key ${Math.abs(t-previewTime)<.011?'selected':''}" data-time="${t}" style="left:${t/c.duration*100}%" title="${t}s · ${v}°" aria-label="Key at ${t} seconds, ${v} degrees"></button>`).join('')}<i id="playhead" style="left:${previewTime/c.duration*100}%"></i></div><input id="scrub" class="scrubber" type="range" aria-label="Timeline position" min="0" max="${c.duration}" step=".01" value="${previewTime}"></div><label class="key-time">Time<input id="key-time" type="number" min="0" max="${c.duration}" step=".01" value="${previewTime.toFixed(2)}" aria-label="Playhead time seconds"></label></div>`;
+ const track=c.tracks[joint+'.'+channel()]||[];
+ $('timeline-content').innerHTML=`<div class="timeline-body"><div class="track-label">${title(joint)}<small>${title(channel())} · ${channel()==='z'?'scene units':channel()==='bend'?'0 to 1':'degrees'}</small></div><div class="track-area"><div class="ruler">${[0,.25,.5,.75,1].map(t=>`<span>${(t*c.duration).toFixed(2)} s</span>`).join('')}</div><div class="key-lane">${track.map(([t,v])=>`<button class="key ${Math.abs(t-previewTime)<.011?'selected':''}" data-time="${t}" style="left:${t/c.duration*100}%" title="${t}s · ${v} ${channel()==='bend'?'':channel()==='z'?'layer units':'degrees'}" aria-label="Key at ${t} seconds, ${v} ${channel()}"></button>`).join('')}<i id="playhead" style="left:${previewTime/c.duration*100}%"></i></div><input id="scrub" class="scrubber" type="range" aria-label="Timeline position" min="0" max="${c.duration}" step=".01" value="${previewTime}"></div><label class="key-time">Time<input id="key-time" type="number" min="0" max="${c.duration}" step=".01" value="${previewTime.toFixed(2)}" aria-label="Playhead time seconds"></label></div>`;
  $('scrub').oninput=e=>seek(+e.target.value);$('key-time').onchange=e=>seek(+e.target.value);
  $('timeline-content').querySelectorAll('[data-time]').forEach(b=>b.onclick=()=>seek(+b.dataset.time));
  }
@@ -155,14 +162,14 @@ function seek(time){if(!Number.isFinite(time))return;previewTime=clamp(time,0,pa
 function updateTime(){const duration=pack()?.clips[clip]?.duration||0;$('play').innerHTML=icon(playing?'pause':'play_arrow');$('play').setAttribute('aria-label',playing?'Pause animation':'Play animation');$('play').title=playing?'Pause animation':'Play animation';$('time').textContent=`${previewTime.toFixed(2)} / ${duration.toFixed(2)} s`;if($('scrub'))$('scrub').value=previewTime;if($('playhead'))$('playhead').style.left=`${duration?previewTime/duration*100:0}%`;if($('key-time')&&document.activeElement!==$('key-time'))$('key-time').value=previewTime.toFixed(2);}
 function addKey(){
  const p=pack(),c=p?.clips[clip];if(!c)return;
- const tracks=structuredClone(c.tracks),values={...overrides,[joint+'.rotation']:baseValue()};
+ const tracks=structuredClone(c.tracks),values={...overrides,[joint+'.'+channel()]:baseValue()};
  for(const [name,value] of Object.entries(values)){
-  const spec=p.joints.find(j=>name===j.id+'.rotation');
+  const spec=spatialChannels[name.split('.')[1]]||p.joints.find(j=>name===j.id+'.rotation');
   tracks[name]=[...(tracks[name]||[]).filter(([t])=>Math.abs(t-previewTime)>.001),[Number(previewTime.toFixed(3)),clamp(value,spec.min,spec.max),$('easing').value]].sort((a,b)=>a[0]-b[0]);
  }
  overrides={};transact([set(['packs',actor().pack,'clips',clip,'tracks'],tracks)],Object.keys(values).length>1?'Keyframes saved for all posed joints.':'Keyframe saved.');
 }
-function removeKey(){if(!pack())return;const tracks=structuredClone(pack().clips[clip].tracks),name=joint+'.rotation';const keys=(tracks[name]||[]).filter(([t])=>Math.abs(t-previewTime)>.011);if(keys.length)tracks[name]=keys;else delete tracks[name];overrides={};transact([set(['packs',actor().pack,'clips',clip,'tracks'],tracks)]);}
+function removeKey(){if(!pack())return;const tracks=structuredClone(pack().clips[clip].tracks),name=joint+'.'+channel();const keys=(tracks[name]||[]).filter(([t])=>Math.abs(t-previewTime)>.011);if(keys.length)tracks[name]=keys;else delete tracks[name];overrides={};transact([set(['packs',actor().pack,'clips',clip,'tracks'],tracks)]);}
 function addActor(id,duplicate=false){selectedProp=null;const source=library[id];if(!source&&!duplicate)return;const a=duplicate?structuredClone(actor()):structuredClone(source.actors[0]);const packId=duplicate?a.pack:id;const commands=[];if(!store.document.packs[packId])commands.push(set(['packs',packId],structuredClone(source.packs[id])));a.id=`${packId}-${Date.now().toString(36)}`;if(duplicate)a.name=(a.name+' copy').slice(0,100);a.transform.x=clamp(a.transform.x+(store.document.actors.length%2?90:-90),80,store.document.bounds.width-80);selected=a.id;joint=packId==='rusty'?'head':'head';clip='idle';previewTime=0;overrides={};commands.push(set(['actors'],[...store.document.actors,a]));transact(commands);}
 function download(name,content,type='application/json'){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function reset(){offset={x:0,y:0};scenario=null;drag=null;$('stage').style.transform='';previewTime=0;overrides={};playing=false;rebuild();}
@@ -209,7 +216,7 @@ $('stage').onpointerdown=e=>{
  const propHit=e.target.closest('[data-prop]');if(!dragMode&&propHit){selectProp(propHit.dataset.prop);const p=scenePoint(e.clientX,e.clientY);drag={type:'prop',start:p,origin:{x:prop().x,y:prop().y},next:null};$('stage').setPointerCapture(e.pointerId);return;}
  const hit=e.target.closest('[data-joint],[data-bone]'),a=e.target.closest('[data-actor]');
  if(!dragMode&&hit&&a&&behaviorConfig(store.document.actors.find(v=>v.id===a.dataset.actor)?.behavior).mode!=='animated'){selectedProp=null;selected=a.dataset.actor;inspector='feel';drawHierarchy();drawInspector();mount();runInteraction('tap');drag=null;return;}
- if(!dragMode&&hit&&a){const id=hit.dataset.joint||hit.dataset.bone;selectJoint(a.dataset.actor,id);playing=false;const w=frame().actors.find(a=>a.id===selected).world[id],p=localPoint(selected,e.clientX,e.clientY);drag={type:'pose',x:e.clientX,y:e.clientY,pivot:w,angle:Math.atan2(p.y-w.y,p.x-w.x),rotation:baseValue()};}
+ if(!dragMode&&hit&&a){const id=hit.dataset.joint||hit.dataset.bone;selectJoint(a.dataset.actor,id);playing=false;if(pack().spatial){toast('Use the pose channel slider for this depth rig.');return;}const w=frame().actors.find(a=>a.id===selected).world[id],p=localPoint(selected,e.clientX,e.clientY);drag={type:'pose',x:e.clientX,y:e.clientY,pivot:w,angle:Math.atan2(p.y-w.y,p.x-w.x),rotation:baseValue()};}
  else drag={type:'card',x:e.clientX,y:e.clientY,origin:{...offset}};
  $('stage').setPointerCapture(e.pointerId);
 };
@@ -226,7 +233,7 @@ function tick(now){const dt=last===null||document.hidden?0:Math.min((now-last)/1
  if(scenario){const t=(now-scenario.start)/1000;offset={x:scenario.origin.x+Math.sin(Math.min(t/.9,1)*Math.PI*2)*95,y:scenario.origin.y-Math.sin(Math.min(t/.9,1)*Math.PI)*25};$('stage').style.transform=`translate(${offset.x}px,${offset.y}px)`;if(t>.9)scenario=null;}
  controller.animationPlaying=tab==='timeline'||playing;controller.sampleHost({...offset,time:now/1000});controller.step(drag?.type==='prop'?0:dt);
  if(playing&&!reduced()&&pack()){if(tab==='timeline')previewTime=(previewTime+dt)%pack().clips[clip].duration;else{const r=selectedRuntime();previewTime=r.runtime.layers[0].time%pack().clips[pack().states[r.runtime.layers[0].state].clip].duration;}}
- renderer.update(frame());updateTime();if(playing&&$('rotation')&&document.activeElement!==$('rotation-number')){$('rotation').value=baseValue();$('rotation-number').value=Math.round(baseValue()*10)/10;}
+ renderer.update(frame());updateTime();if(playing&&$('rotation')&&document.activeElement!==$('rotation-number')){$('rotation').value=baseValue();$('rotation-number').value=Math.round(baseValue()*(channel()==='bend'?100:10))/(channel()==='bend'?100:10);}
  const s=selectedRuntime()?.spring;
  $('status').textContent=`${store.document.actors.length} character${store.document.actors.length===1?'':'s'} · ${controller.stats?'Worker '+controller.stats.computeMs.toFixed(1)+' ms':'Main thread'} · ${title(joint)} · ${title(selectedRuntime()?.response.state||'calm')}${Object.keys(overrides).length?' · Unsaved pose, add a key':''}`;
  $('motion-status').textContent=reduced()?'Still preview · motion disabled':`Lean ${Math.abs(s?.x||0).toFixed(1)}° · ${drag?.type==='card'?'Dragging':'Motion on'}`;

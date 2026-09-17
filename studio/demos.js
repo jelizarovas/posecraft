@@ -38,7 +38,7 @@ function fail(message){playing=false;$('demo-status').textContent='Could not pla
 function show(f){
  frame=f;const episode=documentData.kind==='episode',scene=episode?documentData.scenes[f.scene]:documentData;
  if(!renderer||renderedScene!==scene.id){renderer?.dispose();renderer=mountSVG($('demo-art'),scene,f,{physicsDebug:debug,colliders:debug});renderedScene=scene.id;}else renderer.update(f);
- $('demo-caption').textContent=episode?documentData.shots[f.shotIndex].name: selected.id==='shake-and-settle'?f.actors.map(a=>documentData.actors.find(v=>v.id===a.id).name+': '+(a.recovery?.phase||a.response).replaceAll('-',' ')).join(' · '):selected.id==='drop-lab'?'Loose · Protect head · Brace':selected.id==='zero-gravity'?'Drag to move the container':'One cast, four different performances';
+ $('demo-caption').textContent=episode?documentData.shots[f.shotIndex].name: selected.id==='turn-and-pose'?'Ona · Dummy / projected faces, depth order and authored shapes':selected.id==='shake-and-settle'?f.actors.map(a=>documentData.actors.find(v=>v.id===a.id).name+': '+(a.recovery?.phase||a.response).replaceAll('-',' ')).join(' · '):selected.id==='drop-lab'?'Loose · Protect head · Brace':selected.id==='zero-gravity'?'Drag to move the container':'One cast, four different performances';
  if(episode){document.querySelectorAll('[data-shot]').forEach(b=>b.classList.toggle('active',b.dataset.shot===f.shot));$('demo-status').textContent=scene.name+' · '+scene.actors.length+' characters';}transport();
 }
 function send(){if(!ready||inFlight||pending===null)return;inFlight=true;worker.postMessage({type:'frame',time:pending});pending=null;}
@@ -50,7 +50,13 @@ function drawControls(){
  $('demo-controls').innerHTML=`<label>Cast<select id="demo-target"><option value="all">Everyone</option></select></label><div id="demo-actions" class="demo-actions"></div>`;
  for(const a of documentData.actors){const option=document.createElement('option');option.value=a.id;option.textContent=a.name;$('demo-target').append(option);}
  const action=(id,label,fn)=>{const b=document.createElement('button');b.id=id;b.textContent=label;b.onclick=()=>{resume();fn();};$('demo-actions').append(b);};
- if(selected.id==='shake-and-settle'){
+ if(selected.id==='turn-and-pose'){
+  const play=clip=>{for(const a of targets()){controller.clearPreview(a.id);controller.setInput(a.id,'action',clip);}for(const input of document.querySelectorAll('[data-spatial-control]')){input.value=0;input.nextElementSibling.value='0';}};
+  action('study-turn','Turnaround',()=>play('turnaround'));action('study-glance','Look around',()=>play('glance'));action('study-reach','Reach & hide',()=>play('reach-depth'));action('study-jump','Tuck jump',()=>play('tuck-jump'));
+  const controls=document.createElement('div');controls.className='spatial-controls';controls.innerHTML=[['body','Body turn',-180,180],['head','Head turn',-90,90],['depth','Arm depth',-40,40],['shape','Shape / tuck',0,100]].map(([id,label,min,max])=>`<label>${label}<input data-spatial-control="${id}" aria-label="${label}" type="range" min="${min}" max="${max}" value="0"><output>0</output></label>`).join('');$('demo-controls').append(controls);
+  const preview=()=>{playing=false;controller.pause();for(const a of targets()){const get=id=>+document.querySelector(`[data-spatial-control="${id}"]`).value,arm=a.pack==='ona'?'rightArm':'rightUpper',values={'root.yaw':get('body'),'head.yaw':get('head'),[arm+'.z']:get('depth')};if(a.pack==='ona')values['rightArm.bend']=get('shape')/100;else{values['rightThigh.yaw']=-get('shape');values['rightCalf.yaw']=get('shape')*1.3;}controller.previewClip(a.id,'idle',0,values);}transport();};
+  controls.querySelectorAll('input').forEach(input=>input.oninput=()=>{input.nextElementSibling.value=input.value;preview();});$('demo-target').onchange=preview;
+ }else if(selected.id==='shake-and-settle'){
   action('shake-scene','Shake scene',()=>{shakeStart=performance.now();for(const a of targets())controller.interact(a.id,'toss',.7);});
   const b=document.createElement('button');b.id='phone-motion';b.onclick=()=>{if(phone.enabled){stopMotion();controller.setAcceleration(0,0);$('demo-status').textContent='Phone motion off.';}else{resume();phone.enable().then(phoneButton);}};$('demo-actions').append(b);phoneButton();
   action('wander-cast','Walk around',()=>{wander=!wander;nextWalk=0;$('wander-cast').classList.toggle('active',wander);$('wander-cast').setAttribute('aria-pressed',String(wander));});

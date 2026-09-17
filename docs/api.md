@@ -109,3 +109,5 @@ Set `props` through the existing transaction API. Add `prop-colliders` to `requi
 For webcam acting and saved animation takes, see [capture](capture.md) and `posecraft/performance`. `ShotActor.expressions` stores held `[shotSeconds, emotion]` keys. Director's vision worker and camera controls are opt-in and separate from the embeddable scene runtime.
 
 For opt-in get-up, return-to-mark walking, `walkTo(actorId, sceneX)`, recovery diagnostics and the phone-motion adapter, see [assisted recovery](reactions.md#assisted-get-up-and-walking).
+
+Opt-in `pack.spatial: true` enables keyable yaw/pitch, layer depth and shape controls. Part metadata defines curved facial surfaces, visibility, clipping and compatible vector morphs. See [spatial rigs](spatial.md). Original packs retain their existing 2D behavior.

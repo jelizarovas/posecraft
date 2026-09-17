@@ -1,4 +1,5 @@
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+import {spatialChannels} from './spatial.js';
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -47,6 +48,7 @@ function validateStructure(doc) {
       check(['x', 'y', 'rotation', 'min', 'max', 'length'].every(k => finite(j[k])) && j.length >= 0 && j.min <= j.rotation && j.rotation <= j.max && j.min >= -180 && j.max <= 180, `${p}.joints.${j.id}`, 'Invalid rest transform or joint limits.');
       joints.add(j.id);
     }
+    if(pack.spatial!==undefined)check(typeof pack.spatial==='boolean',p+'.spatial','Expected boolean.');
     const partIds = new Set();
     for (const part of pack.parts) {
       if (!record(part)) { check(false, `${p}.parts`, 'Expected part.'); continue; }
@@ -68,6 +70,19 @@ function validateStructure(doc) {
           if (variant.visible !== undefined) check(typeof variant.visible === 'boolean', `${p}.parts.${part.id}.variants.${name}.visible`, 'Expected boolean.');
         }
       }
+      if(part.spatial){
+        const v=part.spatial,q=`${p}.parts.${part.id}.spatial`;
+        check(pack.spatial===true&&record(v),q,'Spatial parts require a spatial rig.');
+        for(const key of ['depth','order'])if(v[key]!==undefined)check(finite(v[key],-500,500),q,'Invalid depth.');
+        if(v.thickness!==undefined)check(finite(v.thickness,.05,1)&&['x','y'].includes(v.axis),q,'Invalid volume thickness.');
+        if(v.center!==undefined)check(Array.isArray(v.center)&&v.center.length===2&&v.center.every(n=>finite(n,-1000,1000)),q,'Invalid part center.');
+        if(v.facing!==undefined)check(['front','back'].includes(v.facing),q,'Invalid facing.');
+        if(v.surface!==undefined)check(record(v.surface)&&finite(v.surface.x,-500,500)&&finite(v.surface.width,1,500)&&finite(v.surface.depth,1,500)&&Math.abs(v.surface.x)<v.surface.width,q,'Invalid curved surface.');
+        if(v.mask!==undefined)check(pack.parts.some(p=>p.id===v.mask)&&v.mask!==part.id,q,'Missing mask part.');
+        if(v.morph){const number=/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g,target=v.morph.target;
+          check(typeof target==='string'&&target.length<=200000&&/^[MmZzLlHhVvCcSsQqTtEe0-9.,+\s-]+$/.test(target)&&target.replace(number,'#')===part.d.replace(number,'#')&&(target.match(number)||[]).length>0&&[...(target.match(number)||[]),...(part.d.match(number)||[])].every(n=>Number.isFinite(Number(n)))&&joints.has(v.morph.channel?.split('.')[0])&&v.morph.channel===v.morph.channel?.split('.')[0]+'.bend',q,'Morph paths must have matching commands and coordinates; use a joint bend channel.');
+        }
+      }
       if (part.showWhen) check(Object.hasOwn(pack.inputs, part.showWhen.input) && typeof part.showWhen.equals === pack.inputs[part.showWhen.input].type, `${p}.parts.${part.id}.showWhen`, 'Invalid visibility condition.');
     }
     for (const [id, input] of Object.entries(pack.inputs)) {
@@ -81,9 +96,9 @@ function validateStructure(doc) {
       check(safeId.test(id) && finite(clip.duration, .1, 60) && typeof clip.loop === 'boolean', `${p}.clips.${id}`, 'Invalid clip duration or loop.');
       for (const [key, track] of Object.entries(clip.tracks)) {
         const [joint, property] = key.split('.');
-        check(joints.has(joint) && ['rotation', 'x', 'y'].includes(property) && key === `${joint}.${property}`, `${p}.clips.${id}.${key}`, 'Unknown animation channel.');
-        const spec = pack.joints.find(j => j.id === joint);
-        check(Array.isArray(track) && track.length > 0 && track.length <= 1000 && track.every((pair, i) => Array.isArray(pair) && (pair.length === 2 || pair.length === 3) && finite(pair[0], 0, clip.duration) && finite(pair[1], property === 'rotation' ? spec?.min : -1000, property === 'rotation' ? spec?.max : 1000) && (!i || pair[0] > track[i-1][0]) && (pair[2] === undefined || ['linear', 'smooth', 'step'].includes(pair[2]))), `${p}.clips.${id}.${key}`, 'Keys must be ordered, finite, in bounds, and use supported easing.');
+        check(joints.has(joint) && (['rotation', 'x', 'y'].includes(property)||pack.spatial&&Object.hasOwn(spatialChannels,property)) && key === `${joint}.${property}`, `${p}.clips.${id}.${key}`, 'Unknown animation channel.');
+        const spec = pack.joints.find(j => j.id === joint),range=pack.spatial&&spatialChannels[property];
+        check(Array.isArray(track) && track.length > 0 && track.length <= 1000 && track.every((pair, i) => Array.isArray(pair) && (pair.length === 2 || pair.length === 3) && finite(pair[0], 0, clip.duration) && finite(pair[1], property === 'rotation' ? spec?.min : range?.min??-1000, property === 'rotation' ? spec?.max : range?.max??1000) && (!i || pair[0] > track[i-1][0]) && (pair[2] === undefined || ['linear', 'smooth', 'step'].includes(pair[2]))), `${p}.clips.${id}.${key}`, 'Keys must be ordered, finite, in bounds, and use supported easing.');
       }
     }
     check(Object.hasOwn(pack.states, pack.initial), `${p}.initial`, 'Missing initial state.');

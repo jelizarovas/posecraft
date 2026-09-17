@@ -44,3 +44,6 @@ import {PhoneMotion,MotionSignal} from "posecraft/device-motion";
 const phone=new PhoneMotion({onStatus:message=>console.log(message)});
 phone.signal.sample(performance.now()).ax;
 new MotionSignal().update({acceleration:{x:1,y:0}},0);
+
+scene.packs[scene.actors[0].pack].spatial=true;
+scene.packs[scene.actors[0].pack].parts[0].spatial={thickness:.7,axis:"x",facing:"front",surface:{x:-10,width:30,depth:20}};

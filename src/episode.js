@@ -1,3 +1,4 @@
+import {poseDefaults,spatialChannels} from './spatial.js';
 import {assertDocument} from './schema.js';
 import {sampleClip,interpolate,constrainPose,forwardKinematics} from './index.js';
 export const episodeCapabilities=Object.freeze({schemaVersion:1,kind:'episode',features:['reusable-scenes','ordered-shots','keyed-camera','actor-placement','pose-keys','seeded-motion','rotation-baking','local-reference-frames','expression-keys','performance-takes'],unavailable:['automatic-asset-extraction','motion-fitting','dialogue-tracks','movie-encoding','physics-baking']});
@@ -31,7 +32,7 @@ export function assertEpisode(project){
    if(cue.emotion!==undefined)require(pack.inputs.emotion?.options.includes(cue.emotion),'Unknown expression.');
    if(cue.expressions!==undefined)require(Array.isArray(cue.expressions)&&cue.expressions.length>0&&cue.expressions.length<=2000&&cue.expressions.every((k,i)=>Array.isArray(k)&&k.length===2&&finite(k[0],0,shot.duration)&&(!i||k[0]>cue.expressions[i-1][0])&&pack.inputs.emotion?.options.includes(k[1])),'Invalid expression keys.');
    if(cue.placement)for(const [key,keys] of Object.entries(cue.placement)){require(['x','y','scale','rotation'].includes(key),'Unknown placement channel.');track(keys,key==='scale'?.05:key==='rotation'?-180:-10000,key==='scale'?10:key==='rotation'?180:10000);}
-   if(cue.pose)for(const [channel,keys] of Object.entries(cue.pose)){const joint=pack.joints.find(j=>channel===j.id+'.rotation');require(joint,'Unknown pose channel.');track(keys,joint.min,joint.max);}
+   if(cue.pose)for(const [channel,keys] of Object.entries(cue.pose)){const [id,property]=channel.split('.'),joint=pack.joints.find(j=>j.id===id),range=pack.spatial&&spatialChannels[property];require(joint&&(property==='rotation'||range),'Unknown pose channel.');track(keys,range?.min??joint.min,range?.max??joint.max);}
    if(cue.motion){const m=cue.motion;require(object(m)&&['sway','noise'].includes(m.kind)&&pack.joints.some(j=>j.id===m.joint)&&['rotation','x','y'].includes(m.channel)&&finite(m.amplitude,0,180)&&finite(m.frequency,.01,10)&&Number.isSafeInteger(m.seed)&&m.seed>=0&&m.seed<=2147483647,'Invalid procedural motion.');}
   }
   if(shot.reference)require(object(shot.reference)&&validId(shot.reference.id)&&typeof shot.reference.name==='string'&&shot.reference.name.length<=200&&finite(shot.reference.time,0,86400),'Invalid reference metadata.');
@@ -45,7 +46,7 @@ export function shotAt(project,time){
 const hash=(seed,n)=>{let x=(seed^Math.imul(n,374761393))|0;x=Math.imul(x^(x>>>13),1274126177);return ((x^(x>>>16))>>>0)/4294967295*2-1;};
 export function motionValue(m,time){const t=time*m.frequency;if(m.kind==='sway')return Math.sin(t*Math.PI*2+hash(m.seed,0)*Math.PI)*m.amplitude;const n=Math.floor(t),f=t-n,s=f*f*(3-2*f);return (hash(m.seed,n)*(1-s)+hash(m.seed,n+1)*s)*m.amplitude;}
 export class EpisodeController {
- constructor(project){this.project=structuredClone(assertEpisode(project));this.defaults=new Map();for(const [id,scene] of Object.entries(project.scenes))for(const [key,pack] of Object.entries(scene.packs))this.defaults.set(id+':'+key,Object.fromEntries(pack.joints.flatMap(j=>[[j.id+'.rotation',j.rotation],[j.id+'.x',0],[j.id+'.y',0]])));}
+ constructor(project){this.project=structuredClone(assertEpisode(project));this.defaults=new Map();for(const [id,scene] of Object.entries(project.scenes))for(const [key,pack] of Object.entries(scene.packs))this.defaults.set(id+':'+key,poseDefaults(pack));}
  frame(time){
   const located=shotAt(this.project,time),{shot}=located,scene=this.project.scenes[shot.scene],local=located.time;
   const camera={...this.project.size,...Object.fromEntries(Object.entries(shot.camera).map(([key,track])=>[key,interpolate(track,local)]))};

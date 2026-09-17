@@ -1,11 +1,12 @@
 import { AnimationController, clamp, forwardKinematics, constrainPose, sampleClip } from './index.js';
 import { assertDocument } from './schema.js';
+import {poseDefaults,spatialChannels} from './spatial.js';
 import {RecoveryMotion} from './recovery.js';
 import { PhysicalCharacter, behaviorConfig, behaviorModes } from './physics.js';
 export const STEP = 1 / 120;
 
 export function compilePack(pack) {
-  const defaults = Object.fromEntries(pack.joints.flatMap(j => [[`${j.id}.rotation`, j.rotation], [`${j.id}.x`, 0], [`${j.id}.y`, 0]]));
+  const defaults = poseDefaults(pack);
   const states = Object.fromEntries(Object.entries(pack.states).map(([id, state]) => [id, { clip: state.clip, transitions: (state.transitions || []).map(t => ({ to: t.to, duration: t.duration, when: inputs => inputs[t.when.input] === t.when.equals })) }]));
   return { joints: pack.joints, defaults, inputs: pack.inputs, clips: pack.clips, layers: [{ name: 'action', mode: 'override', weight: 1, initial: pack.initial, mask: Object.keys(defaults), neutral: defaults, states }] };
 }
@@ -67,7 +68,7 @@ export class SceneController {
   previewClip(actorId, clip, time, overrides = {}) {
     const a = this.actors.find(a => a.actor.id === actorId);
     if (!a || !a.pack.clips[clip] || !Number.isFinite(time) || time < 0 || time > a.pack.clips[clip].duration) throw new Error('Invalid clip preview.');
-    for (const [key, value] of Object.entries(overrides)) if (!Object.hasOwn(a.runtime.definition.defaults, key) || !Number.isFinite(value)) throw new Error('Invalid pose override.');
+    for (const [key, value] of Object.entries(overrides)) if (!Object.hasOwn(a.runtime.definition.defaults, key) || !Number.isFinite(value)||(spatialChannels[key.split('.')[1]]&&(value<spatialChannels[key.split('.')[1]].min||value>spatialChannels[key.split('.')[1]].max))) throw new Error('Invalid pose override.');
     a.preview = { clip, time, overrides: { ...overrides } };
     return this.frame();
   }

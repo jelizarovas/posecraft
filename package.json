@@ -70,7 +70,8 @@
     "docs/performance.md",
     "docs/director.md",
     "docs/capture.md",
-    "docs/demos.md"
+    "docs/demos.md",
+    "docs/spatial.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -86,7 +87,8 @@
     "test:capture": "node test/capture-browser.mjs",
     "test:vision": "node test/vision-browser.mjs",
     "test:demos": "node test/demos-browser.mjs",
-    "test:motion": "node test/motion-browser.mjs"
+    "test:motion": "node test/motion-browser.mjs",
+    "test:spatial": "node test/spatial-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

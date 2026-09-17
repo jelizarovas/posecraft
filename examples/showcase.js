@@ -1,3 +1,4 @@
+import {addSpatialRig} from './spatial-rigs.js';
 import {standingTarget} from '../src/recovery.js';
 import ona from './characters/ona.json' with {type:'json'};
 import wwwzard from './characters/wwwzard.json' with {type:'json'};
@@ -5,6 +6,7 @@ import rusty from './characters/rusty.json' with {type:'json'};
 import dummy from './characters/dummy.json' with {type:'json'};
 const library={ona,wwwzard,rusty,dummy};
 export const demoCatalog=[
+ {id:'turn-and-pose',title:'Turn & pose',category:'2.5D character study',description:'Turn the head and body, reach in front or behind, and bring a knee toward the camera.',features:['Depth & overlap','Shape morphs','Keyable turns'],instruction:'Play an acting study, or pause with the sliders. Open in Studio to key Yaw, Pitch, Depth and Shape on a selected joint.',color:'#e5ddd2',kind:'scene'},
  {id:'shake-and-settle',title:'Shake & settle',category:'Phone motion & recovery',description:'Shake or turn your phone to tumble the cast. They get up and walk back to their marks.',features:['Phone sensors','Assisted get-up','Walk & return'],instruction:'Enable phone motion, or use Shake scene. Stop moving to let the cast recover. Select a character and tap the stage to walk somewhere.',color:'#d4e4df',kind:'scene'},
  {id:'www-after-hours',title:'WWW after hours',category:'Short cartoon',description:'A late night at the studio. wwwzard takes a break, Ona has an idea, and Rusty wants attention.',features:['3 characters','3 camera shots','Expression timing'],instruction:'Play the scene, or scrub through the camera cuts. Open it in Director to change the performance.',color:'#dce6ee',kind:'episode'},
  {id:'neon-rehearsal',title:'Neon rehearsal',category:'Choreography',description:'Four performers, staggered actions and a moving camera on a neon stage.',features:['4 characters','2 sets','Staggered actions'],instruction:'A silent staging demo for a future music video. Try the different shots, then edit the timing in Director.',color:'#dfd0ed',kind:'episode'},
@@ -23,6 +25,11 @@ const shot=(id,name,set,actors,duration=4,view=camera())=>({id,name,scene:set,du
 const episode=(id,name,scenes,shots)=>({schemaVersion:1,kind:'episode',id,name,revision:0,fps:24,size:{width:1280,height:720},scenes,shots});
 const parkProps=()=>[rect('sky',400,200,800,500,'#d8e9e5'),rect('grass',400,425,800,110,'#a8c38c'),rect('path',400,415,800,32,'#ded1ac'),rect('tree-trunk',110,230,26,280,'#9b795f'),rect('tree-crown',100,104,165,155,'#89ae83',false,8),rect('tree-leaves',137,114,112,108,'#a1be90',false,30),rect('bench-seat',605,331,225,15,'#ac8c68'),rect('bench-back',605,287,225,60,'#bf9e76'),rect('bench-leg-a',520,368,14,60,'#897662'),rect('bench-leg-b',690,368,14,60,'#897662')];
 export function createDemo(id){
+ if(id==='turn-and-pose'){
+  const doc=scene(id,'Turn & pose',[actor('ona','ona',250,285,1.8),actor('dummy','dummy',565,235,1.6)],[rect('backdrop',400,225,800,450,'#f1ece3'),rect('ground',400,395,800,110,'#dfd6c7')]);
+  for(const a of doc.actors){addSpatialRig(doc.packs[a.pack],a.pack);a.inputs={...a.inputs,action:'turnaround'};a.behavior={mode:'animated',autoFace:false};}doc.requiredFeatures=['spatial-rig'];return doc;
+ }
+
  if(id==='shake-and-settle'){
   const actors=[actor('wwwzard','wwwzard',170,300,.65),actor('ona','ona',400,340,1.4),actor('dummy','dummy',635,320,1.15)];
   const doc=scene(id,'Shake & settle',actors,[rect('wall',400,225,800,450,'#e3e9e4'),rect('window-a',210,110,190,120,'#abc6c9'),rect('window-b',590,110,190,120,'#abc6c9'),rect('floor',400,430,800,40,'#acb6a5',true),...actors.map((a,i)=>rect('mark-'+i,a.transform.x,406,90,5,'#867598'))]);

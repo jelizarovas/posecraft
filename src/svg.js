@@ -1,6 +1,9 @@
+import {spatialParts} from './spatial.js';
+let spatialInstance=0;
 import { assertDocument } from './schema.js';
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]);
 const transform = w => `translate(${w.x} ${w.y}) rotate(${w.rotation})`;
+const spatialBone=j=>`matrix(${j.m[0]} ${j.m[3]} ${j.m[1]} ${j.m[4]} ${j.x} ${j.y})`;
 const placement = t => `${transform(t)} scale(${t.scale})`;
 function cameraTransform(c,bounds){
  if(![c.x,c.y,c.rotation,c.zoom,c.width,c.height].every(Number.isFinite)||c.zoom<=0||c.width<=0||c.height<=0)throw new Error('Invalid camera.');
@@ -22,14 +25,18 @@ function physicsOverlay(frame){return frame.actors.filter(a=>a.physics).map(a=>{
 }).join('');}
 export function renderSVG(document, frame, { label = document.name, bones = false, limits = false, selectedActor, selectedJoint,physicsDebug=false,colliders=false,selectedProp,camera=frame.camera } = {}) {
   assertDocument(document);
+  const prefix='pc-view-'+(++spatialInstance);
   const props=(document.props||[]).map(p=>{const c=p.collider;return `<g data-prop="${p.id}" transform="${transform(p)}"><title>${escape(p.name)}</title><rect x="${-p.width/2}" y="${-p.height/2}" width="${p.width}" height="${p.height}" rx="3" fill="${escape(p.fill)}" stroke="${p.id===selectedProp?'#7351bd':'#797481'}" stroke-width="${p.id===selectedProp?2:1}"/>${colliders||physicsDebug||p.id===selectedProp?`<rect data-collider="${p.id}" x="${c.x-c.width/2}" y="${c.y-c.height/2}" width="${c.width}" height="${c.height}" fill="none" stroke="${c.enabled?'#df7951':'#999999'}" stroke-width="1.5" stroke-dasharray="5 3" pointer-events="none"/>`:''}</g>`;}).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${camera?.width||document.bounds.width} ${camera?.height||document.bounds.height}" role="img" aria-label="${escape(label)}" width="100%" height="100%">${camera?`<g data-camera="" transform="${cameraTransform(camera,document.bounds)}">`:''}${props}${document.actors.map(actor => {
     const pack = document.packs[actor.pack], evaluated = frame.actors.find(a => a.id === actor.id);
     if (!evaluated) throw new Error(`Missing evaluated actor ${actor.id}`);
-    return `<g data-actor="${actor.id}" data-response="${escape(evaluated.response||'calm')}" data-emotion="${escape(evaluated.inputs?.emotion||'neutral')}" transform="${placement(evaluated.placement||actor.transform)}">${pack.parts.map(part => {
-      const paint = appearance(part,actor,evaluated);
-      return `<g data-joint="${part.joint}" data-selected="${actor.id===selectedActor && part.joint===selectedJoint}" transform="${transform(evaluated.world[part.joint])}"><path data-part="${part.id}" d="${escape(paint.d)}" fill="${escape(paint.fill)}" stroke="${escape(part.stroke || 'none')}" stroke-width="${part.strokeWidth || 0}" stroke-linejoin="round" stroke-linecap="round" transform="${escape(paint.transform)}" visibility="${paint.visible?'visible':'hidden'}"/></g>`;
-    }).join('')}${bones ? pack.joints.map(j => `<g data-bone="${j.id}" transform="${transform(evaluated.world[j.id])}">${limits && j.id===selectedJoint && actor.id===selectedActor ? `<path data-limit="${j.id}" d="${limitArc(j,evaluated.pose[j.id+'.rotation'])}" fill="#9c71ff22" stroke="#7955be" stroke-width=".6" pointer-events="none"/>`:''}<path d="M0 0H${j.length || 12}" stroke="#7751bd" stroke-width="1.1" pointer-events="none"/><circle r="3" fill="${j.id===selectedJoint&&actor.id===selectedActor?'#7253bc':'#fff'}" stroke="#7253bc" stroke-width="1"/><circle data-handle="${j.id}" cx="${j.length || 12}" r="2.2" fill="#7253bc" stroke="#fff" stroke-width=".6"/></g>`).join('') : ''}</g>`;
+    const spatial=spatialParts(pack,evaluated),ordered=spatial?spatial.order.map(id=>pack.parts[spatial.parts.get(id).index]):pack.parts;
+    const masks=spatial?[...new Set(pack.parts.map(p=>p.spatial?.mask).filter(Boolean))]:[];
+    const definitions=masks.map(id=>{const p=pack.parts.find(p=>p.id===id),paint=appearance(p,actor,evaluated);return `<clipPath id="${prefix}-${actor.id}-${id}" clipPathUnits="userSpaceOnUse"><path data-mask-part="${id}" d="${escape(paint.d)}" transform="${spatial.parts.get(id).transform} ${escape(paint.transform)}"/></clipPath>`;}).join('');
+    return `<g data-actor="${actor.id}" data-response="${escape(evaluated.response||'calm')}" data-emotion="${escape(evaluated.inputs?.emotion||'neutral')}" transform="${placement(evaluated.placement||actor.transform)}"><defs>${definitions}</defs><g data-artwork="">${ordered.map(part => {
+      const paint = appearance(part,actor,evaluated),view=spatial?.parts.get(part.id);
+      return `<g data-slot="${part.id}" ${part.spatial?.mask?`clip-path="url(#${prefix}-${actor.id}-${part.spatial.mask})"`:''}><g data-joint="${part.joint}" data-selected="${actor.id===selectedActor && part.joint===selectedJoint}" transform="${view?.transform||transform(evaluated.world[part.joint])}"><path data-part="${part.id}" d="${escape(view?.d||paint.d)}" fill="${escape(paint.fill)}" stroke="${escape(part.stroke || 'none')}" stroke-width="${part.strokeWidth || 0}" stroke-linejoin="round" stroke-linecap="round" transform="${escape(paint.transform)}" visibility="${paint.visible&&view?.visible!==false?'visible':'hidden'}"/></g></g>`;
+    }).join('')}</g>${bones ? pack.joints.map(j => `<g data-bone="${j.id}" transform="${spatial?spatialBone(spatial.world[j.id]):transform(evaluated.world[j.id])}">${limits && j.id===selectedJoint && actor.id===selectedActor ? `<path data-limit="${j.id}" d="${limitArc(j,evaluated.pose[j.id+'.rotation'])}" fill="#9c71ff22" stroke="#7955be" stroke-width=".6" pointer-events="none"/>`:''}<path d="M0 0H${j.length || 12}" stroke="#7751bd" stroke-width="1.1" pointer-events="none"/><circle r="3" fill="${j.id===selectedJoint&&actor.id===selectedActor?'#7253bc':'#fff'}" stroke="#7253bc" stroke-width="1"/><circle data-handle="${j.id}" cx="${j.length || 12}" r="2.2" fill="#7253bc" stroke="#fff" stroke-width=".6"/></g>`).join('') : ''}</g>`;
   }).join('')}${physicsDebug?`<g data-physics-debug="" pointer-events="none">${physicsOverlay(frame)}</g>`:''}${camera?'</g>':''}</svg>`;
 }
 export function mountSVG(element, document, frame, options) {
@@ -38,19 +45,25 @@ export function mountSVG(element, document, frame, options) {
   const attribute=(node,key,value)=>{if(node.getAttribute(key)!==String(value))node.setAttribute(key,value);};
   const bindings = document.actors.map(actor => {
     const root = element.querySelector(`[data-actor="${actor.id}"]`);
-    return { actor, root, joints: [...root.querySelectorAll('[data-joint], [data-bone]')], paths: document.packs[actor.pack].parts.map(part => ({ part, node:root.querySelector(`[data-part="${part.id}"]`) })), limits:[...root.querySelectorAll('[data-limit]')] };
+    return { actor, root, artwork:root.querySelector('[data-artwork]'),slots:new Map([...root.querySelectorAll('[data-slot]')].map(node=>[node.dataset.slot,node])), joints: [...root.querySelectorAll('[data-joint], [data-bone]')], paths: document.packs[actor.pack].parts.map(part => ({ part, node:root.querySelector(`[data-part="${part.id}"]`) })), limits:[...root.querySelectorAll('[data-limit]')] };
   });
   return {
     update(next) {
       if(next===previous)return;previous=next;
       if(next.camera){const node=element.querySelector('[data-camera]');if(node)attribute(node,'transform',cameraTransform(next.camera,document.bounds));}
       for (const b of bindings) {
-        const evaluated = next.actors.find(a => a.id === b.actor.id);
+        const evaluated = next.actors.find(a => a.id === b.actor.id),pack=document.packs[b.actor.pack],spatial=spatialParts(pack,evaluated);
         if(evaluated.placement)attribute(b.root,'transform',placement(evaluated.placement));
         attribute(b.root,'data-recovery',evaluated.recovery?.phase||'none');attribute(b.root,'data-response',evaluated.response||'calm');attribute(b.root,'data-emotion',evaluated.inputs?.emotion||'neutral');attribute(b.root,'data-motion-mode',evaluated.physics?.mode||'animated');
-        for (const node of b.joints) attribute(node,'transform', transform(evaluated.world[node.dataset.joint || node.dataset.bone]));
+        for (const node of b.joints) {
+          const part=spatial?node.firstElementChild?.dataset.part:null,view=spatial?.parts.get(part);attribute(node,'transform',view?.transform||(spatial&&node.dataset.bone?spatialBone(spatial.world[node.dataset.bone]):transform(evaluated.world[node.dataset.joint || node.dataset.bone])));
+        }
+        if(spatial){
+          const order=spatial.order.join('|');if(order!==b.order){for(const id of spatial.order)b.artwork.append(b.slots.get(id));b.order=order;}
+          for(const mask of b.root.querySelectorAll('[data-mask-part]')){const part=pack.parts.find(p=>p.id===mask.dataset.maskPart);attribute(mask,'transform',spatial.parts.get(part.id).transform+' '+appearance(part,b.actor,evaluated).transform);}
+        }
         const inputKey=JSON.stringify(evaluated.inputs);
-        if(inputKey!==b.inputKey){b.inputKey=inputKey;for (const {part,node} of b.paths) if (part.variants || part.showWhen) { const paint=appearance(part,b.actor,evaluated);attribute(node,'d',paint.d);attribute(node,'transform',paint.transform);attribute(node,'visibility',paint.visible?'visible':'hidden'); }}
+        if(spatial||inputKey!==b.inputKey){b.inputKey=inputKey;for (const {part,node} of b.paths) if (spatial||part.variants || part.showWhen) { const paint=appearance(part,b.actor,evaluated),view=spatial?.parts.get(part.id);attribute(node,'d',view?.d||paint.d);attribute(node,'transform',paint.transform);attribute(node,'visibility',paint.visible&&view?.visible!==false?'visible':'hidden'); }}
         for (const node of b.limits) { const j=document.packs[b.actor.pack].joints.find(j=>j.id===node.dataset.limit);node.setAttribute('d',limitArc(j,evaluated.pose[j.id+'.rotation'])); }
       }
       const overlay=element.querySelector('[data-physics-debug]');if(overlay)overlay.innerHTML=physicsOverlay(next);
