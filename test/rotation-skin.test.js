@@ -8,7 +8,7 @@ import {lightingConfig,partLighting,surfaceRamp} from '../src/lighting.js';
 import {validateDocument} from '../src/schema.js';
 test('hair and head share projection through front, profile and back turns',()=>{
  const d=createCampfire(),c=new SceneController(d),p=d.packs['camper-3'];
- for(const yaw of [-180,-135,-91,-90,-89,-45,0,45,89,90,91,135,180])for(const pitch of [-25,0,25]){c.previewClip('camper-3','campfire',0,{'root.yaw':yaw,'head.yaw':0,'head.pitch':pitch});const f=c.frame().actors.find(a=>a.id==='camper-3'),v=spatialParts(p,f);for(const id of ['hair-back','hair-front','hair-rear-cap'])assert.deepEqual(v.parts.get(id).matrix,v.parts.get('face-0').matrix);}
+ for(const yaw of [-180,-135,-91,-90,-89,-45,0,45,89,90,91,135,180])for(const pitch of [-25,0,25]){c.previewClip('camper-3','campfire',0,{'root.yaw':yaw,'head.yaw':0,'head.pitch':pitch});const f=c.frame().actors.find(a=>a.id==='camper-3'),v=spatialParts(p,f);for(const id of ['hair-front','hair-rear-cap'])assert.deepEqual(v.parts.get(id).matrix,v.parts.get('face-0').matrix);}
  c.dispose();
 });
 test('point light behind near campers does not illuminate their visible rear surface',()=>{
@@ -27,9 +27,7 @@ test('Dummy feet face different directions and turn without moving the calves',(
  c.dispose();
 });
 
-test('opening profile turn never hides both hair coverings',()=>{
- const d=createCampfire(),c=new SceneController(d);let previous;
- for(let i=0;i<=58;i++){const f=c.seek(i*.05).actors.find(a=>a.id==='camper-2'),v=spatialParts(d.packs['camper-2'],f),front=v.parts.get('hair-front'),rear=v.parts.get('hair-rear-cap');assert.ok(front.visible||rear.visible);assert.ok(Math.abs(front.opacity+rear.opacity-1)<1e-9);if(previous!==undefined)assert.ok(Math.abs(front.opacity-previous)<.04,'Continuous opening turn');previous=front.opacity;}
- for(const facingFade of [0,2,-1]){const bad=structuredClone(d);bad.packs['camper-2'].parts.find(p=>p.id==='hair-front').spatial.facingFade=facingFade;assert.equal(validateDocument(bad).valid,false);}
+test('campfire uses a finite opaque hair contour throughout the opening turn',()=>{
+ const d=createCampfire(),c=new SceneController(d);for(let i=0;i<=30;i++){const f=c.seek(i*.1).actors.find(a=>a.id==='camper-2'),v=spatialParts(d.packs['camper-2'],f),hair=v.parts.get('camp-hair-shell');assert.equal(hair.opacity,1);assert.equal(hair.visible,true);assert.ok(hair.d.length>100);assert.doesNotMatch(hair.d,/NaN|Infinity/);assert.equal(f.pose['camp-original.opacity'],0);}
  c.dispose();
 });

@@ -61,3 +61,5 @@ A part can declare `spatial.softLimb: {elbow: "elbow-id", hand: "hand-id", radiu
 Dummy's left and right foot joints already attach to their respective calves. Their spatial artwork now retains heel/toe volume when turned, with separate outward resting angles. Select a foot to key its Yaw or Pitch without turning the calf. **Hands & feet** in the Turn & pose demo demonstrates ankle and wrist motion.
 
 `spatial.facingFade` optionally fades paired front/back coverings as they approach profile. With range `0.3`, the front covering fades as its facing value goes from 0.3 to 0, while the rear covering appears over that same interval. Both still follow the head transform. This avoids a gap where both hair coverings would be hidden. Opacity channels multiply this facing opacity.
+
+Campfire uses `spatial.hairShell: {width: 43, height: 33, depth: 31, y: -22}` for an opaque cap that follows the head in depth. The renderer clips hidden geometry and draws the boundary, without crossfading. Dimensions are bounded to 1..100 and the vertical offset to -200..200. Declare `hair-shell` when relying on it. This is a small procedural cap, not a general mesh importer.

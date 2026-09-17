@@ -1,6 +1,6 @@
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -86,6 +86,7 @@ function validateStructure(doc) {
         for(const key of ['depth','order'])if(v[key]!==undefined)check(finite(v[key],-500,500),q,'Invalid depth.');
         if(v.thickness!==undefined)check(finite(v.thickness,.05,1)&&['x','y'].includes(v.axis),q,'Invalid volume thickness.');
         if(v.center!==undefined)check(Array.isArray(v.center)&&v.center.length===2&&v.center.every(n=>finite(n,-1000,1000)),q,'Invalid part center.');
+        if(v.hairShell!==undefined)check(record(v.hairShell)&&['width','height','depth'].every(k=>finite(v.hairShell[k],1,100))&&finite(v.hairShell.y,-200,200)&&!v.softLimb&&!v.morph,q,'Invalid hair shell dimensions.');
         if(v.facingFade!==undefined)check(finite(v.facingFade,.01,1)&&['front','back'].includes(v.facing),q,'Facing fade requires a facing side and range .01..1.');
         if(v.facing!==undefined)check(['front','back'].includes(v.facing),q,'Invalid facing.');
         if(v.surface!==undefined)check(record(v.surface)&&finite(v.surface.x,-500,500)&&finite(v.surface.width,1,500)&&finite(v.surface.depth,1,500)&&Math.abs(v.surface.x)<v.surface.width,q,'Invalid curved surface.');

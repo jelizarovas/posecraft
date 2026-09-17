@@ -35,7 +35,7 @@ The scenes reuse the existing owner-provided characters. Their original provenan
 
 ## Campfire night
 
-Maple, Juniper, Ember and Clover stand around the fire at different depths and viewing angles. A seeded event controller tracks each camper's attention and roasting heat. They chat, watch the fire, stargaze and doze; missing the right cooking moment can burn a snack. A meteor's first observer points, and the others follow after a delay. Occasionally the two far-side campers share a treat. The evening continues beyond the first minute with new event times; it is not a repeated 24-second scene.
+Maple, Juniper, Ember and Clover stand around the fire at different depths and viewing angles. A seeded event controller tracks each camper's attention and roasting heat. They chat, watch the fire, stargaze and doze; missing the right cooking moment can burn a snack. A meteor's first observer briefly raises a hand, lowers it, and keeps following with their head. The others look after a delay. There is no added finger. Occasionally the two far-side campers share a treat. The evening continues beyond the first minute with new event times; it is not a repeated 24-second scene.
 
 **Conversation**, **Daydream**, **Meteor** and **Share a treat** request events immediately. **New evening** changes the seed. Reset replays the same seed, and the slider replays its first minute, including requested events. Play/pause and hiding the page pause scene time. Sharing temporarily occupies both participants; another sharing request is ignored until they finish. The request button makes sharing easy to inspect; spontaneous sharing is much less frequent.
 
@@ -56,3 +56,5 @@ The browser needs a secure page and device support. Permission is requested only
 `npm run test:motion` covers shaking, recovery, walking, sensor permission and synthetic readings, lifecycle cleanup and compact layouts. These checks do not replace testing on a physical phone.
 
 The **Turn & pose** study uses experimental copies of Ona and Dummy. Existing packs and saved scenes keep their original rendering. It has four authored clips and manual sliders; **Edit in Studio** exposes keyable pose channels. Read [the depth-rig guide](spatial.md) for the data format and current visual limits.
+
+Campfire gaze changes use a damped turn sampled between fixed simulation steps. Each eye has its own curved placement on the head. Hair is an opaque projected cap with hidden geometry clipped away; it does not use the optional front/back fade.

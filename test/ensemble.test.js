@@ -27,3 +27,10 @@ test('ensemble configuration and scene events reject invalid inputs',()=>{
 test('unobserved meteors do not invent a pointing participant',()=>{
  const e=new CampfireEnsemble(createCampfire());e.nextSocial=1e9;for(const a of e.members)a.stage=16;e.trigger('meteor');e.advance(2,new Set());assert.ok(e.recent.some(v=>v.type==='meteor'));assert.ok(!e.recent.some(v=>v.type==='point'||v.type==='follow-gaze'));assert.ok(e.recent.every(v=>v.actors.every(id=>typeof id==='string')));
 });
+
+test('one brief meteor indication lowers the hand while the head keeps following',()=>{
+ const d=createCampfire(),c=new SceneController(d);c.triggerEnsemble('meteor');const raised=c.seek(1),id=raised.ensemble.events.find(e=>e.type==='meteor').actors[0],up=actor(raised,id),down=actor(c.seek(2.3),id),later=actor(c.seek(3),id),member=c.ensemble.members.find(a=>a.id===id);assert.equal(up.activity,'pointing at meteor');const hold1=actor(c.seek(.96),id),hold2=actor(c.seek(1.08),id);for(const joint of ['take-upper','take-elbow'])assert.ok(Math.abs(hold1.pose[joint+'.rotation']-hold2.pose[joint+'.rotation'])<1e-6,'Arm indicates one fixed sighting');assert.equal(down.activity,'watching meteor');assert.equal(later.activity,'watching meteor');assert.ok(Math.hypot(up.world['take-hand'].x-down.world['take-hand'].x,up.world['take-hand'].y-down.world['take-hand'].y)>20);assert.notEqual(down.pose['head.yaw'],later.pose['head.yaw']);assert.ok(!d.packs[id].parts.some(p=>p.id==='camp-point'));c.dispose();
+});
+test('gaze eases through social and meteor changes without frame jumps',()=>{
+ const c=new SceneController(createCampfire());let before=c.frame();for(let i=0;i<720;i++){const f=c.step(1/60);for(const id of c.document.ensemble.members)for(const key of ['head.yaw','head.pitch','head.rotation'])assert.ok(Math.abs(actor(f,id).pose[key]-actor(before,id).pose[key])<6.5,`${id} ${key} at ${f.time}`);before=f;}c.dispose();
+});
