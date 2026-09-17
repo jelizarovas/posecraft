@@ -4,7 +4,7 @@ Open [Posecraft demos](https://jelizarovas.github.io/posecraft/demos.html), or c
 
 | Demo | What to try | Editable project |
 | --- | --- | --- |
-| [Campfire night](https://jelizarovas.github.io/posecraft/demos.html#campfire-night) | Four Ona looks roast, burn, blow on, eat and replace marshmallows around a flickering fire; drifting clouds and occasional meteors | Studio scene |
+| [Campfire night](https://jelizarovas.github.io/posecraft/demos.html#campfire-night) | Four friends around a flickering fire, attention-driven cooking, conversations, shared meteor reactions and occasional food handoffs | Studio scene |
 | [Light & shade](https://jelizarovas.github.io/posecraft/demos.html#light-and-shade) | Move the light, adjust highlights and reflections, compare warm/cool/flat treatments, and jump to see contact shadows fade | Studio scene |
 | [Turn & pose](https://jelizarovas.github.io/posecraft/demos.html#turn-and-pose) | Turn heads/bodies, send limbs behind the torso, blend Ona's arm shape and lift Dummy's knees in depth | Studio scene |
 | [Shake & settle](https://jelizarovas.github.io/posecraft/demos.html#shake-and-settle) | Enable phone motion or press Shake scene; the cast falls, gets up and returns to its marks. Select a character and tap the stage to walk, or use Walk around | Studio scene |
@@ -35,9 +35,15 @@ The scenes reuse the existing owner-provided characters. Their original provenan
 
 ## Campfire night
 
-Maple, Juniper, Ember and Clover have different hair, eye colors and outfits. Each follows a 24-second cooking loop, staggered by five seconds. Use **Roast**, **Burn**, **Brace**, **Slide off**, **Eat** and **Replace** to inspect the stages, or scrub the full minute. **Meteor** jumps to the first shooting star. Fire and embers loop every four seconds; clouds and two meteors run on a 60-second sky track.
+Maple, Juniper, Ember and Clover stand around the fire at different depths and viewing angles. A seeded event controller tracks each camper's attention and roasting heat. They chat, watch the fire, stargaze and doze; missing the right cooking moment can burn a snack. A meteor's first observer points, and the others follow after a delay. Occasionally the two far-side campers share a treat. The evening continues beyond the first minute with new event times; it is not a repeated 24-second scene.
 
-The download contains all drawings, states and numeric animation keys. Four character actors sit between an unlit background actor and an unlit foreground fire actor. The warm point light flickers with scene time. Open the scene in Studio to edit the clips, looks and light. The campfire cast uses dedicated two-segment arms with hands drawn in front of the body and face. Each camper lowers the stick, plants its butt near the foot, slides the snack off with the free hand, takes bites and replaces it. Stick depth foreshortens its projected length as it is raised. Baked hand/food contacts, blinks, worried brows, blowing and chewing stay editable in the cooking clip. The roasting props and campfire-specific arms/faces hide when a camper switches to another action. This is authored choreography, not simulated cooking or object grasping.
+**Conversation**, **Daydream**, **Meteor** and **Share a treat** request events immediately. **New evening** changes the seed. Reset replays the same seed, and the slider replays its first minute, including requested events. Play/pause and hiding the page pause scene time. Sharing temporarily occupies both participants; another sharing request is ignored until they finish. The request button makes sharing easy to inspect; spontaneous sharing is much less frequent.
+
+The cast uses separate two-segment arms with hand contact, a planted roasting stick, snack removal, biting and replacement clips. Near-side campers show rear-quarter views. Draw order puts the fire between the far and near characters. Each camper has a ground line for contact shadows. Meteor paths and streak angles use the same straight trajectory, with a tapered, fading trail.
+
+Download includes the seed, ensemble descriptor, artwork and editable clips. `SceneController` and the browser/React worker path run the same ensemble, so the downloaded scene retains live behavior when played with this runtime. Studio's explicit clip preview overrides the selected camper for key editing. Director currently samples authored clips and does not run this live director; movie baking remains future work. Opening the editor restores its existing separate draft, so older edited campfire drafts retain their earlier scene data.
+
+This is an example-specific rules controller with visual conversation and authored gestures. It does not generate spoken dialogue, reason with a language model, simulate gripping, or implement general crowd behavior. See [the ensemble API](api.md#campfire-ensemble).
 
 ## Phone motion and returning to a mark
 

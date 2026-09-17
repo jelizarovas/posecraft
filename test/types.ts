@@ -53,3 +53,6 @@ scene.lighting={enabled:true,shading:"cel",angle:-135,elevation:45,color:"#fff1d
 scene.lighting={enabled:true,type:"point",receiver:"floor",pointX:400,pointY:300,pointHeight:120,range:500,motion:"flicker",flicker:.3,celThickness:.4,celIntensity:.7};
 scene.actors[0].layer="foreground";scene.actors[0].unlit=true;
 scene.packs[scene.actors[0].pack].parts[0].opacityChannel="root.opacity";
+
+const campfireSettings: import("../src/schema.js").SceneDocument["ensemble"]={type:"campfire",seed:20260917,members:["a","b","c","d"],sky:"night"};
+void campfireSettings;

@@ -30,7 +30,7 @@ test('campfire exports all four looks, cooking phases and layered scenery as sce
  const c=new SceneController(d),sample=t=>{for(const a of d.actors){const p=d.packs[a.pack],clip=p.states[p.initial].clip;c.previewClip(a.id,clip,t%p.clips[clip].duration,{});}return {...c.frame(),time:t};};
  for(let i=0;i<4;i++){const actor=campers[i],at=phase=>sample((phase-i*5+24)%24).actors.find(a=>a.id===actor.id);assert.equal(campPhase((13-i*5+24)%24,i),'burning');assert.ok(at(13).pose['snack-flame.opacity']>0);assert.equal(at(19.5).pose['food.opacity'],0);assert.equal(at(23).pose['food.opacity'],1);assert.equal(at(23).pose['toast.opacity'],0);assert.notEqual(at(18).pose['food.x'],at(2).pose['food.x']);}
  const first=sample(0),later=sample(8.8);assert.notEqual(first.actors[0].pose['cloud-0.x'],later.actors[0].pose['cloud-0.x']);assert.equal(first.actors[0].pose['meteor-0.opacity'],0);assert.ok(later.actors[0].pose['meteor-0.opacity']>.5);
- const svg=renderSVG(d,later);assert.ok(svg.indexOf('data-actor="night"')<svg.indexOf('data-light-effects'));assert.ok(svg.indexOf('data-actor="fire"')>svg.indexOf('data-actor="camper-3"'));assert.doesNotMatch(svg,/data-wall-shadow/);assert.match(svg,/opacity="0" data-part="/);c.dispose();
+ const svg=renderSVG(d,later);assert.ok(svg.indexOf('data-actor="night"')<svg.indexOf('data-light-effects'));assert.ok(svg.indexOf('data-actor="fire"')<svg.indexOf('data-actor="camper-3"')&&svg.indexOf('data-actor="fire"')>svg.indexOf('data-actor="camper-1"'));assert.doesNotMatch(svg,/data-wall-shadow/);assert.match(svg,/opacity="0" data-part="/);c.dispose();
 });
 
 test('campers can leave and return to cooking without carrying props into other actions',()=>{
@@ -48,8 +48,8 @@ test('campfire hands grip the planted stick and carry food in front of the face'
  for(let i=0;i<4;i++){
   const actor=d.actors.find(a=>a.id==='camper-'+i),p=d.packs[actor.pack];
   for(const t of [15.5,16.45,16.73,17.25,17.83,18.2,18.7,21,21.3]){
-   c.previewClip(actor.id,'campfire',(t-i*5+24)%24,{});const f=c.frame().actors.find(a=>a.id===actor.id),view=spatialParts(p,f),hand=view.world['take-hand'],food=view.world.food,stick=view.parts.get('roasting-stick').matrix,hold=view.world['hold-hand'],tip={x:stick[4]+stick[0]*Number(p.parts.find(v=>v.id==='roasting-stick').d.split('H')[1]),y:stick[5]+stick[1]*Number(p.parts.find(v=>v.id==='roasting-stick').d.split('H')[1])};
-   assert.ok(Math.abs(Math.hypot(hold.x-stick[4],hold.y-stick[5])-18)<.15,'holding hand stays on shaft');
+   c.previewClip(actor.id,'campfire',(t-i*5+24)%24,{});const f=c.frame().actors.find(a=>a.id===actor.id),view=spatialParts(p,f),hand=view.world['take-hand'],food=view.world.food,stick=view.parts.get('roasting-stick').matrix,hold=view.world['hold-hand'],tip={x:stick[4]+stick[0]*Number(view.parts.get('roasting-stick').d.split('H')[1]),y:stick[5]+stick[1]*Number(view.parts.get('roasting-stick').d.split('H')[1])};
+   assert.ok(Math.abs(Math.hypot(f.world['hold-hand'].x-f.world.skewer.x,f.world['hold-hand'].y-f.world.skewer.y)-18)<.15,'holding hand stays on shaft');
    if(t>=16.4&&t<19||t>=20.7&&t<21.5)assert.ok(Math.hypot(hand.x-food.x,hand.y-food.y)<.2,'food follows taking hand');
    if(t===15.5){assert.ok(Math.abs(stick[5]-56)<.01,'butt of stick is planted at ground');assert.ok(Math.hypot(food.x-tip.x,food.y-tip.y)<.2,'food remains on stick before grasp');}
    assert.ok(view.order.indexOf('take-palm')>view.order.indexOf('face-0'),'hand draws in front of head');

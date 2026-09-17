@@ -1,7 +1,7 @@
 import { SceneDocument,CharacterPack,BehaviorSettings,Camera } from './schema.js';
 export type Interaction='tap'|'pet'|'startle'|'drop'|'toss'|'hurt'|'catch';
 export interface PhysicsDiagnostics {state:string;mode:string;resistance:number;predictedImpact:boolean;predictedSurface:string|null;timeToImpact:number|null;contacts:{x:number;y:number;part:string;surface:string;normal:{x:number;y:number}}[];center:{x:number;y:number};velocity:{x:number;y:number};impact:{speed:number;part:string;surface:string;strength:number}|null}
-export interface Frame {time:number;camera?:Camera;actors:{id:string;placement?:{x:number;y:number;scale:number;rotation:number};response:string;recovery?:{phase:string;blocked:boolean;target:{x:number;y:number}}|null;physics:PhysicsDiagnostics|null;inputs:Record<string,string|number|boolean>;pose:Record<string,number>;world:Record<string,{x:number;y:number;rotation:number;endX:number;endY:number}>;state:string;spring:{x:number;y:number;vx:number;vy:number}}[]}
+export interface Frame {ensemble?:{events:{type:string;actors:string[];time:number;detail:string}[];sharing:boolean};time:number;camera?:Camera;actors:{activity?:string;heat?:number;id:string;placement?:{x:number;y:number;scale:number;rotation:number};response:string;recovery?:{phase:string;blocked:boolean;target:{x:number;y:number}}|null;physics:PhysicsDiagnostics|null;inputs:Record<string,string|number|boolean>;pose:Record<string,number>;world:Record<string,{x:number;y:number;rotation:number;endX:number;endY:number}>;state:string;spring:{x:number;y:number;vx:number;vy:number}}[]}
 export interface SceneEvent {type:string;actor:string;time:number;[key:string]:unknown}
 export const STEP:number;
 export function compilePack(pack:CharacterPack):unknown;
@@ -10,6 +10,7 @@ export class SceneController {
  document:SceneDocument;time:number;playing:boolean;animationPlaying:boolean;reducedMotion:boolean;log:unknown[];size?:{width:number;height:number};
  setInput(actor:string,name:string,value:string|number|boolean):void;
  setBehavior(actor:string,settings:BehaviorSettings):void;interact(actor:string,type:Interaction,strength?:number):void;
+ triggerEnsemble(type:'conversation'|'doze'|'meteor'|'share'):void;
  walkTo(actor:string,x:number):void;
  setAcceleration(ax:number,ay:number):void;
  sampleHost(sample:{x:number;y:number;time:number;teleport?:boolean}):void;

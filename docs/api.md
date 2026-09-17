@@ -117,3 +117,13 @@ Optional `scene.lighting` adds surface shading, highlights, cast/contact shadows
 Actors may set `layer` to `background`, `characters` or `foreground`. Default actors use the character layer. Backgrounds draw before props and lighting effects; foregrounds draw after characters. Set `unlit: true` for emissive fire or painted scenery that should neither receive surface shading nor cast shadows. Declare `scenery-layers` when relying on this ordering.
 
 A spatial part may set `opacityChannel: "jointId.opacity"`. The joint opacity channel ranges from 0 to 1 and defaults to 1. It controls that part only; children do not inherit it. Use a shared channel on several parts to fade them together. Input-based `showWhen` still applies. See the campfire scene for food, smoke, ember and meteor tracks.
+
+## Campfire ensemble
+
+The optional `scene.ensemble` descriptor is `{type: "campfire", seed: 20260917, members: ["camper-0", "camper-1", "camper-2", "camper-3"], sky: "night"}`. Declare `campfire-ensemble` in required features. It requires the four compatible campfire rigs, cooking clips and meteor scenery from `createDemo("campfire-night")`; it is not a generic behavior graph. A seed is an unsigned 32-bit integer.
+
+`SceneController` and `WorkerSceneController` expose `triggerEnsemble("conversation" | "doze" | "meteor" | "share")`. Invalid events and scenes without an ensemble reject the command. Requests enter the existing first-minute replay log. Read `frame.ensemble.events` for the latest 32 event records and `frame.ensemble.sharing` for the handoff state. Event records contain `type`, actor IDs, scene time and a detail string. Evaluated campers add `activity` and `heat`. No wall-clock timer or external service drives the ensemble.
+
+The seeded decision clock runs at 20 Hz; pose sampling uses scene time between decisions. The same seed and requests reproduce the same event sequence across frame rates. Cooking mechanics remain editable clips. Manual clip previews, non-campfire actions and physical modes opt that actor out of the live director. The worker skips redundant background/cooking-clip ticks while the director samples them. Director episodes currently use the authored clips, without the ensemble.
+
+`actor.groundY` optionally sets the floor/contact line for that actor's cast effects. It defaults to the scene floor line. Use it for staged casts at different depths; it is a visual receiver setting, not a collision floor or perspective solver.

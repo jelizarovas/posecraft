@@ -1,6 +1,6 @@
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -155,6 +155,7 @@ function validateStructure(doc) {
   const actorIds = new Set();
   for (const a of doc.actors) {
     if (!record(a)) { check(false, 'actors', 'Expected actor.'); continue; }
+    if(a.groundY!==undefined)check(finite(a.groundY,0,4096),`actors.${a.id}.groundY`,'Expected ground height 0..4096.');
     if(a.layer!==undefined)check(['background','characters','foreground'].includes(a.layer),`actors.${a.id}.layer`,'Unknown drawing layer.');
     if(a.unlit!==undefined)check(typeof a.unlit==='boolean',`actors.${a.id}.unlit`,'Expected boolean.');
     check(safeId.test(a.id) && !actorIds.has(a.id), `actors.${a.id}`, 'Actor IDs must be unique.'); actorIds.add(a.id);
@@ -174,6 +175,12 @@ function validateStructure(doc) {
       const spec = doc.packs[a.pack]?.inputs?.[name];
       check(spec && typeof value === spec.type && (!spec.options || spec.options.includes(value)) && (spec.type !== 'number' || finite(value, spec.min, spec.max)), `actors.${a.id}.inputs.${name}`, 'Invalid actor input.');
     }
+  }
+  if(doc.ensemble!==undefined){const e=doc.ensemble;check(record(e)&&e.type==='campfire'&&Number.isInteger(e.seed)&&finite(e.seed,0,4294967295),'ensemble','Expected a seeded campfire ensemble.');
+   if(record(e)){check(Array.isArray(e.members)&&e.members.length===4&&new Set(e.members).size===4,'ensemble.members','Expected four distinct campers.');
+    for(const id of Array.isArray(e.members)?e.members:[]){const actor=doc.actors.find(a=>a.id===id),pack=doc.packs[actor?.pack];check(!!pack?.spatial&&pack.clips?.campfire?.duration===24&&['root','head','hold-upper','hold-elbow','hold-hand','take-upper','take-elbow','take-hand','food','skewer','camp-eyes','camp-smile'].every(id=>pack.joints.some(j=>j.id===id)),'ensemble.members','Campers require the campfire rig and clip.');}
+    const sky=doc.actors.find(a=>a.id===e.sky),p=doc.packs[sky?.pack];check(!!p&&[0,1].every(i=>p.joints.some(j=>j.id==='meteor-'+i)&&Array.from({length:16},(_,n)=>'meteor-'+i+'-tail-'+n).every(id=>p.joints.some(j=>j.id===id))),'ensemble.sky','Missing meteor scenery rig.');
+   }
   }
   return { valid: errors.length === 0, errors };
 }

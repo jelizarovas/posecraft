@@ -1,3 +1,4 @@
+import {CampfireEnsemble,ensembleEvents} from './ensemble.js';
 import { AnimationController, clamp, forwardKinematics, constrainPose, sampleClip } from './index.js';
 import { assertDocument } from './schema.js';
 import {poseDefaults,spatialChannels} from './spatial.js';
@@ -24,10 +25,12 @@ export class SceneController {
       runtime.subscribe(event => { if (!this.replaying) for (const fn of this.listeners) fn({ ...event, actor: actor.id }); });
       return { actor, pack, runtime, behavior:behaviorConfig(actor.behavior), response:{state:'calm',until:0}, physics:null,recovery:null,quiet:0, spring: { x: 0, y: 0, vx: 0, vy: 0 } };
     });
+    this.ensemble=this.document.ensemble?new CampfireEnsemble(this.document):null;
     this.time = 0; this.accumulator = 0; this.motion = { ax: 0, ay: 0 }; this.baseline = null;
     for(const a of this.actors)if(a.behavior.autoRecover&&a.behavior.mode!=='floating'&&a.behavior.mode!=='animated'){a.recovery=new RecoveryMotion(this.document,a.actor,a.pack,this.frame().actors.find(f=>f.id===a.actor.id),{walkX:a.actor.transform.x});a.recovery.tick(1);}
     return this.frame();
   }
+  triggerEnsemble(type){if(!this.ensemble||!ensembleEvents.includes(type))throw new Error('Unknown ensemble event.');this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));this.ensemble.trigger(type);if(!this.replaying)this.record({type:'ensemble',event:type});}
   subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit(event){if(!this.replaying)for(const fn of this.listeners)fn({...event,time:this.time});}
   respond(a,state,duration=.2,strength=1){
@@ -120,7 +123,8 @@ export class SceneController {
   tick() {
     this.time += STEP;
     for (const a of this.actors) {
-      a.runtime.step(this.reducedMotion || !this.animationPlaying ? 0 : STEP);
+      const directed=this.ensemble&&a.behavior.mode==='animated'&&!a.preview&&(a.actor.unlit||a.runtime.inputs.action==='campfire'&&a.runtime.layers[0].state==='campfire');
+      if(!directed)a.runtime.step(this.reducedMotion || !this.animationPlaying ? 0 : STEP);
       if (this.reducedMotion) { a.runtime.layers.forEach(layer => layer.transition = null); a.runtime.frame = a.runtime.evaluate(); }
       const r = a.pack.reaction, s = a.spring;
       a.quiet=Math.hypot(this.motion.ax,this.motion.ay)>220?0:a.quiet+STEP;
@@ -149,7 +153,7 @@ export class SceneController {
     }
   }
   frame() {
-    return { time: this.time, actors: this.actors.map(({ actor, pack, runtime, spring, preview,behavior,response,physics,recovery }) => {
+    const frame={ time: this.time, actors: this.actors.map(({ actor, pack, runtime, spring, preview,behavior,response,physics,recovery }) => {
       let pose = preview ? { ...runtime.definition.defaults, ...sampleClip({ ...pack.clips[preview.clip], loop: false }, preview.time), ...preview.overrides } : { ...runtime.frame.pose };
       const inputs={...runtime.inputs};
       const emotion={startled:'surprised',scared:'scared',falling:'scared',bracing:'focused',protecting:'scared',curling:'scared',hurt:'hurt',recovering:'dizzy','getting-up':'focused',returning:'relieved',walking:'happy',relieved:'relieved',happy:'happy'}[response.state];
@@ -167,13 +171,14 @@ export class SceneController {
       if(physics&&behavior.mode!=='animated')({pose,world}=physics.apply(pose));
       return { id: actor.id, pose, inputs, world, response:response.state, physics:behavior.mode==='animated'?null:physics?.diagnostics||null, recovery:recovery?{phase:recovery.phase,blocked:recovery.blocked,target:{x:recovery.to.x,y:recovery.to.y}}:null,state: recovery?.phase==='walking'||recovery?.phase==='returning'?'walk':preview?.clip || runtime.layers[0].state, spring: { ...spring } };
     }) };
+    return this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
   }
   seek(time) {
     if (!Number.isFinite(time) || time < 0 || time > 60) throw new Error('Seek range is 0..60 seconds.');
     const log = this.log.map(e => ({ ...e })), wasPlaying = this.playing;
     this.replaying = true; this.reset(); let cursor = 0;
     try {
-      const apply = () => { while (cursor < log.length && log[cursor].time <= this.time + 1e-9) { const e = log[cursor++]; if (e.type === 'input') this.setInput(e.actor, e.name, e.value); else if(e.type==='behavior')this.setBehavior(e.actor,e.value);else if(e.type==='walk')this.walkTo(e.actor,e.x);else if(e.type==='interaction')this.interact(e.actor,e.interaction,e.strength);else this.setAcceleration(e.ax, e.ay); } };
+      const apply = () => { while (cursor < log.length && log[cursor].time <= this.time + 1e-9) { const e = log[cursor++]; if(e.type==='ensemble')this.triggerEnsemble(e.event);else if (e.type === 'input') this.setInput(e.actor, e.name, e.value); else if(e.type==='behavior')this.setBehavior(e.actor,e.value);else if(e.type==='walk')this.walkTo(e.actor,e.x);else if(e.type==='interaction')this.interact(e.actor,e.interaction,e.strength);else this.setAcceleration(e.ax, e.ay); } };
       while (this.time + STEP <= time + 1e-9) { apply(); this.tick(); } apply();
     } finally { this.log = log; this.replaying = false; this.playing = wasPlaying; }
     return this.frame();
