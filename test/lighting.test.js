@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createDemo} from '../examples/showcase.js';
 import {SceneController} from '../src/scene.js';
+import {spatialParts} from '../src/spatial.js';
 import {renderSVG} from '../src/svg.js';
 import {validateDocument} from '../src/schema.js';
 import {lightingConfig,surfaceRamp,surfaceFocus,shadowProjection,contactShadow} from '../src/lighting.js';
@@ -27,4 +28,15 @@ test('silhouette instances share live artwork, have unique IDs and follow camera
  const svg=renderSVG(doc,f),other=renderSVG(doc,f),ids=[...svg.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);assert.equal(ids.length,new Set(ids).size);
  for(const id of ids)assert.ok(!other.includes(`id="${id}"`));for(const href of svg.matchAll(/href="#([^"]+)"/g))assert.ok(ids.includes(href[1]));
  assert.match(svg,/data-reflection/);assert.match(svg,/translate\(0 730\) scale\(1 -1\)/);assert.match(svg,/data-light-placement="" href="[^"]+" transform="translate\(321 222\) rotate\(20\) scale\(1.3\)"/);assert.ok(svg.indexOf('data-camera')<svg.indexOf('data-light-effects'));c.dispose();
+});
+
+test('exported shading stays scene-facing across yaw, pitch, mirrored art and actor rotation',()=>{
+ const doc=createDemo('light-and-shade'),actor=doc.actors.find(a=>a.id==='dummy'),pack=doc.packs.dummy,part=pack.parts.find(p=>p.id==='head-shell'),controller=new SceneController(doc);
+ for(const yaw of [-180,-91,-90,-89,0,89,90,91,180])for(const pitch of [-35,0,35])for(const mirror of [-1,1]){
+  part.transform=`scale(${mirror} 1)`;controller.previewClip(actor.id,'idle',0,{'root.yaw':yaw,'head.pitch':pitch,'head.rotation':15});const frame=controller.frame(),evaluated=frame.actors.find(a=>a.id===actor.id);evaluated.placement={...actor.transform,rotation:27};
+  const svg=renderSVG(doc,frame),tag=svg.match(/<radialGradient data-surface="head-shell"[^>]+>/)[0],x=Number(tag.match(/cx="([^"]+)"/)[1])-.5,y=Number(tag.match(/cy="([^"]+)"/)[1])-.5,m=spatialParts(pack,evaluated).parts.get(part.id).matrix,r=27*Math.PI/180;
+  const dx=m[0]*x*mirror+m[2]*y,dy=m[1]*x*mirror+m[3]*y,wx=Math.cos(r)*dx-Math.sin(r)*dy,wy=Math.sin(r)*dx+Math.cos(r)*dy;
+  assert.ok(wx<0&&wy<0,`Scene light direction at ${yaw}/${pitch}/${mirror}`);assert.ok(Math.abs(wx-wy)<1e-5,'Projected focus points toward the fixed diagonal light');
+ }
+ controller.dispose();
 });

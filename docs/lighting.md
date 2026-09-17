@@ -41,7 +41,7 @@ Lighting is optional and disabled in existing scenes. Set `scene.lighting` throu
 | `reflection` | Floor mirror opacity 0..0.8. Zero omits the reflected drawing. |
 | `gloss` | Stylized highlight strength 0..1. |
 
-Omitted properties use the example defaults, except `shading` defaults to `gradient`, `gloss` defaults to 0.25, `reflection` to 0.18, the receiver positions scale with scene height, and `enabled` defaults to false. Solid RGB fills receive radial color ramps. Very dark details, outlines, `none` and alpha hex fills remain unchanged. Gradients compensate for screen rotation and authored mirror/scale transforms. They suggest rounded volume; they are not normals derived from a mesh. Appearance colors remain the source colors.
+Omitted properties use the example defaults, except `shading` defaults to `gradient`, `gloss` defaults to 0.25, `reflection` to 0.18, the receiver positions scale with scene height, and `enabled` defaults to false. Solid RGB fills receive radial color ramps. Very dark details, outlines, `none` and alpha hex fills remain unchanged. Gradients compensate for the full projected part transform, including yaw/pitch, profile mirroring, actor rotation and authored mirror/scale transforms. The light stays fixed in scene space through a turn. They suggest rounded volume; they are not normals derived from a mesh. Appearance colors remain the source colors.
 
 ## Rendering cost and limits
 

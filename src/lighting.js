@@ -12,7 +12,8 @@ export function surfaceStops(ramp,light){
  return stops.map(([offset,color])=>`<stop offset="${offset}" stop-color="${color}"/>`).join('');
 }
 export function surfaceFocus(light,rotation=0,partTransform=''){
- // Inverse linear part of the authored transform also handles mirrored artwork.
+ // Invert the full rendered part transform, including projected yaw/pitch and
+ // volume mirroring at profile. A 2D joint angle alone misses those reflections.
  let a=1,b=0,c=0,d=1;
  for(const match of partTransform.matchAll(/(translate|scale|rotate|matrix)\(([^)]*)\)/g)){const v=match[2].trim().split(/[\s,]+/).map(Number);let e=1,f=0,g=0,h=1;
   if(match[1]==='scale'){e=v[0];h=v[1]??e;}else if(match[1]==='rotate'){e=h=Math.cos(v[0]*rad);f=Math.sin(v[0]*rad);g=-f;}else if(match[1]==='matrix'&&v.length>=4&&v.slice(0,4).every(Number.isFinite)){[e,f,g,h]=v;}
