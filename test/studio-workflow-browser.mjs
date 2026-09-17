@@ -35,4 +35,3 @@ try{
  assert.ok(await fresh.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1&&document.documentElement.scrollHeight<=innerHeight+1));await fresh.screenshot({path:'test-results/studio-workflow-mobile.png'});
  assert.deepEqual(errors,[]);console.log('Studio workflow passed: original rig → isolated Studio draft → retimed keys → Director → portable reference project → fresh mobile session.');
 }finally{await browser.close();}
-
