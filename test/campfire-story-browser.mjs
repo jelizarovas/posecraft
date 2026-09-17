@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 const base=(process.env.POSECRAFT_URL||'http://127.0.0.1:5178').replace(/\/$/,''),browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})}),page=await browser.newPage({viewport:{width:1366,height:768},reducedMotion:'reduce'}),errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 const part=(actor,name)=>page.locator(`#demo-art [data-actor="${actor}"] [data-part="${name}"]`);
-async function seek(t){t=Math.round(t/.04)*.04;await page.locator('#demo-scrub').fill(String(Number(t.toFixed(2))));await page.locator('#demo-scrub').dispatchEvent('input');await page.waitForFunction(t=>Math.abs(+document.querySelector('#demo-art svg').dataset.sceneTime-t)<.025,t);return page.locator('#demo-art svg').evaluate(e=>({...e.dataset}));}
+async function seek(t){t=Math.round(t/.04)*.04;if(await page.locator('#demo-scrub').isHidden())await page.locator('#camp-review').click();await page.locator('#demo-scrub').fill(String(Number(t.toFixed(2))));await page.locator('#demo-scrub').dispatchEvent('input');await page.waitForFunction(t=>Math.abs(+document.querySelector('#demo-art svg').dataset.sceneTime-t)<.025,t);return page.locator('#demo-art svg').evaluate(e=>({...e.dataset}));}
 async function start(event){await page.locator('#demo-reset').click();if(event==='share')await page.locator('#camp-share').click();else await page.locator('#camp-reaction').selectOption(event);}
 async function point(actor,name){return part(actor,name).evaluate(e=>{const m=e.getCTM();return {x:m.e,y:m.f};});}
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);

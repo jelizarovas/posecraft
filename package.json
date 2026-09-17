@@ -81,6 +81,26 @@
     "./contacts": {
       "types": "./src/contacts.d.ts",
       "default": "./src/contacts.js"
+    },
+    "./behaviors": {
+      "types": "./src/behaviors.d.ts",
+      "default": "./src/behaviors.js"
+    },
+    "./pointer-interactions": {
+      "types": "./src/pointer-interactions.d.ts",
+      "default": "./src/pointer-interactions.js"
+    },
+    "./pointer-browser": {
+      "types": "./src/pointer-browser.d.ts",
+      "default": "./src/pointer-browser.js"
+    },
+    "./scene-export": {
+      "types": "./src/scene-export.d.ts",
+      "default": "./src/scene-export.js"
+    },
+    "./illustration": {
+      "types": "./src/illustration.d.ts",
+      "default": "./src/illustration.js"
     }
   },
   "bin": {
@@ -106,11 +126,14 @@
     "docs/project-files.md",
     "docs/studio-roadmap.md",
     "docs/emitters.md",
-    "docs/contacts.md"
+    "docs/contacts.md",
+    "tools/build-export-runtimes.mjs",
+    "tools/compile-scene.mjs",
+    "docs/live-scenes.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "vite build && node tools/build-export-runtimes.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test test/*.test.js",
     "test:browser": "node test/browser.mjs",
@@ -136,7 +159,12 @@
     "test:emitters": "node test/emitters-browser.mjs",
     "test:scene-tools": "node test/scene-tools-browser.mjs",
     "test:campfire-migration": "node test/campfire-migration-browser.mjs",
-    "test:contacts": "node test/contacts-browser.mjs"
+    "test:contacts": "node test/contacts-browser.mjs",
+    "compile:scene": "node tools/compile-scene.mjs",
+    "test:behaviors": "node test/behaviors-browser.mjs",
+    "test:live-studio": "node test/live-studio-browser.mjs",
+    "test:scene-export": "node test/scene-export-browser.mjs",
+    "test:live-pointer": "node test/live-pointer-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

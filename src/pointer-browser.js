@@ -1,0 +1,19 @@
+import {spatialKinematics} from './spatial.js';
+/** Bind declared gestures to an SVG scene. A single active pointer is captured. */
+export function mountScenePointers(element,document,controller,{isEnabled=()=>true,onInteract=()=>{},onUpdate=()=>{}}={}){
+ if(!document.interactions?.length)return {dispose(){}};
+ let active=null,last=null,lastHover=-Infinity,suppressClick=0;const bindings=document.interactions||[],clock=()=>performance.now();
+ const point=e=>{const svg=element.querySelector('svg');if(!svg)return null;const m=svg.getScreenCTM();if(!m)return null;const p=new DOMPoint(e.clientX,e.clientY).matrixTransform(m.inverse());return {x:p.x,y:p.y};};
+ function candidates(e,gesture,p){const entity=e.target.closest?.('[data-actor],[data-emitter-actor]'),id=entity?.dataset.actor||entity?.dataset.emitterActor;if(!id)return [];const actor=document.actors.find(a=>a.id===id),pack=document.packs[actor.pack],part=e.target.closest?.('[data-part]')?.dataset.part,hit=pack.parts.find(v=>v.id===part),ancestors=new Set();let j=hit?.joint||e.target.closest?.('[data-joint]')?.dataset.joint;while(j){ancestors.add(j);j=pack.joints.find(v=>v.id===j)?.parent;}
+  const frame=controller.frame().actors.find(a=>a.id===id);if(!frame)return [];const w=pack.spatial?spatialKinematics(pack,frame.pose):frame.world,t=frame.placement||actor.transform,r=t.rotation*Math.PI/180;
+  return bindings.filter(b=>b.actor===id&&b.gesture===gesture).map(b=>{const q=w[b.joint],x=q?t.x+t.scale*(q.x*Math.cos(r)-q.y*Math.sin(r)):Infinity,y=q?t.y+t.scale*(q.x*Math.sin(r)+q.y*Math.cos(r)):Infinity,distance=Math.hypot(p.x-x,p.y-y),direct=b.part?b.part===part:b.joint?ancestors.has(b.joint):true;return {b,distance,match:direct||gesture==='drag'&&b.response==='resist'&&distance<24*t.scale};}).filter(v=>v.match).sort((a,b)=>a.distance-b.distance);
+ }
+ function send(b,phase,p){if(!['move','end','cancel'].includes(phase))onInteract();controller.pointer({binding:b.id,phase,...p});onUpdate();}
+ function down(e){if(!isEnabled()||e.button!==0||!bindings.length)return;const p=point(e);if(!p)return;const b=candidates(e,'drag',p)[0]?.b;if(!b){if(candidates(e,'click',p).length)e.stopImmediatePropagation();return;}e.preventDefault();e.stopImmediatePropagation();active={b,pointer:e.pointerId,start:p,last:p};element.setPointerCapture(e.pointerId);send(b,'start',p);}
+ function move(e){if(!isEnabled())return;const p=point(e);if(!p)return;const now=clock();if(active&&e.pointerId===active.pointer){e.preventDefault();e.stopImmediatePropagation();active.last=p;send(active.b,'move',p);}else{if(last&&now-last.time>=8&&now-lastHover>800){const speed=Math.hypot(p.x-last.x,p.y-last.y)/((now-last.time)/1000),b=candidates(e,'hover-fast',p).find(v=>speed>(v.b.threshold||450))?.b;if(b){lastHover=now;send(b,'hover',p);}}if(!last||now-last.time>=8)last={...p,time:now};}}
+ function end(e){if(!active||e.pointerId!==active.pointer)return;e.preventDefault();e.stopImmediatePropagation();const a=active;active=null;suppressClick=clock()+350;send(a.b,e.type==='pointercancel'?'cancel':'end',point(e)||a.last);if(element.hasPointerCapture(e.pointerId))element.releasePointerCapture(e.pointerId);}
+ function click(e){if(clock()<suppressClick||!isEnabled()||e.button!==0)return;const p=point(e);if(!p)return;const b=candidates(e,'click',p)[0]?.b;if(b){e.preventDefault();e.stopImmediatePropagation();send(b,'click',p);}}
+ function cancel(){if(active){const a=active;active=null;controller.pointer({binding:a.b.id,phase:'cancel',...a.last});}}
+ const listeners=[['pointerdown',down],['pointermove',move],['pointerup',end],['pointercancel',end],['click',click]];for(const [type,fn]of listeners)element.addEventListener(type,fn,true);globalThis.addEventListener('blur',cancel);
+ return {dispose(){cancel();for(const [type,fn]of listeners)element.removeEventListener(type,fn,true);globalThis.removeEventListener('blur',cancel);}};
+}

@@ -1,3 +1,5 @@
+import {ScenePointerInteraction} from './pointer-interactions.js';
+import {BehaviorRuntime,validateBehaviorEvent,validateBehaviorVariable} from './behaviors.js';
 import {applyContacts} from './contacts.js';
 import {CampfireEnsemble,ensembleEvents} from './ensemble.js';
 import { AnimationController, clamp, forwardKinematics, constrainPose, sampleClip } from './index.js';
@@ -28,10 +30,16 @@ export class SceneController {
     });
     this.ensemble=this.document.ensemble?new CampfireEnsemble(this.document):null;
     this.time = 0; this.accumulator = 0; this.motion = { ax: 0, ay: 0 }; this.baseline = null;
+    this.graph=null;this.graph=this.document.behaviorGraph&&this.document.presentation!=='sequence'?new BehaviorRuntime(this.document,{apply:(action,payload)=>this.applyGraphAction(action,payload)}):null;
+    this.pointers=new ScenePointerInteraction(this.document,{dispatch:(event,payload)=>this.dispatch(event,payload)});
     for(const a of this.actors)if(a.behavior.autoRecover&&a.behavior.mode!=='floating'&&a.behavior.mode!=='animated'){a.recovery=new RecoveryMotion(this.document,a.actor,a.pack,this.frame().actors.find(f=>f.id===a.actor.id),{walkX:a.actor.transform.x});a.recovery.tick(1);}
     return this.frame();
   }
-  triggerEnsemble(type){if(!this.ensemble||!ensembleEvents.includes(type))throw new Error('Unknown ensemble event.');this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));this.ensemble.trigger(type);if(!this.replaying)this.record({type:'ensemble',event:type});}
+  pointer(command){this.frame();this.applyingPointer=true;try{this.pointers.input(command);}finally{this.applyingPointer=false;}if(!this.replaying)this.record({type:'pointer',command:{...command}});}
+  applyGraphAction(action,payload){this.applyingGraph=true;try{if(action.type==='input')this.setInput(action.actor,action.input,action.value);else if(action.type==='ensemble')this.triggerEnsemble(action.event,payload);else if(action.type==='emitter')this.ensemble?.setEmitterEnabled?.(action.emitter,action.enabled);}finally{this.applyingGraph=false;}}
+  dispatch(event,payload={}){const safe=validateBehaviorEvent(this.document,event,payload);if(!this.graph)return false;if(!this.replaying)this.record({type:'dispatch',event,payload:safe});const accepted=this.graph.dispatch(event,safe);this.graph.tick(0);return accepted;}
+  setVariable(name,value){validateBehaviorVariable(this.document.behaviorGraph,name,value);if(!this.graph)return;if(!this.replaying)this.record({type:'variable',name,value});this.graph.setVariable(name,value);this.graph.tick(0);}
+  triggerEnsemble(type,payload={}){payload=validateBehaviorEvent(this.document,type,payload);if(!this.ensemble||!ensembleEvents.includes(type))throw new Error('Unknown ensemble event.');this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));this.ensemble.trigger(type,payload);if(!this.replaying)this.record({type:'ensemble',event:type,payload});}
   subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit(event){if(!this.replaying)for(const fn of this.listeners)fn({...event,time:this.time});}
   respond(a,state,duration=.2,strength=1){
@@ -91,6 +99,7 @@ export class SceneController {
     if (!this.replaying && changed) this.record({ type: 'acceleration', ...this.motion });
   }
   record(event) {
+    if(this.applyingGraph||this.applyingPointer)return;
     if (this.time > 180) return;
     while (this.log.length && this.log.at(-1).time > this.time) this.log.pop();
     if (this.log.length >= 20000) throw new Error('Replay recording is full. Reset to start a new recording.');
@@ -123,6 +132,9 @@ export class SceneController {
   }
   tick() {
     this.time += STEP;
+    if(this.graph&&this.ensemble){this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));if(this.ensemble.drainEvents)for(const {event,...payload} of this.ensemble.drainEvents())this.graph.dispatch(event,payload);}
+    this.graph?.tick(STEP);
+    this.pointers?.step(STEP);
     for (const a of this.actors) {
       const directed=this.ensemble&&a.behavior.mode==='animated'&&!a.preview&&(a.actor.unlit||a.runtime.inputs.action==='campfire'&&a.runtime.layers[0].state==='campfire');
       if(!directed)a.runtime.step(this.reducedMotion || !this.animationPlaying ? 0 : STEP);
@@ -174,7 +186,8 @@ export class SceneController {
       return { id: actor.id, clip, clipTime, pose, inputs, world, response:response.state, physics:behavior.mode==='animated'?null:physics?.diagnostics||null, recovery:recovery?{phase:recovery.phase,blocked:recovery.blocked,target:{x:recovery.to.x,y:recovery.to.y}}:null,state: recovery?.phase==='walking'||recovery?.phase==='returning'?'walk':preview?.clip || runtime.layers[0].state, spring: { ...spring } };
     }) };
     const evaluated=this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
-    return applyContacts(this.document,evaluated);
+    if(this.graph){evaluated.behavior=this.graph.snapshot();evaluated.emitterOverrides={...this.graph.emitterOverrides,...evaluated.emitterOverrides};}
+    return applyContacts(this.document,this.pointers?.apply(evaluated)||evaluated);
   }
   seek(time) {
     if (!Number.isFinite(time) || time < 0 || time > 180) throw new Error('Seek range is 0..180 seconds.');
@@ -183,7 +196,7 @@ export class SceneController {
     this.animationPlaying=true;this.reducedMotion=false;
     this.replaying = true; this.reset(); let cursor = 0;
     try {
-      const apply = () => { while (cursor < log.length && log[cursor].time <= this.time + 1e-9) { const e = log[cursor++]; if(e.type==='ensemble')this.triggerEnsemble(e.event);else if (e.type === 'input') this.setInput(e.actor, e.name, e.value); else if(e.type==='behavior')this.setBehavior(e.actor,e.value);else if(e.type==='walk')this.walkTo(e.actor,e.x);else if(e.type==='interaction')this.interact(e.actor,e.interaction,e.strength);else this.setAcceleration(e.ax, e.ay); } };
+      const apply = () => { while (cursor < log.length && log[cursor].time <= this.time + 1e-9) { const e = log[cursor++]; if(e.type==='pointer')this.pointer(e.command);else if(e.type==='dispatch')this.dispatch(e.event,e.payload);else if(e.type==='variable')this.setVariable(e.name,e.value);else if(e.type==='ensemble')this.triggerEnsemble(e.event,e.payload);else if (e.type === 'input') this.setInput(e.actor, e.name, e.value); else if(e.type==='behavior')this.setBehavior(e.actor,e.value);else if(e.type==='walk')this.walkTo(e.actor,e.x);else if(e.type==='interaction')this.interact(e.actor,e.interaction,e.strength);else this.setAcceleration(e.ax, e.ay); } };
       while (this.time + STEP <= time + 1e-9) { apply(); this.tick(); } apply();
     } finally { this.log = log; this.replaying = false; this.playing = wasPlaying;this.animationPlaying=wasAnimating;this.reducedMotion=wasReduced; }
     return this.frame();

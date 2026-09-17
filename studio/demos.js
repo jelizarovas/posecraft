@@ -1,3 +1,4 @@
+import {mountScenePointers} from '../src/pointer-browser.js';
 import {loveseatBeat,loveseatBeats} from '../examples/loveseat.js';
 import {gymPhase,gymBeats} from '../examples/gym.js';
 import {lightingConfig} from '../src/lighting.js';
@@ -12,6 +13,7 @@ import {SoundEffects} from '../src/audio.js';
 const $=id=>document.getElementById(id),icon=name=>`<span class="material-symbols-outlined" aria-hidden="true">${name}</span>`;
 const media=matchMedia('(prefers-reduced-motion: reduce)'),sound=new SoundEffects();
 let ensembleSoundTime=-Infinity,ensembleSoundEvents=new Set();
+let pointers,reviewLive=false;
 let playbackRate=1,reviewBeat=null,loopBeat=false;
 let scrubPending=null,selected,documentData,controller,worker,renderer,frame,renderedScene,token=0,ready=false,inFlight=false,pending=null,time=0,last=null,playing=!media.matches,offset={x:0,y:0},drag=null,debug=false,shakeStart=null,wander=false,nextWalk=0;
 const phone=new PhoneMotion({onStatus:message=>{if(selected?.id==='shake-and-settle'){$('demo-status').textContent=message;phoneButton();}}});
@@ -23,27 +25,27 @@ for(const d of demoCatalog){
  const doc=createDemo(d.id),episode=doc.kind==='episode',engine=episode?new EpisodeController(doc):new SceneController(doc),f=engine.frame(0),scene=episode?doc.scenes[f.scene]:doc;
  const button=document.createElement('button');button.className='demo-card';button.dataset.demo=d.id;button.style.setProperty('--demo-color',d.color);button.innerHTML=`<span class="demo-thumb">${renderSVG(scene,f)}</span><span class="demo-card-copy"><strong>${d.title}</strong><small>${d.category}</small></span>`;button.onclick=()=>select(d.id);$('demo-list').append(button);engine.dispose?.();
 }
-function cleanup(){playbackRate=1;reviewBeat=null;loopBeat=false;ensembleSoundTime=-Infinity;ensembleSoundEvents.clear();scrubPending=null;stopMotion();wander=false;nextWalk=0;token++;worker?.terminate();worker=null;controller?.dispose();controller=null;renderer?.dispose();renderer=null;renderedScene=null;ready=false;inFlight=false;pending=null;offset={x:0,y:0};drag=null;$('demo-stage').style.transform='';}
+function cleanup(){reviewLive=false;pointers?.dispose();pointers=null;playbackRate=1;reviewBeat=null;loopBeat=false;ensembleSoundTime=-Infinity;ensembleSoundEvents.clear();scrubPending=null;stopMotion();wander=false;nextWalk=0;token++;worker?.terminate();worker=null;controller?.dispose();controller=null;renderer?.dispose();renderer=null;renderedScene=null;ready=false;inFlight=false;pending=null;offset={x:0,y:0};drag=null;$('demo-stage').style.transform='';}
 const timedScenes=new Set(['campfire-night','ship-in-a-bottle','loveseat-stairs','gym-routine']);
-const sceneDuration=()=>selected?.id==='campfire-night'?60:Math.min(180,Math.max(...documentData.actors.map(a=>{const p=documentData.packs[a.pack],state=p.states[a.inputs?.action]||p.states[p.initial];return p.clips[state.clip].duration;})));
+const sceneDuration=()=>selected?.id==='campfire-night'?180:Math.min(180,Math.max(...documentData.actors.map(a=>{const p=documentData.packs[a.pack],state=p.states[a.inputs?.action]||p.states[p.initial];return p.clips[state.clip].duration;})));
 function select(id,seed,mode){
  cleanup();selected=findDemo(id)||demoCatalog[0];documentData=createDemo(selected.id);if(seed!==undefined&&documentData.ensemble)documentData.ensemble.seed=seed;if(mode)for(const a of documentData.actors||[]){const p=documentData.packs[a.pack];if(p.inputs.action?.options.includes(mode)){a.inputs={...a.inputs,action:mode};const state=Object.entries(p.states).find(([,s])=>s.clip===mode);if(state)p.initial=state[0];}}frame=null;time=0;last=null;debug=selected.id==='drop-lab';playing=!media.matches;const mine=token;
  history.replaceState(null,'','#'+selected.id);document.title=selected.title+' · Posecraft demos';
  document.querySelectorAll('[data-demo]').forEach(b=>{b.classList.toggle('active',b.dataset.demo===selected.id);b.setAttribute('aria-pressed',String(b.dataset.demo===selected.id));});
  $('demo-title').textContent=selected.title;$('demo-category').textContent=selected.category;$('demo-description').textContent=selected.description;$('demo-instruction').textContent=selected.instruction;$('demo-features').replaceChildren(...selected.features.map(v=>{const span=document.createElement('span');span.textContent=v;return span;}));
- const episode=documentData.kind==='episode';$('edit-demo').href=(episode?'./director.html':'./')+'?demo='+selected.id;$('edit-demo').innerHTML=icon('edit')+(episode?'Edit in Director':'Edit in Studio');$('demo-scrub').hidden=!episode&&!timedScenes.has(selected.id);if(!episode&&timedScenes.has(selected.id))$('demo-scrub').max=sceneDuration();$('demo-sound').hidden=episode;$('demo-sound').classList.toggle('active',sound.enabled);$('demo-sound').innerHTML=icon('play_arrow')+(sound.enabled?'Sound on':'Sound off');$('demo-stage').classList.toggle('draggable',selected.id==='zero-gravity');$('demo-status').textContent='Preparing demo…';
+ const episode=documentData.kind==='episode';$('edit-demo').href=(episode?'./director.html':'./')+'?demo='+selected.id;$('edit-demo').innerHTML=icon('edit')+(episode?'Edit in Director':'Edit in Studio');$('demo-scrub').hidden=documentData.presentation==='live'||!episode&&!timedScenes.has(selected.id);if(!episode&&timedScenes.has(selected.id))$('demo-scrub').max=sceneDuration();$('demo-sound').hidden=episode;$('demo-sound').classList.toggle('active',sound.enabled);$('demo-sound').innerHTML=icon('play_arrow')+(sound.enabled?'Sound on':'Sound off');$('demo-stage').classList.toggle('draggable',selected.id==='zero-gravity');$('demo-status').textContent='Preparing demo…';
  if(episode){
   $('demo-scrub').max=episodeDuration(documentData);$('demo-controls').innerHTML='<div id="demo-shots" class="demo-shots"></div>';let start=0;
   for(const s of documentData.shots){const t=start,b=document.createElement('button');b.textContent=s.name;b.dataset.shot=s.id;b.onclick=()=>{time=t;playing=false;requestFrame();transport();};$('demo-shots').append(b);start+=s.duration;}
   worker=new Worker(new URL('../src/episode-worker.js',import.meta.url),{type:'module'});worker.onmessage=({data:m})=>{if(mine!==token)return;if(m.type==='ready'){ready=true;requestFrame();}else if(m.type==='frame'){inFlight=false;show(m.frame);if(pending!==null)send();}else if(m.type==='error')fail(m.message);};worker.onerror=e=>{if(mine===token)fail(e.message);};worker.postMessage({type:'init',project:documentData});
  }else{
-  drawControls();controller=new WorkerSceneController(documentData,{onError:e=>fail(e.message)});controller.onFrame=f=>{if(mine===token)show(f);};controller.subscribe(e=>{if(mine===token)sound.handle(e);});show(controller.frame());if(!playing)controller.pause();controller.ready.then(()=>{if(mine===token)$('demo-status').textContent=selected.id==='ship-in-a-bottle'?'Live · editable ship and scenery':selected.id==='loveseat-stairs'?'Live · 2 carriers · shared furniture':selected.id==='gym-routine'?'Live · Atlas · 3 set outcomes':'Live · '+documentData.actors.filter(a=>!a.unlit&&(!a.layer||a.layer==='characters')).length+' characters';}).catch(()=>{});
+  drawControls();controller=new WorkerSceneController(documentData,{onError:e=>fail(e.message)});controller.onFrame=f=>{if(mine===token)show(f);};controller.subscribe(e=>{if(mine===token)sound.handle(e);});show(controller.frame());pointers=mountScenePointers($('demo-art'),documentData,controller,{onInteract:()=>{if(!playing)resume();}});if(!playing)controller.pause();controller.ready.then(()=>{if(mine===token)$('demo-status').textContent=selected.id==='ship-in-a-bottle'?'Live · editable ship and scenery':selected.id==='loveseat-stairs'?'Live · 2 carriers · shared furniture':selected.id==='gym-routine'?'Live · Atlas · 3 set outcomes':'Live · '+documentData.actors.filter(a=>!a.unlit&&(!a.layer||a.layer==='characters')).length+' characters';}).catch(()=>{});
  }
  transport();
 }
 function fail(message){playing=false;$('demo-status').textContent='Could not play this demo: '+message;transport();}
 function show(f){
- frame=f;if(scrubPending!==null&&Math.abs(f.time-scrubPending)<.03)scrubPending=null;const episode=documentData.kind==='episode',scene=episode?documentData.scenes[f.scene]:documentData;
+ frame=f;if($('camp-fire'))$('camp-fire').textContent=f.ensemble?.fire?.lit===false?'Light fire':'Put fire out';if(scrubPending!==null&&Math.abs(f.time-scrubPending)<.03)scrubPending=null;const episode=documentData.kind==='episode',scene=episode?documentData.scenes[f.scene]:documentData;
  if(!renderer||renderedScene!==scene.id){renderer?.dispose();renderer=mountSVG($('demo-art'),scene,f,{physicsDebug:debug,colliders:debug});renderedScene=scene.id;}else renderer.update(f);
  const svg=$('demo-art').querySelector('svg');if(svg&&f.ensemble){svg.dataset.sharePhase=f.ensemble.share?.phase||'';svg.dataset.shareGiver=f.ensemble.share?.giver||'';svg.dataset.shareReceiver=f.ensemble.share?.receiver||'';svg.dataset.shareOwner=f.ensemble.share?.owner||'';svg.dataset.shareContact=String(f.ensemble.share?.contact??'');}
  if(f.ensemble){const key=e=>JSON.stringify([e.type,e.time,e.actors]);if(playing&&f.time>=ensembleSoundTime)for(const event of f.ensemble.events)if(!ensembleSoundEvents.has(key(event)))sound.handle(event);ensembleSoundEvents=new Set(f.ensemble.events.map(key));ensembleSoundTime=f.time;}
@@ -52,7 +54,7 @@ function show(f){
 }
 function send(){if(!ready||inFlight||pending===null)return;inFlight=true;worker.postMessage({type:'frame',time:pending});pending=null;}
 function requestFrame(){pending=Math.min(time,episodeDuration(documentData));send();}
-function transport(){const episode=documentData?.kind==='episode';$('demo-play').innerHTML=icon(playing?'pause':'play_arrow');$('demo-play').setAttribute('aria-label',playing?'Pause demo':'Play demo');if(timedScenes.has(selected?.id)){const duration=sceneDuration(),t=scrubPending??(selected.id==='campfire-night'?Math.min(duration,frame?.time||0):(frame?.time||0)%duration);$('demo-scrub').value=t;$('demo-time').textContent=t.toFixed(1)+' / '+duration+' s';}else if(episode){$('demo-scrub').value=time;$('demo-time').textContent=time.toFixed(1)+' / '+episodeDuration(documentData).toFixed(0)+' s';}else $('demo-time').textContent=playing?'Live preview':'Paused';}
+function transport(){const episode=documentData?.kind==='episode';$('demo-play').innerHTML=icon(playing?'pause':'play_arrow');$('demo-play').setAttribute('aria-label',playing?'Pause demo':'Play demo');if(documentData?.presentation==='live'&&!reviewLive){$('demo-time').textContent=playing?'Live illustration':'Paused';}else if(timedScenes.has(selected?.id)){const duration=sceneDuration(),t=scrubPending??(selected.id==='campfire-night'?Math.min(duration,frame?.time||0):(frame?.time||0)%duration);$('demo-scrub').value=t;$('demo-time').textContent=(reviewLive?'Replay: ':'')+t.toFixed(1)+' / '+duration+' s';}else if(episode){$('demo-scrub').value=time;$('demo-time').textContent=time.toFixed(1)+' / '+episodeDuration(documentData).toFixed(0)+' s';}else $('demo-time').textContent=playing?'Live preview':'Paused';}
 const targets=()=>documentData.actors.filter(a=>!a.unlit&&(!a.layer||a.layer==='characters')).filter(a=>$('demo-target')?.value==='all'||a.id===$('demo-target')?.value);
 function resume(){playing=true;last=null;controller?.play();transport();}
 function drawControls(){
@@ -72,6 +74,8 @@ function drawControls(){
  }else if(selected.id==='campfire-night'){
   $('demo-target').parentElement.remove();
   for(const [id,label] of [['conversation','Conversation'],['doze','Daydream'],['meteor','Meteor'],['share','Share a treat']])action('camp-'+id,label,()=>controller.triggerEnsemble(id));
+  action('camp-fire','Put fire out',()=>controller.dispatch(frame?.ensemble?.fire?.lit===false?'ignite-fire':'extinguish-fire'));
+  const review=document.createElement('button');review.id='camp-review';review.textContent='Review events';review.onclick=()=>{reviewLive=!reviewLive;$('demo-scrub').hidden=!reviewLive;review.textContent=reviewLive?'Hide replay':'Review events';review.setAttribute('aria-pressed',String(reviewLive));transport();};$('demo-actions').append(review);
   action('camp-new','New evening',()=>select(selected.id,crypto.getRandomValues(new Uint32Array(1))[0]));
   const beat=document.createElement('select');beat.id='camp-reaction';beat.setAttribute('aria-label','Campfire reaction demo');
   for(const [value,label] of [['','More reactions…'],['share-missed','Missed offer'],['share-help','Friend calls out'],['burn','Burned treat']])beat.add(new Option(label,value));

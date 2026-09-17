@@ -91,3 +91,13 @@ addOnaArmJoints(addSpatialRig(scene.packs.ona,'ona',{studies:false}));
 
 import {applyContacts,solveContact} from 'posecraft/contacts';
 void applyContacts;void solveContact;
+
+import {BehaviorRuntime} from "posecraft/behaviors";
+import {ScenePointerInteraction} from "posecraft/pointer-interactions";
+import {mountScenePointers} from "posecraft/pointer-browser";
+import {inspectSceneFeatures,createSceneExport} from "posecraft/scene-export";
+import {IllustrationController} from "posecraft/illustration";
+void BehaviorRuntime;void ScenePointerInteraction;void mountScenePointers;void IllustrationController;
+inspectSceneFeatures(scene);createSceneExport(scene,{runtimeBase:"https://example.com/runtime/"});
+player.dispatch("scene-event",{actor:"ona",x:10,y:20});player.setVariable("enabled",true);
+player.pointer({binding:"head-tug",phase:"start",x:10,y:20});

@@ -1,3 +1,5 @@
+import type {PointerCommand} from './schema.js';
+import type {BehaviorPayload,BehaviorSnapshot} from './behaviors.js';
 import type {SceneDocument,BehaviorSettings} from './schema.js';
 import type {Frame,SceneEvent,Interaction} from './scene.js';
 export interface PathRequest {start:{x:number;y:number};end:{x:number;y:number};cellSize?:number;clearance?:number}
@@ -8,7 +10,9 @@ export class WorkerSceneController {
  readonly ready:Promise<WorkerSceneController>;readonly stats:WorkerStats;readonly time:number;document:SceneDocument;playing:boolean;animationPlaying:boolean;reducedMotion:boolean;motion:{ax:number;ay:number};size?:{width:number;height:number};
  onFrame?:(frame:Frame)=>void;
  frame():Frame;step(dt:number):Frame;reset():Frame;seek(time:number):Frame;
- triggerEnsemble(type:'conversation'|'doze'|'meteor'|'share'|'share-missed'|'share-help'|'burn'):void;
+ pointer(command:PointerCommand):void;
+ dispatch(event:string,payload?:BehaviorPayload):boolean;setVariable(name:string,value:boolean|number):void;
+ triggerEnsemble(type:'conversation'|'doze'|'meteor'|'share'|'share-missed'|'share-help'|'burn'|'fire-off'|'fire-relight'|'fire-on'|'food-throw'|'face-shoo',payload?:BehaviorPayload):void;
  walkTo(actor:string,x:number):void;
  setInput(actor:string,name:string,value:string|number|boolean):void;setBehavior(actor:string,settings:BehaviorSettings):void;interact(actor:string,type:Interaction,strength?:number):void;
  previewClip(actor:string,clip:string,time:number,overrides?:Record<string,number>):Frame;clearPreview(actor:string):void;

@@ -1,3 +1,4 @@
+import {validBehaviorInput} from './behaviors.js';
 /** Scene folders organize visibility and editing; they do not change transforms. */
 export function nodeVisible(document,node){
  if(!node||node.hidden)return false;
@@ -20,9 +21,15 @@ export function removeSceneEntity(document,kind,id){
  const field={actor:'actors',prop:'props',emitter:'emitters'}[kind];if(!field)throw new Error('Unknown scene item.');
  const next=structuredClone(document);if(!next[field]?.some(n=>n.id===id))throw new Error('Missing scene item.');next[field]=next[field].filter(n=>n.id!==id);
  if(kind==='actor'){
+  if(next.interactions)next.interactions=next.interactions.filter(b=>b.actor!==id);
   if(next.contacts)next.contacts=next.contacts.filter(c=>c.actor!==id&&!(c.target.type==='joint'&&c.target.actor===id));
   if(next.emitters)next.emitters=next.emitters.filter(e=>e.actor!==id);
   if(next.ensemble&&(next.ensemble.sky===id||next.ensemble.members.includes(id)))delete next.ensemble;
+ }
+ if(next.behaviorGraph){
+  const keep=action=>!(action.actor&&action.actor!=='$actor'&&!next.actors.some(a=>a.id===action.actor))&&!(action.type==='emitter'&&!next.emitters?.some(e=>e.id===action.emitter))&&!(action.type==='ensemble'&&!next.ensemble)&&!(action.type==='input'&&action.actor==='$actor'&&!next.actors.some(a=>validBehaviorInput(next,a.id,action.input,action.value)));
+  for(const state of Object.values(next.behaviorGraph.states))state.actions=state.actions.filter(keep);
+  for(const handler of next.behaviorGraph.handlers||[])handler.actions=handler.actions.filter(keep);
  }
  if(next.lighting?.emitter&&!next.emitters?.some(e=>e.id===next.lighting.emitter)){delete next.lighting.emitter;next.lighting.enabled=false;}
  return next;

@@ -149,3 +149,11 @@ Apply `addOnaArmJoints` after creating Ona's depth artwork. It keeps the origina
 ## Contact constraints
 
 `posecraft/contacts` exports `solveContact` and `applyContacts`. Scenes can declare up to 16 saved hand/foot constraints to points or actor joints. Clip timing, repeating windows, joint limits, projected depth and endpoint orientation are supported in the scene worker and Director. See [the contact schema and authoring guide](contacts.md). Scene clips and explicit worker scrubbing now support up to 180 seconds.
+
+## Live illustrations and event authoring
+
+A scene may set `presentation: "live"` and a saved `behaviorGraph` with variables, states, entry actions, conditional event/delay branches, and global event handlers. `presentation: "sequence"` disables graph execution; it does not flatten clips or bake simulation. Live playback has no duration limit. The existing 0–180 second seek range is a debugging replay window, not an illustration lifetime.
+
+`SceneController` and `WorkerSceneController` expose `dispatch(event, {actor?, x?, y?})`, `setVariable(name, booleanOrNumber)`, and `pointer({binding, phase, x, y})`. `posecraft/behaviors` exports the standalone bounded `BehaviorRuntime`. `posecraft/pointer-browser` connects declared pointer bindings to SVG input; `mountScene` attaches these automatically. Coordinates use scene units. Frames expose `behavior` and `emitterOverrides`. See [live scene authoring](live-scenes.md) for schema limits, authoring controls and campfire examples.
+
+`posecraft/scene-export` exports `inspectSceneFeatures` and `createSceneExport`. Studio downloads HTML backed by the deployed runtime directory. `npm run compile:scene -- input.scene.json empty-output-directory` emits a self-hosted website with a selected runtime graph; serve it over HTTP(S). Illustration exports omit Planck, rigid-body recovery and the full SceneController. The shared renderer still includes common rendering capabilities; this is not physics baking or a minimum-per-shape compiler.

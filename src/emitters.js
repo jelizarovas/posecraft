@@ -26,4 +26,4 @@ export function sampleEmitter(emitter,time,capacity=emitterCapacity(emitter)){
  }
  return particles;
 }
-export function sampleEmitters(document,time){let remaining=MAX_SCENE_PARTICLES;return (document.emitters||[]).map(emitter=>{const capacity=Math.min(remaining,emitterCapacity(emitter));remaining-=capacity;const actor=emitter.actor&&document.actors.find(a=>a.id===emitter.actor),visible=nodeVisible(document,emitter)&&(!emitter.actor||actor&&nodeVisible(document,actor));return {emitter,particles:sampleEmitter(visible?emitter:{...emitter,enabled:false},time,capacity)};});}
+export function sampleEmitters(document,time,frame){let remaining=MAX_SCENE_PARTICLES;return (document.emitters||[]).map(source=>{const override=frame?.emitterOverrides?.[source.id],emitter=override?{...source,enabled:override.enabled}:source;const capacity=Math.min(remaining,emitterCapacity(emitter));remaining-=capacity;const actor=emitter.actor&&document.actors.find(a=>a.id===emitter.actor),visible=nodeVisible(document,emitter)&&(!emitter.actor||actor&&nodeVisible(document,actor));return {emitter,particles:sampleEmitter(visible?emitter:{...emitter,enabled:false},time,capacity)};});}

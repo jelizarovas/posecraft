@@ -7,6 +7,7 @@ import {lightingConfig,sampleLighting} from '../src/lighting.js';
 import {emitterPulse} from '../src/emitters.js';
 import {SceneController} from '../src/scene.js';
 import {DocumentStore} from '../src/commands.js';
+import {createCampfire} from '../examples/campfire.js';
 const fixture=()=>{const doc=createDrawing();doc.groups=[{id:'scene',name:'Scene',parent:null},{id:'fire',name:'Fire',parent:'scene'}];doc.actors[0].group='fire';doc.emitters=[{...createEmitter('flame','flame'),actor:'character',group:'fire'}];doc.lighting={enabled:true,emitter:'flame',intensity:1,celThickness:.5};return assertDocument(doc);};
 test('folders validate references, cycles, depth and bounded emitters',()=>{
  const doc=fixture();
@@ -34,4 +35,19 @@ test('optional fields delete atomically and undo restores both grouping and ligh
  const snapshot=structuredClone(store.document);
  assert.throws(()=>store.transact([{op:'delete',path:['lighting','emitter']},{op:'delete',path:['actors',0]}]),/object field/);assert.deepEqual(store.document,snapshot);
  assert.throws(()=>store.transact([{op:'delete',path:['schemaVersion']}]));assert.throws(()=>store.transact([{op:'delete',path:['bounds']}]));assert.deepEqual(store.document,snapshot);
+});
+
+
+test('actor removal cleans pointer bindings and behavior references while preserving independent actions',()=>{
+ const doc=fixture();doc.packs.drawing.inputs.flag={type:'boolean',default:false};doc.actors.push({...structuredClone(doc.actors[0]),id:'guest'});doc.interactions=[{id:'touch',actor:'character',gesture:'click',response:'event',event:'touch',resistance:0},{id:'guest-touch',actor:'guest',gesture:'click',response:'event',event:'touch',resistance:0}];
+ const actions=[{type:'input',actor:'character',input:'flag',value:true},{type:'input',actor:'$actor',input:'flag',value:true},{type:'emitter',emitter:'flame',enabled:false},{type:'event',actor:'character',event:'done'},{type:'event',event:'remaining'},{type:'set',variable:'active',value:true}];doc.behaviorGraph={seed:1,variables:{active:false},initial:'idle',states:{idle:{actions:structuredClone(actions)}},edges:[],handlers:[{event:'touch',actions:structuredClone(actions)}]};assertDocument(doc);const before=structuredClone(doc),next=removeSceneEntity(doc,'actor','character');assertDocument(next);assert.deepEqual(next.interactions.map(b=>b.actor),['guest']);assert.deepEqual(next.behaviorGraph.states.idle.actions,actions.filter(a=>a.actor!=='character'&&a.type!=='emitter'));assert.deepEqual(next.behaviorGraph.handlers[0].actions,next.behaviorGraph.states.idle.actions);assert.deepEqual(doc,before);
+ const empty=removeSceneEntity(next,'actor','guest');assertDocument(empty);assert.ok(empty.behaviorGraph.states.idle.actions.every(a=>a.type!=='input'));assert.deepEqual(empty.interactions,[]);
+});
+
+test('emitter removal cleans state and handler actions and preserves unused feature declarations',()=>{
+ const doc=fixture();doc.requiredFeatures=['procedural-emitters','behavior-graphs'];doc.behaviorGraph={seed:1,variables:{},initial:'idle',states:{idle:{actions:[{type:'emitter',emitter:'flame',enabled:true}]}},edges:[],handlers:[{event:'stop',actions:[{type:'emitter',emitter:'flame',enabled:false}]}]};const next=removeSceneEntity(doc,'emitter','flame');assertDocument(next);assert.deepEqual(next.behaviorGraph.states.idle.actions,[]);assert.deepEqual(next.behaviorGraph.handlers[0].actions,[]);assert.deepEqual(next.requiredFeatures,doc.requiredFeatures);assert.equal(next.lighting.enabled,false);
+});
+
+test('removing a campfire member retires ensemble actions without deleting graph states or variables',()=>{
+ const doc=createCampfire(),member=doc.ensemble.members[0],next=removeSceneEntity(doc,'actor',member);assertDocument(next);assert.equal(next.ensemble,undefined);for(const state of Object.values(next.behaviorGraph.states))assert.ok(state.actions.every(a=>a.type!=='ensemble'));for(const handler of next.behaviorGraph.handlers)assert.ok(handler.actions.every(a=>a.type!=='ensemble'));assert.deepEqual(Object.keys(next.behaviorGraph.states),Object.keys(doc.behaviorGraph.states));assert.deepEqual(next.behaviorGraph.variables,doc.behaviorGraph.variables);assert.ok(doc.ensemble);
 });

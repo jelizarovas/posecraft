@@ -8,7 +8,7 @@ export function lightingConfig(scene,frame){const light={shadowLength:1,enabled:
   const actor=scene.actors.find(a=>a.id===emitter.actor),placement=frame?.actors?.find(a=>a.id===emitter.actor)?.placement||actor?.transform||{x:0,y:0,rotation:0,scale:1};
   const angle=placement.rotation*Math.PI/180,x=emitter.x,y=emitter.y-(emitter.type==='flame'?emitter.size*.45:0);
   light.type='point';light.pointX=placement.x+placement.scale*(x*Math.cos(angle)-y*Math.sin(angle));light.pointY=placement.y+placement.scale*(x*Math.sin(angle)+y*Math.cos(angle));
-  light.emitterSettings={...emitter,enabled:emitter.enabled&&nodeVisible(scene,emitter)&&(!emitter.actor||!!actor&&nodeVisible(scene,actor))};
+  light.emitterSettings={...emitter,enabled:(frame?.emitterOverrides?.[emitter.id]?.enabled??emitter.enabled)&&nodeVisible(scene,emitter)&&(!emitter.actor||!!actor&&nodeVisible(scene,actor))};
  }
  return light;
 }

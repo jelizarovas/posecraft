@@ -1,3 +1,4 @@
+import {mountScenePointers} from './pointer-browser.js';
 import { SceneController } from './scene.js';
 import { mountSVG } from './svg.js';
 import { WorkerSceneController } from './worker.js';
@@ -30,9 +31,13 @@ export function mountScene(element, document, { host = element, reducedMotion = 
   globalThis.addEventListener('scroll', scroll, true);
   media.addEventListener('change', policy);
   if (!autoplay) controller.pause();
+  const pointers=mountScenePointers(element,document,controller,{onInteract:()=>{controller.play();schedule();},onUpdate:()=>renderer.update(controller.frame())});
   schedule();
   return {
     controller,
+    dispatch(event,payload){controller.dispatch(event,payload);renderer.update(controller.frame());},
+    setVariable(name,value){controller.setVariable(name,value);},
+    pointer(command){controller.pointer(command);renderer.update(controller.frame());},
     walkTo(actor,x){controller.walkTo(actor,x);renderer.update(controller.frame());},
     setBehavior(actor,settings){controller.setBehavior(actor,settings);renderer.update(controller.frame());},
     interact(actor,type,strength){controller.interact(actor,type,strength);renderer.update(controller.frame());},
@@ -41,6 +46,6 @@ export function mountScene(element, document, { host = element, reducedMotion = 
     pause() { controller.pause(); cancelAnimationFrame(raf); raf = 0; },
     reset() { renderer.update(controller.reset()); resetClock(); },
     seek(time) { renderer.update(controller.seek(time)); resetClock(); },
-    dispose() { disposed = true; cancelAnimationFrame(raf); size.disconnect(); observer.disconnect(); media.removeEventListener('change', policy); globalThis.document.removeEventListener('visibilitychange', visibility); globalThis.removeEventListener('scroll', scroll, true); unsubscribe(); controller.dispose(); renderer.dispose(); }
+    dispose() { pointers.dispose(); disposed = true; cancelAnimationFrame(raf); size.disconnect(); observer.disconnect(); media.removeEventListener('change', policy); globalThis.document.removeEventListener('visibilitychange', visibility); globalThis.removeEventListener('scroll', scroll, true); unsubscribe(); controller.dispose(); renderer.dispose(); }
   };
 }

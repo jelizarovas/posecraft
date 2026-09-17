@@ -8,3 +8,5 @@
 .studio-app:has(.scene-timeline) .demo-controls{display:none}
 
 .contact-heading,.contact-tabs{display:flex;align-items:center;justify-content:space-between;gap:8px}.contact-heading button{font-size:11px;padding:5px}.contact-heading .material-symbols-outlined{font-size:16px}.contact-tabs button{font-size:10px;padding:5px}.contact-tabs label{font-size:10px}#contact-readout{min-height:24px;color:var(--primary)}
+
+.scene-bottom [hidden]{display:none!important}.scene-inspector .prop-tabs{flex-wrap:wrap}.scene-inspector fieldset{margin:8px 0;padding:8px;border:1px solid var(--border,#ded8e7);border-radius:7px;min-width:0}.scene-inspector fieldset legend{font-size:11px;color:var(--muted)}

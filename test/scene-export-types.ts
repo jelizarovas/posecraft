@@ -1,0 +1,15 @@
+import type {SceneDocument} from '../src/schema.js';
+import {createSceneExport,inspectSceneFeatures} from '../src/scene-export.js';
+import {IllustrationController,mountIllustration} from '../src/illustration.js';
+declare const scene:SceneDocument;
+const inspection=inspectSceneFeatures(scene);
+const exported=createSceneExport(scene,{runtimeBase:'https://example.org/runtime/'});
+const runtime:'illustration'|'physics'=inspection.runtime;
+const html:string=exported.html;
+const controller=new IllustrationController(scene,{reducedMotion:true});
+controller.setInput('actor','emotion','happy');
+controller.dispatch('hello',{actor:'actor',x:0,y:1});
+controller.pointer({binding:'head',phase:'move',x:0,y:1});
+controller.frame().actors[0].pose;
+mountIllustration(document.createElement('div'),scene,{autoplay:false,onError:error=>console.error(error.message)}).dispose();
+void runtime;void html;

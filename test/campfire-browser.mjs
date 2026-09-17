@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const base=(process.env.POSECRAFT_URL||'http://127.0.0.1:5178').replace(/\/$/,''),browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})}),page=await browser.newPage({viewport:{width:1366,height:768},reducedMotion:'reduce'}),errors=[];
 page.setDefaultTimeout(20000);page.on('pageerror',e=>errors.push(e.message));
-async function seek(time){await page.locator('#demo-scrub').fill(String(time));await page.locator('#demo-scrub').dispatchEvent('input');await page.waitForFunction(t=>Math.abs(Number(document.querySelector('#demo-art svg').dataset.sceneTime)-t)<.03,time);}
+async function seek(time){if(await page.locator('#demo-scrub').isHidden())await page.locator('#camp-review').click();await page.locator('#demo-scrub').fill(String(time));await page.locator('#demo-scrub').dispatchEvent('input');await page.waitForFunction(t=>Math.abs(Number(document.querySelector('#demo-art svg').dataset.sceneTime)-t)<.03,time);}
 const food=id=>page.locator(`#demo-art [data-actor="camper-${id}"] [data-part="marshmallow"]`);
 const meteor=()=>page.locator('#demo-art [data-part="meteor-0-head"]').locator('..').evaluate(el=>{const m=el.transform.baseVal.consolidate().matrix;return {x:m.e,y:m.f,dx:m.a,dy:m.b};});
 async function download(){const pending=page.waitForEvent('download');await page.locator('#download-demo').click();await(await pending).saveAs('test-results/campfire.scene.json');return JSON.parse(fs.readFileSync('test-results/campfire.scene.json','utf8'));}
