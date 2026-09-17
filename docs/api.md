@@ -105,3 +105,5 @@ Set `props` through the existing transaction API. Add `prop-colliders` to `requi
 ## Episodes and camera
 
 `posecraft/episode` provides the separate versioned episode document, `EpisodeController`, absolute frame sampling, and seeded motion baking. It embeds compatible scene documents; existing scene imports keep their meaning. Episode frames supply camera and actor placement transforms to the SVG renderer. See [Director](director.md) for the schema, CLI commands, reference workflow, worker behavior, and production limits.
+
+For webcam acting and saved animation takes, see [capture](capture.md) and `posecraft/performance`. `ShotActor.expressions` stores held `[shotSeconds, emotion]` keys. Director's vision worker and camera controls are opt-in and separate from the embeddable scene runtime.

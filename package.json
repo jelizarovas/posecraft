@@ -45,6 +45,10 @@
     "./episode": {
       "types": "./src/episode.d.ts",
       "default": "./src/episode.js"
+    },
+    "./performance": {
+      "types": "./src/performance.d.ts",
+      "default": "./src/performance.js"
     }
   },
   "bin": {
@@ -60,7 +64,8 @@
     "LICENSE",
     "docs/reactions.md",
     "docs/performance.md",
-    "docs/director.md"
+    "docs/director.md",
+    "docs/capture.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -72,7 +77,9 @@
     "test:types": "tsc --noEmit --strict --module nodenext --target es2022 test/types.ts",
     "test:responses": "node test/responses-browser.mjs",
     "test:performance": "node test/performance-browser.mjs",
-    "test:director": "node test/director-browser.mjs"
+    "test:director": "node test/director-browser.mjs",
+    "test:capture": "node test/capture-browser.mjs",
+    "test:vision": "node test/vision-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"
@@ -84,6 +91,7 @@
   },
   "devDependencies": {
     "@fontsource/roboto": "5.3.0",
+    "@mediapipe/tasks-vision": "1.0.1",
     "@playwright/test": "1.58.2",
     "@types/react": "19.2.14",
     "react": "19.2.8",

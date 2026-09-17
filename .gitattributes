@@ -2,3 +2,7 @@
 *.woff binary
 *.woff2 binary
 *.png binary
+*.wasm binary
+*.task binary
+# Preserve the checksum of the unmodified upstream runtime, including its whitespace.
+public/vision/vision_wasm_module_internal.js -whitespace linguist-vendored

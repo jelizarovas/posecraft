@@ -31,3 +31,8 @@ createElement(Posecraft,{scene,execution:"worker"});
 import {EpisodeController,assertEpisode} from "posecraft/episode";
 const episode=new EpisodeController(assertEpisode(incoming));
 episode.frame(0).camera.zoom;
+import {assertTake,applyTake,sampleTake,PerformanceRetargeter} from 'posecraft/performance';
+const take=assertTake(incoming,scene.packs[scene.actors[0].pack]);
+sampleTake(take,.5).pose;
+applyTake(episode.project,'hello','ona',take,0);
+new PerformanceRetargeter(scene.packs[scene.actors[0].pack]);

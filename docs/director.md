@@ -69,3 +69,7 @@ Director currently samples authored clips and deterministic motion layers. It do
 Automatic shot detection, batch reference extraction, asset segmentation/tracing/generation, camera tracking, motion fitting, dialogue tracks, lip sync, audio mixing, transitions beyond cuts, and encoded movie export are not implemented. Recreating a full episode is a production workflow to build on this foundation, not an existing one-click operation.
 
 `npm run test:director` verifies camera/placement keys, scene reuse, shot copies, undo/redo, motion baking, local video capture, reference persistence, file round trips, and compact desktop/mobile controls. Runtime tests verify cut boundaries, random-access sampling, seed repeatability, constrained baking, and invalid imports.
+
+## Webcam performance
+
+Use **Perform** to calibrate, rehearse, record and review camera-driven acting. Apply a take at the playhead to create pose and expression keys. **Motion → Expression key** edits facial timing at the selected frame. Read [webcam capture](capture.md) for rig support, privacy, limits and the take API. Actor cues accept optional `expressions: [[seconds, emotion], ...]`; the values are held until the next key.

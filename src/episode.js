@@ -1,6 +1,6 @@
 import {assertDocument} from './schema.js';
 import {sampleClip,interpolate,constrainPose,forwardKinematics} from './index.js';
-export const episodeCapabilities=Object.freeze({schemaVersion:1,kind:'episode',features:['reusable-scenes','ordered-shots','keyed-camera','actor-placement','pose-keys','seeded-motion','rotation-baking','local-reference-frames'],unavailable:['automatic-asset-extraction','motion-fitting','dialogue-tracks','movie-encoding','physics-baking']});
+export const episodeCapabilities=Object.freeze({schemaVersion:1,kind:'episode',features:['reusable-scenes','ordered-shots','keyed-camera','actor-placement','pose-keys','seeded-motion','rotation-baking','local-reference-frames','expression-keys','performance-takes'],unavailable:['automatic-asset-extraction','motion-fitting','dialogue-tracks','movie-encoding','physics-baking']});
 const id=/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const validId=value=>typeof value==='string'&&id.test(value);
 const finite=(n,min=-10000,max=10000)=>Number.isFinite(n)&&n>=min&&n<=max;
@@ -29,6 +29,7 @@ export function assertEpisode(project){
   for(const [actorId,cue] of Object.entries(shot.actors||{})){
    const actor=scene.actors.find(a=>a.id===actorId),pack=scene.packs[actor?.pack];require(actor&&object(cue)&&Object.hasOwn(pack.clips,cue.clip)&&finite(cue.offset,0,600)&&finite(cue.speed,0,4),'Invalid actor clip cue.');
    if(cue.emotion!==undefined)require(pack.inputs.emotion?.options.includes(cue.emotion),'Unknown expression.');
+   if(cue.expressions!==undefined)require(Array.isArray(cue.expressions)&&cue.expressions.length>0&&cue.expressions.length<=2000&&cue.expressions.every((k,i)=>Array.isArray(k)&&k.length===2&&finite(k[0],0,shot.duration)&&(!i||k[0]>cue.expressions[i-1][0])&&pack.inputs.emotion?.options.includes(k[1])),'Invalid expression keys.');
    if(cue.placement)for(const [key,keys] of Object.entries(cue.placement)){require(['x','y','scale','rotation'].includes(key),'Unknown placement channel.');track(keys,key==='scale'?.05:key==='rotation'?-180:-10000,key==='scale'?10:key==='rotation'?180:10000);}
    if(cue.pose)for(const [channel,keys] of Object.entries(cue.pose)){const joint=pack.joints.find(j=>channel===j.id+'.rotation');require(joint,'Unknown pose channel.');track(keys,joint.min,joint.max);}
    if(cue.motion){const m=cue.motion;require(object(m)&&['sway','noise'].includes(m.kind)&&pack.joints.some(j=>j.id===m.joint)&&['rotation','x','y'].includes(m.channel)&&finite(m.amplitude,0,180)&&finite(m.frequency,.01,10)&&Number.isSafeInteger(m.seed)&&m.seed>=0&&m.seed<=2147483647,'Invalid procedural motion.');}
@@ -52,6 +53,7 @@ export class EpisodeController {
    const pack=scene.packs[actor.pack],cue=shot.actors?.[actor.id],clip=cue?.clip||pack.states[pack.initial].clip;
    let pose={...this.defaults.get(shot.scene+':'+actor.pack),...sampleClip(pack.clips[clip],local*(cue?.speed??1)+(cue?.offset??0))};
    const inputs={...Object.fromEntries(Object.entries(pack.inputs).map(([k,v])=>[k,v.default])),...actor.inputs};if(pack.inputs.action?.options.includes(clip))inputs.action=clip;if(cue?.emotion)inputs.emotion=cue.emotion;
+   for(const key of cue?.expressions||[])if(key[0]<=local)inputs.emotion=key[1];else break;
    for(const [key,value] of Object.entries(pack.expressions?.[inputs.emotion]||{}))pose[key]+=value;
    for(const [key,keys] of Object.entries(cue?.pose||{}))pose[key]=interpolate(keys,local);
    if(cue?.motion){const m=cue.motion;pose[m.joint+'.'+m.channel]+=motionValue(m,local);}

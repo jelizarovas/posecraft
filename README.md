@@ -103,3 +103,5 @@ The Career OS portfolio consumes this folder as a sibling file dependency. Keep 
 ## License and attribution
 
 MIT, copyright 2026 Arnas. Ona's original MIT notice is retained in `examples/ONA-LICENSE`. wwwzard source was reused from the owner's portfolio. The bundled Studio uses React, Vite, Playwright and TypeScript under their package licenses. Planck uses MIT and its notice ships with the site. Roboto uses the SIL Open Font License. Material Symbols uses Apache 2.0. Both fonts are self-hosted with their license notices. Rusty's source artwork is retained from the same owner-provided character library as Ona. User-imported artwork retains its own license.
+
+Director now includes **Perform** for local webcam acting: calibration, face/hand tracking, recorded takes, review and pose/expression baking. Read [webcam capture](docs/capture.md). The optional vision SDK and WASM use Apache 2.0, with pinned official model sources in [the asset record](public/vision/README.md). Posecraft remains MIT.
