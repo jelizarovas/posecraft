@@ -6,7 +6,7 @@
 
 Play **Turnaround**, **Look around**, **Reach & hide**, or **Tuck jump**. The manual controls pause the acting clips and pose the selected cast. **Body turn** rotates the whole rig. **Head turn** adds a turn relative to the body. **Arm depth** changes overlap while keeping the shoulder attached. **Shape / tuck** blends Ona's rounded arm into a bent teardrop and raises Dummy's right knee toward the viewer.
 
-Choose **Edit in Studio**, select a joint and choose a **Pose channel**. Set the playhead, adjust the slider and press **+** to save keys. Yaw, Pitch, Depth and Shape use the same saved clips, undo, export and playback as Rotation. Depth rigs use sliders for posing; canvas clicks select parts but dragging is disabled because the old drag solver assumes a flat plane. Bone guides follow projected positions.
+Choose **Edit in Studio**, select a joint and choose a **Pose channel**. Set the playhead, adjust the slider and press **+** to save keys. Yaw, Pitch, Depth, Shape and Opacity use the same saved clips, undo, export and playback as Rotation. Depth rigs use sliders for posing; canvas clicks select parts but dragging is disabled because the old drag solver assumes a flat plane. Bone guides follow projected positions.
 
 - **Yaw** rotates around the joint's local Y axis. Use Root for a body turn, Head for a face turn, and Dummy's thigh/calf joints for a knee moving toward the camera.
 - **Pitch** rotates around local X. Use Head to look up/down. Local axes inherit parent rotations.
@@ -17,7 +17,7 @@ Director samples these channels in clips and accepts them in `ShotActor.pose` ke
 
 ## Data contract
 
-Set `pack.spatial: true` and add `spatial-rig` to `requiredFeatures`. Each joint gains `yaw` in -180..180 degrees, `pitch` in -90..90 degrees, `z` in -500..500 layer units, and `bend` in 0..1. All default to zero. Clip channels are `head.yaw`, `head.pitch`, `rightArm.z`, `rightArm.bend`, and so on. Numeric interpolation is explicit: put intermediate yaw keys between +180 and -180 when choosing a turning direction.
+Set `pack.spatial: true` and add `spatial-rig` to `requiredFeatures`. Each joint gains `yaw` in -180..180 degrees, `pitch` in -90..90 degrees, `z` in -500..500 layer units, and `bend` in 0..1. These default to zero. The `opacity` channel ranges from 0 to 1 and defaults to 1. A part opts into it with `opacityChannel: "jointId.opacity"`; this fades that part without affecting its children. Clip channels are `head.yaw`, `head.pitch`, `rightArm.z`, `rightArm.bend`, and so on. Numeric interpolation is explicit: put intermediate yaw keys between +180 and -180 when choosing a turning direction.
 
 Each vector part may declare `spatial` metadata:
 

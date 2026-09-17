@@ -91,7 +91,8 @@
     "test:motion": "node test/motion-browser.mjs",
     "test:spatial": "node test/spatial-browser.mjs",
     "test:lighting": "node test/lighting-browser.mjs",
-    "test:lighting-turn": "node test/lighting-turn-browser.mjs"
+    "test:lighting-turn": "node test/lighting-turn-browser.mjs",
+    "test:campfire": "node test/campfire-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

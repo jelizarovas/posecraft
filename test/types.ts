@@ -49,3 +49,7 @@ scene.packs[scene.actors[0].pack].spatial=true;
 scene.packs[scene.actors[0].pack].parts[0].spatial={thickness:.7,axis:"x",facing:"front",surface:{x:-10,width:30,depth:20}};
 
 scene.lighting={enabled:true,shading:"cel",angle:-135,elevation:45,color:"#fff1d6",floorShadow:.24,reflection:.2,gloss:.35};
+
+scene.lighting={enabled:true,type:"point",receiver:"floor",pointX:400,pointY:300,pointHeight:120,range:500,motion:"flicker",flicker:.3,celThickness:.4,celIntensity:.7};
+scene.actors[0].layer="foreground";scene.actors[0].unlit=true;
+scene.packs[scene.actors[0].pack].parts[0].opacityChannel="root.opacity";

@@ -113,3 +113,7 @@ For opt-in get-up, return-to-mark walking, `walkTo(actorId, sceneX)`, recovery d
 Opt-in `pack.spatial: true` enables keyable yaw/pitch, layer depth and shape controls. Part metadata defines curved facial surfaces, visibility, clipping and compatible vector morphs. See [spatial rigs](spatial.md). Original packs retain their existing 2D behavior.
 
 Optional `scene.lighting` adds surface shading, highlights, cast/contact shadows and planar reflections to the SVG renderer. See [lighting](lighting.md) for fields, Studio controls, rendering costs and receiver limits.
+
+Actors may set `layer` to `background`, `characters` or `foreground`. Default actors use the character layer. Backgrounds draw before props and lighting effects; foregrounds draw after characters. Set `unlit: true` for emissive fire or painted scenery that should neither receive surface shading nor cast shadows. Declare `scenery-layers` when relying on this ordering.
+
+A spatial part may set `opacityChannel: "jointId.opacity"`. The joint opacity channel ranges from 0 to 1 and defaults to 1. It controls that part only; children do not inherit it. Use a shared channel on several parts to fade them together. Input-based `showWhen` still applies. See the campfire scene for food, smoke, ember and meteor tracks.

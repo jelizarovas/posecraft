@@ -1,6 +1,6 @@
 import {clamp} from './index.js';
-export const spatialChannels={yaw:{min:-180,max:180},pitch:{min:-90,max:90},z:{min:-500,max:500},bend:{min:0,max:1}};
-export function poseDefaults(pack){return Object.fromEntries(pack.joints.flatMap(j=>[[j.id+'.rotation',j.rotation],[j.id+'.x',0],[j.id+'.y',0],...(pack.spatial?Object.keys(spatialChannels).map(k=>[j.id+'.'+k,0]):[])]));}
+export const spatialChannels={opacity:{min:0,max:1},yaw:{min:-180,max:180},pitch:{min:-90,max:90},z:{min:-500,max:500},bend:{min:0,max:1}};
+export function poseDefaults(pack){return Object.fromEntries(pack.joints.flatMap(j=>[[j.id+'.rotation',j.rotation],[j.id+'.x',0],[j.id+'.y',0],...(pack.spatial?Object.keys(spatialChannels).map(k=>[j.id+'.'+k,k==='opacity'?1:0]):[])]));}
 const I=[1,0,0,0,1,0,0,0,1],rad=Math.PI/180;
 const mul=(a,b)=>Array.from({length:9},(_,i)=>{const row=Math.floor(i/3),col=i%3;return a[row*3]*b[col]+a[row*3+1]*b[col+3]+a[row*3+2]*b[col+6];});
 const apply=(m,x,y,z)=>({x:m[0]*x+m[1]*y+m[2]*z,y:m[3]*x+m[4]*y+m[5]*z,z:m[6]*x+m[7]*y+m[8]*z});

@@ -1,6 +1,6 @@
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -33,6 +33,8 @@ function validateStructure(doc) {
   check(Number.isSafeInteger(doc.revision) && doc.revision >= 0, 'revision', 'Expected a nonnegative revision.');
   check(record(doc.bounds) && finite(doc.bounds.width, 1, 4096) && finite(doc.bounds.height, 1, 4096), 'bounds', 'Width and height must be 1..4096.');
   if(doc.lighting!==undefined){const l=doc.lighting;check(record(l),'lighting','Expected scene lighting.');if(record(l)){
+    for(const [key,values] of Object.entries({type:['directional','point'],receiver:['corner','floor'],motion:['none','orbit','flicker']}))if(l[key]!==undefined)check(values.includes(l[key]),'lighting.'+key,'Unknown lighting option.');
+    if(l.showSource!==undefined)check(typeof l.showSource==='boolean','lighting.showSource','Expected boolean.');
     if(l.shading!==undefined)check(['gradient','cel'].includes(l.shading),'lighting.shading','Expected gradient or cel.');
     if(l.enabled!==undefined)check(typeof l.enabled==='boolean','lighting.enabled','Expected boolean.');
     for(const [key,[min,max]] of Object.entries(lightRanges))if(l[key]!==undefined)check(finite(l[key],min,max),'lighting.'+key,`Expected ${min}..${max}.`);
@@ -66,6 +68,7 @@ function validateStructure(doc) {
       if (part.stroke !== undefined) check(colors.test(part.stroke), `${p}.parts.${part.id}.stroke`, 'Expected hex color or none.');
       if (part.strokeWidth !== undefined) check(finite(part.strokeWidth, 0, 30), `${p}.parts.${part.id}.strokeWidth`, 'Invalid stroke width.');
       if (part.transform !== undefined) check(typeof part.transform === 'string' && part.transform.length < 300 && /^(\s*(translate|scale|rotate|matrix)\(\s*[-+0-9.eE,\s]+\)\s*)*$/.test(part.transform), `${p}.parts.${part.id}.transform`, 'Only numeric SVG transforms are supported.');
+      if(part.opacityChannel!==undefined)check(pack.spatial===true&&typeof part.opacityChannel==='string'&&joints.has(part.opacityChannel.split('.')[0])&&part.opacityChannel===part.opacityChannel.split('.')[0]+'.opacity',`${p}.parts.${part.id}.opacityChannel`,'Expected a spatial joint opacity channel.');
       if (part.channel !== undefined) check(safeId.test(part.channel), `${p}.parts.${part.id}.channel`, 'Invalid appearance channel.');
       if (part.variants !== undefined) {
         const input = pack.inputs[part.variantInput];
@@ -152,6 +155,8 @@ function validateStructure(doc) {
   const actorIds = new Set();
   for (const a of doc.actors) {
     if (!record(a)) { check(false, 'actors', 'Expected actor.'); continue; }
+    if(a.layer!==undefined)check(['background','characters','foreground'].includes(a.layer),`actors.${a.id}.layer`,'Unknown drawing layer.');
+    if(a.unlit!==undefined)check(typeof a.unlit==='boolean',`actors.${a.id}.unlit`,'Expected boolean.');
     check(safeId.test(a.id) && !actorIds.has(a.id), `actors.${a.id}`, 'Actor IDs must be unique.'); actorIds.add(a.id);
     check(typeof a.name === 'string' && a.name.length <= 100, `actors.${a.id}.name`, 'Expected name.');
     check(Object.hasOwn(doc.packs, a.pack), `actors.${a.id}.pack`, 'Missing pack.');

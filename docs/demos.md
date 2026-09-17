@@ -4,6 +4,7 @@ Open [Posecraft demos](https://jelizarovas.github.io/posecraft/demos.html), or c
 
 | Demo | What to try | Editable project |
 | --- | --- | --- |
+| [Campfire night](https://jelizarovas.github.io/posecraft/demos.html#campfire-night) | Four Ona looks roast, burn, blow on, eat and replace marshmallows around a flickering fire; drifting clouds and occasional meteors | Studio scene |
 | [Light & shade](https://jelizarovas.github.io/posecraft/demos.html#light-and-shade) | Move the light, adjust highlights and reflections, compare warm/cool/flat treatments, and jump to see contact shadows fade | Studio scene |
 | [Turn & pose](https://jelizarovas.github.io/posecraft/demos.html#turn-and-pose) | Turn heads/bodies, send limbs behind the torso, blend Ona's arm shape and lift Dummy's knees in depth | Studio scene |
 | [Shake & settle](https://jelizarovas.github.io/posecraft/demos.html#shake-and-settle) | Enable phone motion or press Shake scene; the cast falls, gets up and returns to its marks. Select a character and tap the stage to walk, or use Walk around | Studio scene |
@@ -22,7 +23,7 @@ Episode demos have play/pause, a time slider and direct shot buttons. Interactiv
 
 **Edit in Director** and **Edit in Studio** open a separate local copy. Demo drafts use storage keys ending in `.demo.<id>`, so they do not overwrite your regular Studio or Director draft. Reopening that demo's editor restores your edited copy. Export it to a file to keep or share it. The regular editor link in the gallery header opens your ordinary draft.
 
-On phones the demo cards form a horizontal strip. The preview and controls remain on one page without vertical scrolling at the tested 390×844 layout. On desktop all nine cards remain visible. Thumbnails are static; only the selected demo runs a worker. Switching demos terminates the old worker. Hidden pages stop advancing and mute interaction sounds. Reduced-motion preference starts previews paused; Play explicitly starts them. No demo requests camera or microphone access.
+On phones the demo cards form a horizontal strip. The preview and controls remain on one page without vertical scrolling at the tested 390×844 layout. On desktop all ten cards remain visible. Thumbnails are static; only the selected demo runs a worker. Switching demos terminates the old worker. Hidden pages stop advancing and mute interaction sounds. Reduced-motion preference starts previews paused; Play explicitly starts them. No demo requests camera or microphone access.
 
 ## Reusable examples
 
@@ -30,7 +31,13 @@ On phones the demo cards form a horizontal strip. The preview and controls remai
 
 The scenes reuse the existing owner-provided characters. Their original provenance remains inside the packs. Background sets and choreography are authored here as MIT example data. No assets or dialogue from an existing TV episode are included.
 
-`npm test` validates all nine project round trips, samples finite poses within joint limits, verifies factory isolation and proves all three lab dummies contact their platforms. `npm run test:demos` checks actual browser playback, shot/set changes, independent facial inputs, live physics, container dragging, opt-in sound, exports, a single active worker, separate editor storage and desktop/mobile layouts. Existing Studio and Director browser suites cover their entry points after adding the gallery links.
+`npm test` validates all ten project round trips, samples finite poses within joint limits, verifies factory isolation and proves all three lab dummies contact their platforms. `npm run test:demos` checks actual browser playback, shot/set changes, independent facial inputs, live physics, container dragging, opt-in sound, exports, a single active worker, separate editor storage and desktop/mobile layouts. Existing Studio and Director browser suites cover their entry points after adding the gallery links.
+
+## Campfire night
+
+Maple, Juniper, Ember and Clover have different hair, eye colors and outfits. Each follows a 24-second cooking loop, staggered by five seconds. Use **Roast**, **Burn**, **Eat** and **Replace** to inspect the stages, or scrub the full minute. **Meteor** jumps to the first shooting star. Fire and embers loop every four seconds; clouds and two meteors run on a 60-second sky track.
+
+The download contains all drawings, states and numeric animation keys. Four character actors sit between an unlit background actor and an unlit foreground fire actor. The warm point light flickers with scene time. Open the scene in Studio to edit the clips, looks and light. The roasting props hide when a camper switches to another action. This is authored choreography, not simulated cooking or object grasping.
 
 ## Phone motion and returning to a mark
 
