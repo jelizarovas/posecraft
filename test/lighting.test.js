@@ -5,7 +5,7 @@ import {SceneController} from '../src/scene.js';
 import {spatialParts} from '../src/spatial.js';
 import {renderSVG} from '../src/svg.js';
 import {validateDocument} from '../src/schema.js';
-import {lightingConfig,surfaceRamp,surfaceFocus,shadowProjection,contactShadow} from '../src/lighting.js';
+import {lightingConfig,surfaceRamp,surfaceFocus,shadowProjection,shadowVectors,wallProjection,contactShadow} from '../src/lighting.js';
 test('lighting is opt-in and scene data round-trips with bounded values',()=>{
  const doc=createDemo('light-and-shade');assert.ok(validateDocument(JSON.parse(JSON.stringify(doc))).valid);
  for(const [key,value] of [['angle',181],['elevation',0],['softness',17],['reflection',1],['enabled','yes'],['shading','unknown'],['color','url(https://example.com)'],['shadowColor','#fff']]){const d=structuredClone(doc);d.lighting[key]=value;assert.equal(validateDocument(d).valid,false,key);}
@@ -39,4 +39,19 @@ test('exported shading stays scene-facing across yaw, pitch, mirrored art and ac
   assert.ok(wx<0&&wy<0,`Scene light direction at ${yaw}/${pitch}/${mirror}`);assert.ok(Math.abs(wx-wy)<1e-5,'Projected focus points toward the fixed diagonal light');
  }
  controller.dispose();
+});
+
+test('shadow length changes reach without changing cel shading or disconnecting the wall',()=>{
+ const base=lightingConfig(createDemo('light-and-shade'));
+ for(const type of ['directional','point'])for(const shadowLength of [0,.25,1,3]){
+  const l={...base,type,shadowLength,pointX:50,pointY:100,pointHeight:400},anchor={x:250,y:300},v=shadowVectors(l,anchor),normal=shadowVectors({...l,shadowLength:1},anchor);
+  assert.equal(v.x,normal.x*shadowLength);assert.ok(Math.abs(v.y-normal.y*shadowLength)<1e-12);
+  assert.deepEqual(surfaceRamp('#ddaa55',l),surfaceRamp('#ddaa55',{...l,shadowLength:1}));
+  const [a,b,c,d,e,f]=shadowProjection(l,anchor).match(/[-+]?\d*\.?\d+(?:e[-+]?\d+)?/gi).map(Number);
+  assert.ok(Math.abs(a*250+c*l.floorY+e-250)<1e-8);assert.ok(Math.abs(b*250+d*l.floorY+f-l.floorY)<1e-8);
+  if(shadowLength===0){assert.equal(wallProjection(l,anchor),null);continue;}
+  const height=(l.floorY-l.wallY)/-v.y,y=l.floorY-height,[wx,wy]=wallProjection(l,anchor).match(/[-+]?\d*\.?\d+(?:e[-+]?\d+)?/gi).map(Number);
+  assert.ok(Math.abs(a*250+c*y+e-250-wx)<1e-8);assert.ok(Math.abs(b*250+d*y+f-y-wy)<1e-8);
+ }
+ for(const value of [-.1,3.1,Infinity]){const doc=createDemo('light-and-shade');doc.lighting.shadowLength=value;assert.equal(validateDocument(doc).valid,false);}
 });
