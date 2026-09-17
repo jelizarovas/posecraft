@@ -4,7 +4,7 @@ Status: implementation started, September 17, 2026. The first coordinated milest
 
 ## What is already usable
 
-Posecraft has reusable character packs, constrained joints, numeric keyframes, expressions and looks, experimental depth rigs, scene lighting, ten demos, assisted physical responses, and browser/React embeds. Director adds scenes, shots, camera and placement keys, reference-frame comparison, seeded motion and webcam takes. Project JSON can be saved and reopened. See [Director](director.md), [rigs](spatial.md), [lighting](lighting.md) and [capture](capture.md).
+Posecraft has reusable character packs, constrained joints, numeric keyframes, expressions and looks, experimental depth rigs, scene lighting, thirteen demos, assisted physical responses, and browser/React embeds. Director adds scenes, shots, camera and placement keys, reference-frame comparison, seeded motion and webcam takes. Project JSON can be saved and reopened. See [Director](director.md), [rigs](spatial.md), [lighting](lighting.md) and [capture](capture.md).
 
 ## A production milestone
 
@@ -61,3 +61,7 @@ This milestone establishes three priority-1 foundations. It does not complete th
 Implemented after milestone 1: separate Scene and Character workspaces; nested folders with inherited visibility; scene layers; seeded flame, smoke and ember emitters; an emitter-bound point light; independent effect preview and scrubbing. The campfire's stones and logs are static, while smoke, embers and flame use settings instead of generated clip tracks. Existing authored campfire drafts have an explicit, undoable conversion. Character clips remain separately editable. See [effects and folders](emitters.md).
 
 This is the first procedural-effects authoring slice. Folders do not transform contents together. Emitters have no particle collision, general event scripts or joint attachment; the scene still supports one key light. These limits remain separate from the production-film milestone above.
+
+## Shared rig and coordinated-scene follow-through
+
+The Studio library and older demos now use the refreshed Ona/Dummy depth packs, including Ona's opaque hair and separately editable forearms/wrists. Whole-scene preview and position-key controls support coordinated multi-actor studies. The ship-in-a-bottle, loveseat staircase and gym examples use serialized editable scene data with measured contacts and repetition counts. Their coordinated grips are authored into clips; a general contact/attachment inspector, procedural behavior authoring and automatic rebaking after rig changes are still roadmap work.

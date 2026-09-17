@@ -85,3 +85,6 @@ createEmitter('script','unsafe');
 
 player.triggerEnsemble('share-help');
 background.triggerEnsemble('burn');
+
+import {addSpatialRig,addOnaArmJoints} from 'posecraft/character-rigs';
+addOnaArmJoints(addSpatialRig(scene.packs.ona,'ona',{studies:false}));

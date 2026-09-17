@@ -6,9 +6,9 @@ import {SceneController} from '../src/scene.js';
 import {spatialParts,softLimbPath} from '../src/spatial.js';
 import {lightingConfig,partLighting,surfaceRamp} from '../src/lighting.js';
 import {validateDocument} from '../src/schema.js';
-test('hair and head share projection through front, profile and back turns',()=>{
+test('opaque hair shell remains attached through front, profile and back turns',()=>{
  const d=createCampfire(),c=new SceneController(d),p=d.packs['camper-3'];
- for(const yaw of [-180,-135,-91,-90,-89,-45,0,45,89,90,91,135,180])for(const pitch of [-25,0,25]){c.previewClip('camper-3','campfire',0,{'root.yaw':yaw,'head.yaw':0,'head.pitch':pitch});const f=c.frame().actors.find(a=>a.id==='camper-3'),v=spatialParts(p,f);for(const id of ['hair-front','hair-rear-cap'])assert.deepEqual(v.parts.get(id).matrix,v.parts.get('face-0').matrix);}
+ for(const yaw of [-180,-135,-91,-90,-89,-45,0,45,89,90,91,135,180])for(const pitch of [-25,0,25]){c.previewClip('camper-3','campfire',0,{'root.yaw':yaw,'head.yaw':0,'head.pitch':pitch});const f=c.frame().actors.find(a=>a.id==='camper-3'),v=spatialParts(p,f);const shell=v.parts.get('camp-hair-shell');assert.deepEqual(shell.matrix.slice(0,4),[1,0,0,1]);assert.ok(Math.abs(shell.matrix[4]-v.world.head.x)<1e-9);assert.ok(Math.abs(shell.matrix[5]-v.world.head.y)<1e-9);assert.ok(shell.visible&&shell.d.length>100);assert.equal(f.pose['camp-original.opacity'],0);}
  c.dispose();
 });
 test('point light behind near campers does not illuminate their visible rear surface',()=>{

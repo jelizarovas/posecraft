@@ -4,6 +4,9 @@ Open [Posecraft demos](https://jelizarovas.github.io/posecraft/demos.html), or c
 
 | Demo | What to try | Editable project |
 | --- | --- | --- |
+| [Ship in a bottle](https://jelizarovas.github.io/posecraft/demos.html#ship-in-a-bottle) | Calm, breeze and gust; rocking hull, articulated canvas, waves and layered glass | Studio scene |
+| [One more flight](https://jelizarovas.github.io/posecraft/demos.html#loveseat-stairs) | Two dummies carrying a loveseat up endless stairs; alternating arm rests and partner compensation | Studio scene |
+| [One more rep](https://jelizarovas.github.io/posecraft/demos.html#gym-routine) | Eight pull-ups, failed sets after six/seven, walking between stations and bench presses | Studio scene |
 | [Campfire night](https://jelizarovas.github.io/posecraft/demos.html#campfire-night) | Four friends around a flickering fire, attention-driven cooking, conversations, shared meteor reactions and occasional food handoffs | Studio scene |
 | [Light & shade](https://jelizarovas.github.io/posecraft/demos.html#light-and-shade) | Move the light, adjust highlights and reflections, compare warm/cool/flat treatments, and jump to see contact shadows fade | Studio scene |
 | [Turn & pose](https://jelizarovas.github.io/posecraft/demos.html#turn-and-pose) | Turn heads/bodies, send limbs behind the torso, blend Ona's arm shape and lift Dummy's knees in depth | Studio scene |
@@ -23,7 +26,7 @@ Episode demos have play/pause, a time slider and direct shot buttons. Interactiv
 
 **Edit in Director** and **Edit in Studio** open a separate local copy. Demo drafts use storage keys ending in `.demo.<id>`, so they do not overwrite your regular Studio or Director draft. Reopening that demo's editor restores your edited copy. Export it to a file to keep or share it. The regular editor link in the gallery header opens your ordinary draft.
 
-On phones the demo cards form a horizontal strip. The preview and controls remain on one page without vertical scrolling at the tested 390×844 layout. On desktop all ten cards remain visible. Thumbnails are static; only the selected demo runs a worker. Switching demos terminates the old worker. Hidden pages stop advancing and mute interaction sounds. Reduced-motion preference starts previews paused; Play explicitly starts them. No demo requests camera or microphone access.
+On phones the demo cards form a horizontal strip. The preview and controls remain on one page without vertical scrolling at the tested 390×844 layout. On desktop all thirteen cards remain visible. Thumbnails are static; only the selected demo runs a worker. Switching demos terminates the old worker. Hidden pages stop advancing and mute interaction sounds. Reduced-motion preference starts previews paused; Play explicitly starts them. No demo requests camera or microphone access.
 
 ## Reusable examples
 
@@ -31,7 +34,7 @@ On phones the demo cards form a horizontal strip. The preview and controls remai
 
 The scenes reuse the existing owner-provided characters. Their original provenance remains inside the packs. Background sets and choreography are authored here as MIT example data. No assets or dialogue from an existing TV episode are included.
 
-`npm test` validates all ten project round trips, samples finite poses within joint limits, verifies factory isolation and proves all three lab dummies contact their platforms. `npm run test:demos` checks actual browser playback, shot/set changes, independent facial inputs, live physics, container dragging, opt-in sound, exports, a single active worker, separate editor storage and desktop/mobile layouts. Existing Studio and Director browser suites cover their entry points after adding the gallery links.
+`npm test` validates all thirteen project round trips, samples finite poses within joint limits, verifies factory isolation and proves all three lab dummies contact their platforms. `npm run test:demos` checks actual browser playback, shot/set changes, independent facial inputs, live physics, container dragging, opt-in sound, exports, a single active worker, separate editor storage and desktop/mobile layouts. Existing Studio and Director browser suites cover their entry points after adding the gallery links.
 
 ## Campfire night
 
@@ -55,6 +58,24 @@ The browser needs a secure page and device support. Permission is requested only
 
 `npm run test:motion` covers shaking, recovery, walking, sensor permission and synthetic readings, lifecycle cleanup and compact layouts. These checks do not replace testing on a physical phone.
 
-The **Turn & pose** study uses experimental copies of Ona and Dummy. Existing packs and saved scenes keep their original rendering. It has four authored clips and manual sliders; **Edit in Studio** exposes keyable pose channels. Read [the depth-rig guide](spatial.md) for the data format and current visual limits.
+The **Turn & pose** study adds rotation clips and manual controls to the same Ona and Dummy depth rigs used by the library. Existing saved scenes keep their authored data. **Edit in Studio** exposes keyable pose channels. Read [the depth-rig guide](spatial.md) for the data format and current visual limits.
 
 Campfire gaze changes use a damped turn sampled between fixed simulation steps. Each eye has its own curved placement on the head. Hair is an opaque projected cap with hidden geometry clipped away; it does not use the optional front/back fade.
+
+## Studio and the shared rigs
+
+The older gallery scenes now use the current Ona and Dummy depth artwork, scene folders and lighting. Ona has an opaque styled hair shell and separate forearms and wrists, using the same rounded limb renderer as the campfire. Dummy retains independent foot turns. These packs are also the defaults in the Studio library. Existing saved drafts keep their authored data; **More → Upgrade selected character rig** upgrades an older flat Ona or Dummy while retaining its clips, and Undo restores the previous rig. **Reload current demo** loads the latest demo data after downloading the previous draft as a backup.
+
+In Studio, choose **Scene**, select a folder or actor, and use **Play scene** or the scene-time slider to review all actors together. Select **Animate character** to edit a rig. The pose channels now include **Position X** and **Position Y**, alongside rotation and the depth channels. Explicit scrubbing samples the requested pose even when playback is paused or the system requests reduced motion.
+
+## Ship, stairs and gym
+
+The ship uses 12-second calm, breeze and gust clips, with separate editable hull, mast, sail, wave and cloud joints. Glass, cork, stand and room are independent scene actors. The transparent appearance is layered vector artwork, not a physical refraction simulation.
+
+The loveseat's 12-second climb contains two pauses. One mover releases an arm while the other three hands keep their handles, and the partner leans into the load. Feet plant on moving treads; the repeating staircase wraps outside the view. **Rest lower arm** and **Rest upper arm** select separate six-second studies. Every actor changes clip together, so the sofa, movers and stairs stay synchronized. This is authored contact choreography, not a shared rigid-body furniture simulation.
+
+Atlas's 60-second workout alternates three 20-second rounds: eight completed pull-ups, a stalled attempt after six, then a stalled attempt after seven. Each round continues with a walk, three bench presses, and a return to the pull-up bar. The outcome buttons isolate one round. Hands stay on the stationary bar and moving barbell through sampled IK poses; effort marks, expressions and sweat follow the performance. The sequence is deterministic and editable, not a physiological fatigue model.
+
+The three new demos export their chosen action variant in project JSON. They use ordinary scene packs and clips, so the runtime and Studio render the same data. Gallery controls restart each coordinated sequence from its beginning. The editor restores any existing draft for that demo; it does not overwrite it with gallery interactions.
+
+`npm run test:new-demos` checks the actual gallery, supporting hand contacts, rest and failure controls, whole-scene Studio scrubbing, position-key editing, portable downloads, and desktop/phone layouts. Unit tests measure grip and foot contacts between authored keys, repetition counts, and loop continuity.

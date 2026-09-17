@@ -70,6 +70,10 @@
       "types": "./src/emitters.d.ts",
       "default": "./src/emitters.js"
     },
+    "./character-rigs": {
+      "types": "./src/character-rigs.d.ts",
+      "default": "./src/character-rigs.js"
+    },
     "./scene-graph": {
       "types": "./src/scene-graph.d.ts",
       "default": "./src/scene-graph.js"
@@ -112,6 +116,7 @@
     "test:director": "node test/director-browser.mjs",
     "test:capture": "node test/capture-browser.mjs",
     "test:vision": "node test/vision-browser.mjs",
+    "test:new-demos": "node test/new-demos-browser.mjs",
     "test:demos": "node test/demos-browser.mjs",
     "test:motion": "node test/motion-browser.mjs",
     "test:spatial": "node test/spatial-browser.mjs",

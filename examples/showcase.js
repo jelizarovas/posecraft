@@ -1,12 +1,19 @@
+import {createBottle} from './bottle.js';
+import {createLoveseat} from './loveseat.js';
+import {createGym} from './gym.js';
 import {createCampfire} from './campfire.js';
-import {addSpatialRig} from './spatial-rigs.js';
+import {addSpatialRig,addOnaArmJoints} from '../src/character-rigs.js';
 import {standingTarget} from '../src/recovery.js';
 import ona from './characters/ona.json' with {type:'json'};
 import wwwzard from './characters/wwwzard.json' with {type:'json'};
 import rusty from './characters/rusty.json' with {type:'json'};
 import dummy from './characters/dummy.json' with {type:'json'};
-const library={ona,wwwzard,rusty,dummy};
+const library=structuredClone({ona,wwwzard,rusty,dummy});
+for(const id of ['ona','dummy']){addSpatialRig(library[id].packs[id],id,{studies:false});if(id==='ona')addOnaArmJoints(library[id].packs[id]);}
 export const demoCatalog=[
+ {id:'ship-in-a-bottle',title:'Ship in a bottle',category:'A tiny moving world',description:'Canvas sails catch the breeze as a wooden ship rides the waves inside a glass bottle.',features:['Articulated sails','Layered glass','Editable wind clips'],instruction:'Choose calm water, a breeze or a gust. Open in Studio to move the masts, sails, ship and scenery.',color:'#26414a',kind:'scene'},
+ {id:'loveseat-stairs',title:'One more flight',category:'Two movers, one loveseat',description:'Two dummies haul a loveseat up an endless staircase. When one arm needs a break, the other hands carry the load.',features:['Shared hand contacts','Planted steps','Strain & rest'],instruction:'Watch the climb or try either arm-rest break. The carriers, furniture and staircase have synchronized, editable clips.',color:'#e6d9ca',kind:'scene'},
+ {id:'gym-routine',title:'One more rep',category:'Effort, failure and recovery',description:'Atlas aims for eight pull-ups, then heads to the bench press. Some rounds end after six or seven.',features:['Pinned grips','Alternating stations','Three set outcomes'],instruction:'The routine alternates full and failed sets. Choose an outcome to inspect the struggle, release, walk and bench press.',color:'#d4dad8',kind:'scene'},
  {id:'campfire-night',title:'Campfire night',category:'Four friends after dark',description:'Four friends gather around the fire, chat, drift off and notice shooting stars. Distractions can burn dinner; sometimes a friend shares a treat.',features:['Editable emitters','Shared reactions','Seeded live events'],instruction:'Let the evening unfold, or start a conversation, meteor or handoff. New evening changes the events; the slider replays the first minute.',color:'#172b3a',kind:'scene'},
  {id:'light-and-shade',title:'Light & shade',category:'Lighting study',description:'A warm key light, soft shadows and a polished floor. Watch the light follow moving silhouettes.',features:['Surface gradients','Cast shadows','Floor reflections'],instruction:'Move the light, compare warm and cool presets, or jump to see the contact shadow soften. Open in Studio for receiver and shadow controls.',color:'#e2d3c4',kind:'scene'},
  {id:'turn-and-pose',title:'Turn & pose',category:'2.5D character study',description:'Turn the head and body, reach in front or behind, and bring a knee toward the camera.',features:['Depth & overlap','Shape morphs','Keyable turns'],instruction:'Play an acting study, or pause with the sliders. Open in Studio to key Yaw, Pitch, Depth and Shape on a selected joint.',color:'#e5ddd2',kind:'scene'},
@@ -20,7 +27,7 @@ export const demoCatalog=[
 ];
 const rect=(id,x,y,width,height,fill,solid=false,rotation=0)=>({id,name:id.replaceAll('-',' '),x,y,width,height,rotation,fill,collider:{enabled:solid,width,height,x:0,y:0,friction:.65,bounce:.15}});
 function actor(type,id,x,y,scale,appearance={}){const source=library[type].actors[0];return {...structuredClone(source),id,name:id===type?(type==='wwwzard'?'wwwzard':type[0].toUpperCase()+type.slice(1)):id.replaceAll('-',' '),transform:{x,y,scale,rotation:0},appearance:{...source.appearance,...appearance},inputs:{...source.inputs,emotion:'neutral'}};}
-function scene(id,name,actors,props){return {schemaVersion:1,kind:'scene',id,name,revision:0,bounds:{width:800,height:450},packs:Object.fromEntries([...new Set(actors.map(a=>a.pack))].map(type=>[type,structuredClone(library[type].packs[type])])),actors,props};}
+function scene(id,name,actors,props){return {schemaVersion:1,kind:'scene',id,name,revision:0,bounds:{width:800,height:450},requiredFeatures:['spatial-rig','scene-groups','scene-lighting'],groups:[{id:'scenery',name:'Scenery',parent:null},{id:'cast',name:'Characters',parent:null}],packs:Object.fromEntries([...new Set(actors.map(a=>a.pack))].map(type=>[type,structuredClone(library[type].packs[type])])),actors:actors.map(a=>Object.assign(a,{group:'cast'})),props:props.map(p=>({...p,group:'scenery'})),lighting:{enabled:true,shading:'cel',type:'directional',receiver:'floor',angle:-130,elevation:40,intensity:.55,ambient:.8,color:'#fff3df',shadowColor:'#343448',floorY:410,wallY:360,floorShadow:id==='zero-gravity'?0:.12,wallShadow:0,reflection:0,softness:2,gloss:.16,celThickness:.28,celIntensity:.32}};}
 const cast=()=>[actor('wwwzard','wwwzard',155,300,.72),actor('ona','ona',335,330,1.15),actor('dummy','dummy',510,295,1.05),actor('rusty','rusty',680,350,1.7)];
 const camera=(x=400,y=225,zoom=1)=>({x:[[0,x]],y:[[0,y]],zoom:[[0,zoom]],rotation:[[0,0]]});
 const cue=(clip,emotion='neutral',extra={})=>({clip,offset:0,speed:1,emotion,...extra});
@@ -28,6 +35,9 @@ const shot=(id,name,set,actors,duration=4,view=camera())=>({id,name,scene:set,du
 const episode=(id,name,scenes,shots)=>({schemaVersion:1,kind:'episode',id,name,revision:0,fps:24,size:{width:1280,height:720},scenes,shots});
 const parkProps=()=>[rect('sky',400,200,800,500,'#d8e9e5'),rect('grass',400,425,800,110,'#a8c38c'),rect('path',400,415,800,32,'#ded1ac'),rect('tree-trunk',110,230,26,280,'#9b795f'),rect('tree-crown',100,104,165,155,'#89ae83',false,8),rect('tree-leaves',137,114,112,108,'#a1be90',false,30),rect('bench-seat',605,331,225,15,'#ac8c68'),rect('bench-back',605,287,225,60,'#bf9e76'),rect('bench-leg-a',520,368,14,60,'#897662'),rect('bench-leg-b',690,368,14,60,'#897662')];
 export function createDemo(id){
+ if(id==='ship-in-a-bottle')return createBottle();
+ if(id==='loveseat-stairs')return createLoveseat();
+ if(id==='gym-routine')return createGym();
  if(id==='campfire-night')return createCampfire();
  if(id==='light-and-shade'){
   const doc=createDemo('turn-and-pose');doc.id=id;doc.name='Light & shade';doc.props=[rect('wall',400,150,800,300,'#d8d0c9'),rect('floor',400,375,800,150,'#beb4aa')];
@@ -36,7 +46,7 @@ export function createDemo(id){
  }
  if(id==='turn-and-pose'){
   const doc=scene(id,'Turn & pose',[actor('ona','ona',250,285,1.8),actor('dummy','dummy',565,235,1.6)],[rect('backdrop',400,225,800,450,'#f1ece3'),rect('ground',400,395,800,110,'#dfd6c7')]);
-  for(const a of doc.actors){addSpatialRig(doc.packs[a.pack],a.pack);a.inputs={...a.inputs,action:'turnaround'};a.behavior={mode:'animated',autoFace:false};}doc.requiredFeatures=['spatial-rig'];return doc;
+  for(const a of doc.actors){doc.packs[a.pack]=structuredClone((a.pack==='ona'?ona:dummy).packs[a.pack]);addSpatialRig(doc.packs[a.pack],a.pack);if(a.pack==='ona')addOnaArmJoints(doc.packs[a.pack]);a.inputs={...a.inputs,action:'turnaround'};a.behavior={mode:'animated',autoFace:false};}doc.requiredFeatures=['spatial-rig'];return doc;
  }
 
  if(id==='shake-and-settle'){

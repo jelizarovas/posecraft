@@ -175,12 +175,14 @@ export class SceneController {
   }
   seek(time) {
     if (!Number.isFinite(time) || time < 0 || time > 60) throw new Error('Seek range is 0..60 seconds.');
-    const log = this.log.map(e => ({ ...e })), wasPlaying = this.playing;
+    const log = this.log.map(e => ({ ...e })), wasPlaying = this.playing, wasAnimating=this.animationPlaying, wasReduced=this.reducedMotion;
+    // Explicit scrubbing samples the requested moment even while playback is paused.
+    this.animationPlaying=true;this.reducedMotion=false;
     this.replaying = true; this.reset(); let cursor = 0;
     try {
       const apply = () => { while (cursor < log.length && log[cursor].time <= this.time + 1e-9) { const e = log[cursor++]; if(e.type==='ensemble')this.triggerEnsemble(e.event);else if (e.type === 'input') this.setInput(e.actor, e.name, e.value); else if(e.type==='behavior')this.setBehavior(e.actor,e.value);else if(e.type==='walk')this.walkTo(e.actor,e.x);else if(e.type==='interaction')this.interact(e.actor,e.interaction,e.strength);else this.setAcceleration(e.ax, e.ay); } };
       while (this.time + STEP <= time + 1e-9) { apply(); this.tick(); } apply();
-    } finally { this.log = log; this.replaying = false; this.playing = wasPlaying; }
+    } finally { this.log = log; this.replaying = false; this.playing = wasPlaying;this.animationPlaying=wasAnimating;this.reducedMotion=wasReduced; }
     return this.frame();
   }
   dispose() { this.pause(); this.listeners.clear(); }

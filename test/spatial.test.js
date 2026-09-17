@@ -18,14 +18,14 @@ test('limb depth changes drawing order and a tucked knee projects toward the cam
  const rest=view(d,'dummy',{}),tuck=view(d,'dummy',{'rightThigh.yaw':-100,'rightCalf.yaw':130});assert.ok(tuck.v.world.rightCalf.z>30);assert.ok(tuck.v.world.rightCalf.y<rest.v.world.rightCalf.y-30);assert.ok(i(tuck.v,'rightThigh-shell')>i(tuck.v,'root-shell'));
 });
 test('shape morphs interpolate coordinates without changing path topology or source data',()=>{
- const d=doc(),p=d.packs.ona.parts.find(p=>p.id==='right-arm-volume'),source=p.d;assert.equal(morphPath(p,0),morphPath(p,-1));assert.equal(morphPath(p,1),morphPath(p,2));assert.notEqual(morphPath(p,.5),morphPath(p,0));assert.equal(p.d,source);
+ const d=doc(),p={d:'M0 0L10 20Z',spatial:{morph:{channel:'root.bend',target:'M0 0L20 10Z'}}},source=p.d;assert.equal(morphPath(p,0),morphPath(p,-1));assert.equal(morphPath(p,1),morphPath(p,2));assert.notEqual(morphPath(p,.5),morphPath(p,0));assert.equal(p.d,source);
 });
 test('spatial clips survive JSON, seek and the episode pipeline',()=>{
  const d=JSON.parse(JSON.stringify(doc())),c=new SceneController(d);assertDocument(d);c.previewClip('ona','turnaround',3);const f=c.frame().actors[0];assert.equal(f.pose['root.yaw'],180);const svg=renderSVG(d,c.frame());assert.match(svg,/<clipPath/);assert.match(svg,/data-slot="shirt-back-seam"/);
  const base=createDemo('www-after-hours'),project={...base,scenes:{study:d},shots:[{...base.shots[0],scene:'study',actors:{ona:{clip:'glance',offset:0,speed:1,pose:{'root.yaw':[[0,45],[4,135]],'rightArm.bend':[[0,0],[4,1]]}}}}]};const e=new EpisodeController(project);assert.equal(e.frame(2).actors[0].pose['root.yaw'],90);assert.equal(e.frame(2).actors[0].pose['rightArm.bend'],.5);assert.deepEqual(e.frame(2),new EpisodeController(project).frame(2));
 });
 test('bad spatial imports reject invalid masks, morph geometry and out-of-range keys',()=>{
- for(const corrupt of [d=>d.packs.ona.parts[0].spatial.mask='missing',d=>d.packs.ona.clips.glance.tracks['head.pitch']=[[0,100]],d=>d.packs.ona.parts.find(p=>p.spatial.morph).spatial.morph.target='M0 0<script>',d=>d.packs.ona.parts[0].spatial.surface={x:10,width:1,depth:20},d=>{const p=d.packs.ona.parts.find(p=>p.spatial.morph);p.d='Z';p.spatial.morph.target='Z';}]){const d=doc();corrupt(d);assert.throws(()=>assertDocument(d));}
+ for(const corrupt of [d=>d.packs.ona.parts[0].spatial.mask='missing',d=>d.packs.ona.clips.glance.tracks['head.pitch']=[[0,100]],d=>d.packs.ona.parts[0].spatial.morph={channel:'root.bend',target:'M0 0<script>'},d=>d.packs.ona.parts[0].spatial.surface={x:10,width:1,depth:20},d=>{const p=d.packs.ona.parts[0];p.d='Z';p.spatial.morph={channel:'root.bend',target:'Z'};}]){const d=doc();corrupt(d);assert.throws(()=>assertDocument(d));}
 });
 test('all study clips have finite projection across their entire duration',()=>{
  const d=doc(),c=new SceneController(d);for(const id of ['ona','dummy'])for(const clip of ['turnaround','glance','reach-depth','tuck-jump'])for(let t=0;t<d.packs[id].clips[clip].duration;t+=.1){c.previewClip(id,clip,t);const f=c.frame().actors.find(a=>a.id===id),v=spatialParts(d.packs[id],f);for(const part of v.parts.values())assert.ok(part.matrix.every(Number.isFinite));}

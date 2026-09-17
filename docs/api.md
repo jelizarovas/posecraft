@@ -137,3 +137,11 @@ The optional `scene.ensemble` descriptor is `{type: "campfire", seed: 20260917, 
 The seeded decision clock runs at 20 Hz; pose sampling uses scene time between decisions. The same seed and requests reproduce the same event sequence across frame rates. Cooking mechanics remain editable clips. Manual clip previews, non-campfire actions and physical modes opt that actor out of the live director. The worker skips redundant background/cooking-clip ticks while the director samples them. Director episodes currently use the authored clips, without the ensemble.
 
 `actor.groundY` optionally sets the floor/contact line for that actor's cast effects. It defaults to the scene floor line. When explicitly set on a spatial actor, it also supplies approximate depth for point-light exposure. Use it for staged casts at different depths; it is a visual receiver setting, not a collision floor or perspective solver.
+
+## Built-in depth rig authoring
+
+`posecraft/character-rigs` exports `addSpatialRig(pack, "ona" | "dummy", {studies?: boolean})` and `addOnaArmJoints(pack)`. Both mutate and return a caller-owned pack. Clone a source pack first. `studies: false` retains the original action defaults and clips; the default adds turn, glance, reach, tuck and limb-rotation studies. Existing depth rigs are preserved.
+
+Apply `addOnaArmJoints` after creating Ona's depth artwork. It keeps the original shoulder IDs and physical attachments, adds forearm/wrist joints, and uses the shared soft-limb renderer. Legacy bend tracks are copied to editable elbow curves without replacing existing elbow keys. Existing pose/action interfaces and scene exports consume these joints without a gallery dependency.
+
+`SceneController.seek` explicitly samples the requested time even while animation playback is paused or reduced-motion preview is enabled. It restores those policies afterward. The existing 0–60 second replay limit still applies.

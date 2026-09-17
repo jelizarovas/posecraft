@@ -90,7 +90,7 @@ function camper(index,x,scale,colors,hair,groundY=365,yaw=0){
  const shell=p.parts.find(v=>v.id==='face-0');Object.assign(shell,{d:'M-32 -47Q0 -55 32 -47Q42 -43 40 -10Q38 9 0 9Q-38 9 -40 -10Q-42 -43 -32 -47Z',transform:'',stroke:'#383936',strokeWidth:2.2});
  p.parts.find(v=>v.id==='face-1').opacityChannel='camp-original.opacity';
  // One opaque cap follows the head in depth. No front/back opacity swap.
- for(const id of ['hair-front','hair-rear-cap']){const part=p.parts.find(v=>v.id===id);part.opacityChannel='camp-original.opacity';delete part.spatial.facingFade;}
+ for(const id of ['hair-front','hair-rear-cap']){const part=p.parts.find(v=>v.id===id);part.opacityChannel='camp-original.opacity';delete part.spatial.facingFade;delete part.spatial.hairShell;}
  p.parts.push({id:'camp-hair-shell',joint:'head',d:'M0 0',fill:'#65504a',channel:'hair',stroke:'#383936',strokeWidth:1.5,variantInput:'hair',variants:{none:{visible:false}},spatial:{order:96,hairShell:{width:43,height:33,depth:31,y:-22}}});
  const tail=p.parts.find(v=>v.id==='hair-back');tail.spatial={depth:-23,center:[45,-10],order:-10};tail.variants.bob={visible:false};
  for(const part of p.parts)if(['leftArm','rightArm','eyes','mouth'].includes(part.joint)||['brows','hurt-cheek'].includes(part.id))part.opacityChannel='camp-original.opacity';

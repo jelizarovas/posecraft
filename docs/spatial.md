@@ -1,17 +1,17 @@
 # Depth rigs and animation quality
 
-[Turn & pose](https://jelizarovas.github.io/posecraft/demos.html#turn-and-pose) is an experimental Ona/Dummy study. It adds an optical depth layer to the 2D skeletal runtime. It is deliberately a separate demo: existing character packs and saved drafts keep their artwork and behavior.
+[Turn & pose](https://jelizarovas.github.io/posecraft/demos.html#turn-and-pose) is an experimental Ona/Dummy study. It adds an optical depth layer to the 2D skeletal runtime. The character library and older gallery scenes now use these Ona and Dummy rigs. Existing saved drafts stay unchanged; Studio can upgrade a selected original flat Ona or Dummy through the More menu.
 
 ## Try the study
 
-Play **Turnaround**, **Look around**, **Reach & hide**, or **Tuck jump**. The manual controls pause the acting clips and pose the selected cast. **Body turn** rotates the whole rig. **Head turn** adds a turn relative to the body. **Arm depth** changes overlap while keeping the shoulder attached. **Shape / tuck** blends Ona's rounded arm into a bent teardrop and raises Dummy's right knee toward the viewer.
+Play **Turnaround**, **Look around**, **Reach & hide**, or **Tuck jump**. The manual controls pause the acting clips and pose the selected cast. **Body turn** rotates the whole rig. **Head turn** adds a turn relative to the body. **Arm depth** changes overlap while keeping the shoulder attached. **Shape / tuck** bends Ona's elbow inside a continuous soft arm and raises Dummy's right knee toward the viewer.
 
-Choose **Edit in Studio**, select a joint and choose a **Pose channel**. Set the playhead, adjust the slider and press **+** to save keys. Yaw, Pitch, Depth, Shape and Opacity use the same saved clips, undo, export and playback as Rotation. Depth rigs use sliders for posing; canvas clicks select parts but dragging is disabled because the old drag solver assumes a flat plane. Bone guides follow projected positions.
+Choose **Edit in Studio**, select a joint and choose a **Pose channel**. Set the playhead, adjust the slider and press **+** to save keys. Yaw, Pitch, Depth, Shape and Opacity use the same saved clips, undo, export and playback as Rotation. Use the sliders for depth channels. Screen rotation can also be dragged on the canvas around the projected joint pivot. Position X and Y are keyable in both flat and depth rigs. Bone guides follow projected positions.
 
 - **Yaw** rotates around the joint's local Y axis. Use Root for a body turn, Head for a face turn, and Dummy's thigh/calf joints for a knee moving toward the camera.
 - **Pitch** rotates around local X. Use Head to look up/down. Local axes inherit parent rotations.
 - **Depth** changes drawing order for a joint and its descendants. It does not translate the joint anchor or change collisions. Positive values draw nearer the viewer.
-- **Shape** is 0..1 and drives an authored compatible-path morph. The supplied targets are on Ona's left/right arm joints. Other joints need their own target drawings before Shape has a visible effect.
+- **Shape** is 0..1 and drives an authored compatible-path morph. Only parts with authored morph targets respond to Shape. Ona now uses forearm rotation and wrist rotation, yaw and pitch to shape its continuous arms.
 
 Director samples these channels in clips and accepts them in `ShotActor.pose` keys through the SDK. Its existing joint-rotation inspector has not been expanded into a depth-rig editor; author these clips in Studio.
 
@@ -42,9 +42,9 @@ Joint matrices use orthographic projection. Descendant positions inherit turns, 
 
 ## Current limits and the next quality pass
 
-This is a rig study, not a finished character-art upgrade. It supports smooth turns and back-facing artwork, but the side silhouettes are approximate volumes. The next art pass needs approved front, three-quarter, profile, rear-quarter and back drawings. Hair, hands, shoes and asymmetric costume details need angle-specific correction shapes. The current morph is one authored arm shape, not a general mesh deformer.
+This is a rig study, not a finished character-art upgrade. It supports smooth turns and back-facing artwork, but the side silhouettes are approximate volumes. The next art pass needs approved front, three-quarter, profile, rear-quarter and back drawings. Hair, hands, shoes and asymmetric costume details need angle-specific correction shapes. Soft arms follow a two-bone joint chain; this is not a general mesh deformer.
 
-Depth sorting applies to whole parts. A single forearm crossing a torso may need to be split into segments or masked; there is no per-pixel depth buffer. Joint and body collisions are still 2D proxy boxes. A turned character's visible silhouette can differ from those proxies. This release does not add 3D physics, lighting, cloth, planted feet or automatic artist-quality in-betweens.
+Depth sorting applies to whole parts. A single forearm crossing a torso may need to be split into segments or masked; there is no per-pixel depth buffer. Joint and body collisions are still 2D proxy boxes. A turned character's visible silhouette can differ from those proxies. Collisions remain two-dimensional. The new carrying and gym demos have authored hand and foot contacts, but there is no general contact-constraint editor, 3D physics or cloth simulation.
 
 Once the silhouettes are approved, revise the motion: held poses with clear silhouettes, anticipation before a jump, a distinct push-off, knees folding near the apex, compression on landing, then settling. Give the head and hands different timing from the torso. Walks need weight transfer and planted contacts. This matters as much as the rig.
 
@@ -54,7 +54,7 @@ The general techniques have established parallels in [Spine's draw-order and att
 
 ## Soft arms and independent joints
 
-Campfire arms use one continuous skin over upper-arm, elbow and wrist joints. Select **Holding upper arm**, **Holding forearm**, **Holding wrist**, or the corresponding **Free** joint in Studio. Rotation, Yaw and Pitch can each be keyed. Wrist tilt changes palm width; the skin follows the projected elbow and hand without drawing seams. The internal joint chain still determines hand contacts.
+The library Ona and campfire arms use one continuous skin over upper-arm, elbow and wrist joints. Select **Holding upper arm**, **Holding forearm**, **Holding wrist**, or the corresponding **Free** joint in Studio. Rotation, Yaw and Pitch can each be keyed. Wrist tilt changes palm width; the skin follows the projected elbow and hand without drawing seams. The internal joint chain still determines hand contacts.
 
 A part can declare `spatial.softLimb: {elbow: "elbow-id", hand: "hand-id", radius: 7}`. The elbow must be a direct child of the part's joint and the hand a child of that elbow. Radius is 1..30 local units. This bounded two-bone skin uses the existing SVG renderer, not mesh physics. Declare `soft-limbs` in required features.
 
@@ -63,3 +63,7 @@ Dummy's left and right foot joints already attach to their respective calves. Th
 `spatial.facingFade` optionally fades paired front/back coverings as they approach profile. With range `0.3`, the front covering fades as its facing value goes from 0.3 to 0, while the rear covering appears over that same interval. Both still follow the head transform. This avoids a gap where both hair coverings would be hidden. Opacity channels multiply this facing opacity.
 
 Campfire uses `spatial.hairShell: {width: 43, height: 33, depth: 31, y: -22}` for an opaque cap that follows the head in depth. The renderer clips hidden geometry and draws the boundary, without crossfading. Dimensions are bounded to 1..100 and the vertical offset to -200..200. Declare `hair-shell` when relying on it. This is a small procedural cap, not a general mesh importer.
+
+## Reuse the supplied rigs
+
+Import `addSpatialRig` and `addOnaArmJoints` from `posecraft/character-rigs`. On a clone of an original Ona pack, call `addSpatialRig(pack, "ona", {studies: false})`, then `addOnaArmJoints(pack)`. Dummy needs only `addSpatialRig(pack, "dummy", {studies: false})`. These functions mutate the clone, preserve original actions, and can be called again safely. Omit `studies: false` to include the extra rotation study clips. Custom rigs need their own joint and artwork setup.
