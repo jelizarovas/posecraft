@@ -105,3 +105,7 @@ The Career OS portfolio consumes this folder as a sibling file dependency. Keep 
 MIT, copyright 2026 Arnas. Ona's original MIT notice is retained in `examples/ONA-LICENSE`. wwwzard source was reused from the owner's portfolio. The bundled Studio uses React, Vite, Playwright and TypeScript under their package licenses. Planck uses MIT and its notice ships with the site. Roboto uses the SIL Open Font License. Material Symbols uses Apache 2.0. Both fonts are self-hosted with their license notices. Rusty's source artwork is retained from the same owner-provided character library as Ona. User-imported artwork retains its own license.
 
 Director now includes **Perform** for local webcam acting: calibration, face/hand tracking, recorded takes, review and pose/expression baking. Read [webcam capture](docs/capture.md). The optional vision SDK and WASM use Apache 2.0, with pinned official model sources in [the asset record](public/vision/README.md). Posecraft remains MIT.
+
+## Try the demos
+
+The [demo gallery](https://jelizarovas.github.io/posecraft/demos.html) includes WWW after hours, Neon rehearsal, Rusty in the park, a three-dummy drop lab, Zero gravity, and a four-character expression lineup. Every demo opens as a separate editable project and can be downloaded as JSON. See [the demo guide](docs/demos.md) for controls, limitations and reusable example factories.

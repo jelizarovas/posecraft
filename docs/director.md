@@ -73,3 +73,5 @@ Automatic shot detection, batch reference extraction, asset segmentation/tracing
 ## Webcam performance
 
 Use **Perform** to calibrate, rehearse, record and review camera-driven acting. Apply a take at the playhead to create pose and expression keys. **Motion → Expression key** edits facial timing at the selected frame. Read [webcam capture](capture.md) for rig support, privacy, limits and the take API. Actor cues accept optional `expressions: [[seconds, emotion], ...]`; the values are held until the next key.
+
+Ready-made scenes and multi-shot examples are available in the [demo gallery](demos.md). Opening a gallery episode uses its own local draft and preserves your regular Director project.
