@@ -27,3 +27,7 @@ import {WorkerSceneController} from "posecraft/worker";
 const background=new WorkerSceneController(scene);
 background.findPath({start:{x:20,y:20},end:{x:300,y:200}},{signal:new AbortController().signal});
 createElement(Posecraft,{scene,execution:"worker"});
+
+import {EpisodeController,assertEpisode} from "posecraft/episode";
+const episode=new EpisodeController(assertEpisode(incoming));
+episode.frame(0).camera.zoom;

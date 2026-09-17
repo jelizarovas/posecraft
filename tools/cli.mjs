@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import {assertEpisode,EpisodeController,episodeDuration,episodeCapabilities} from '../src/episode.js';
 import { validateDocument, capabilities } from '../src/schema.js';
 import { DocumentStore } from '../src/commands.js';
 import { SceneController, STEP } from '../src/scene.js';
@@ -7,7 +8,14 @@ import { renderSVG } from '../src/svg.js';
 const [command, filename, ...args] = process.argv.slice(2);
 const read = file => { if (!file || fs.statSync(file).size > 5000000) throw new Error('Expected a JSON file under 5 MB.'); return JSON.parse(fs.readFileSync(file, 'utf8')); };
 try {
-  if (command === 'capabilities') console.log(JSON.stringify(capabilities, null, 2));
+  if (['episode-inspect','episode-validate','episode-preview'].includes(command)) {
+    if(!filename||fs.statSync(filename).size>20000000)throw new Error('Expected an episode under 20 MB.');
+    const project=assertEpisode(JSON.parse(fs.readFileSync(filename,'utf8')));
+    if(command==='episode-inspect')console.log(JSON.stringify({id:project.id,revision:project.revision,fps:project.fps,size:project.size,duration:episodeDuration(project),scenes:Object.keys(project.scenes),shots:project.shots},null,2));
+    else if(command==='episode-validate')console.log(JSON.stringify({valid:true}));
+    else{if(!args[0])throw new Error('Supply output SVG path.');const frame=new EpisodeController(project).frame(Number(args[1]||0));fs.writeFileSync(args[0],renderSVG(project.scenes[frame.scene],frame).replace('width="100%" height="100%"',`width="${project.size.width}" height="${project.size.height}"`));console.log(JSON.stringify({output:args[0],time:frame.time,shot:frame.shot}));}
+  }
+  else if (command === 'capabilities') console.log(JSON.stringify({...capabilities,episode:episodeCapabilities}, null, 2));
   else if (['inspect','validate','edit','preview','simulate'].includes(command)) {
     const doc = read(filename);
     const validation = validateDocument(doc);
@@ -35,5 +43,5 @@ try {
         console.log(JSON.stringify({engineVersion:'0.1.0',schemaVersion:doc.schemaVersion,revision:doc.revision,seed:0,fixedStep:STEP,frame:runtime.frame(),events},null,2));
       }
     }
-  } else console.log('Posecraft CLI\n  capabilities\n  inspect scene.json\n  validate scene.json\n  edit scene.json transaction.json output.json\n  preview scene.json output.svg [seconds]\n  simulate scene.json scenario.json');
+  } else console.log('Posecraft CLI\n  capabilities\n  inspect scene.json\n  validate scene.json\n  edit scene.json transaction.json output.json\n  preview scene.json output.svg [seconds]\n  simulate scene.json scenario.json\n  episode-validate episode.json\n  episode-inspect episode.json\n  episode-preview episode.json output.svg [seconds]');
 } catch(error) { console.error(JSON.stringify({error:error.message,diagnostics:error.diagnostics})); process.exitCode=1; }

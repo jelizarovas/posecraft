@@ -101,3 +101,7 @@ A scene may include up to 32 `props`. Each prop is a visible rectangle with its 
 Set `props` through the existing transaction API. Add `prop-colliders` to `requiredFeatures` when a scene depends on support for props. Older documents without props remain valid. Disabled colliders keep the visible prop. Animated mode does not collide; Floating, Falling ragdoll, and Protective do. Props are static during playback and are included in every character's physical world. Prop edits in Studio restart the physical preview. There are no dynamic props, prop keyframes, or inter-character collisions yet.
 
 `renderSVG` and `mountSVG` accept `colliders: true` to show collision rectangles, and `selectedProp` to highlight one. Contact diagnostics and impacts include `surface`, either a prop ID or `bounds`. `predictedSurface` identifies the anticipated collision. Contact normals point from the support into the character, so negative Y indicates support from below.
+
+## Episodes and camera
+
+`posecraft/episode` provides the separate versioned episode document, `EpisodeController`, absolute frame sampling, and seeded motion baking. It embeds compatible scene documents; existing scene imports keep their meaning. Episode frames supply camera and actor placement transforms to the SVG renderer. See [Director](director.md) for the schema, CLI commands, reference workflow, worker behavior, and production limits.

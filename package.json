@@ -41,6 +41,10 @@
     "./worker": {
       "types": "./src/worker.d.ts",
       "default": "./src/worker.js"
+    },
+    "./episode": {
+      "types": "./src/episode.d.ts",
+      "default": "./src/episode.js"
     }
   },
   "bin": {
@@ -55,7 +59,8 @@
     "README.md",
     "LICENSE",
     "docs/reactions.md",
-    "docs/performance.md"
+    "docs/performance.md",
+    "docs/director.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -66,7 +71,8 @@
     "check:package": "npm pack --dry-run",
     "test:types": "tsc --noEmit --strict --module nodenext --target es2022 test/types.ts",
     "test:responses": "node test/responses-browser.mjs",
-    "test:performance": "node test/performance-browser.mjs"
+    "test:performance": "node test/performance-browser.mjs",
+    "test:director": "node test/director-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"
