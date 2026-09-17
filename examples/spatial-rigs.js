@@ -8,7 +8,7 @@ export function addSpatialRig(pack,id){
    if(['eyes','mouth'].includes(p.joint)||['brows','hurt-cheek'].includes(p.id))Object.assign(p.spatial,{facing:'front',depth:24,mask:'face-0'});
    if(p.spatial.mask)Object.assign(p.spatial,{surface:{x:['face-2','face-4'].includes(p.id)?-15:['face-3','face-5'].includes(p.id)?18:0,width:44,depth:29}});
    if(p.id==='hair-back')Object.assign(p.spatial,{depth:0,thickness:.72,axis:'x',order:-10});
-   if(p.id==='hair-front')Object.assign(p.spatial,{depth:0,facing:'front',thickness:.72,axis:'x',order:90});
+   if(p.id==='hair-front')Object.assign(p.spatial,{depth:0,facing:'front',facingFade:.3,thickness:.72,axis:'x',order:90});
    if(p.joint.includes('Foot'))Object.assign(p.spatial,{center:[0,6],thickness:.55,axis:'x'});
   }else{
    Object.assign(p.spatial,{center:[pack.joints.find(j=>j.id===p.joint).length/2,0]});
@@ -30,7 +30,7 @@ export function addSpatialRig(pack,id){
   }
   pack.parts.push({id:'shirt-back-seam',joint:'root',d:'M0 5L0 33',fill:'none',stroke:'#b3913e',strokeWidth:1,spatial:{depth:-1,facing:'back'}});
   const hair=pack.inputs.hair.options;
-  pack.parts.push({id:'hair-rear-cap',joint:'head',d:'M-44 -20Q-49 -52 0 -55Q49 -52 44 -20L42 9Q0 21 -42 9Z',fill:'#65504a',channel:'hair',variantInput:'hair',variants:Object.fromEntries(hair.map(h=>[h,h==='none'?{visible:false}:{}])),spatial:{depth:0,facing:'back',thickness:.72,axis:'x',order:95}});
+  pack.parts.push({id:'hair-rear-cap',joint:'head',d:'M-44 -20Q-49 -52 0 -55Q49 -52 44 -20L42 9Q0 21 -42 9Z',fill:'#65504a',channel:'hair',variantInput:'hair',variants:Object.fromEntries(hair.map(h=>[h,h==='none'?{visible:false}:{}])),spatial:{depth:0,facing:'back',facingFade:.3,thickness:.72,axis:'x',order:95}});
  }else{
   // Feet retain heel/toe volume while their own yaw turns independently of the calf.
   for(const side of ['left','right']){

@@ -26,3 +26,10 @@ test('Dummy feet face different directions and turn without moving the calves',(
  for(const yaw of [-180,-90,0,90,180]){const v=view({'rightFoot.yaw':yaw});assert.deepEqual(v.parts.get('rightCalf-shell').matrix,rest.parts.get('rightCalf-shell').matrix);const m=v.parts.get('rightFoot-shell').matrix;assert.ok(Math.abs(m[0]*m[3]-m[1]*m[2])>.4);}
  c.dispose();
 });
+
+test('opening profile turn never hides both hair coverings',()=>{
+ const d=createCampfire(),c=new SceneController(d);let previous;
+ for(let i=0;i<=58;i++){const f=c.seek(i*.05).actors.find(a=>a.id==='camper-2'),v=spatialParts(d.packs['camper-2'],f),front=v.parts.get('hair-front'),rear=v.parts.get('hair-rear-cap');assert.ok(front.visible||rear.visible);assert.ok(Math.abs(front.opacity+rear.opacity-1)<1e-9);if(previous!==undefined)assert.ok(Math.abs(front.opacity-previous)<.04,'Continuous opening turn');previous=front.opacity;}
+ for(const facingFade of [0,2,-1]){const bad=structuredClone(d);bad.packs['camper-2'].parts.find(p=>p.id==='hair-front').spatial.facingFade=facingFade;assert.equal(validateDocument(bad).valid,false);}
+ c.dispose();
+});

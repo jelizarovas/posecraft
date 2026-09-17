@@ -86,6 +86,7 @@ function validateStructure(doc) {
         for(const key of ['depth','order'])if(v[key]!==undefined)check(finite(v[key],-500,500),q,'Invalid depth.');
         if(v.thickness!==undefined)check(finite(v.thickness,.05,1)&&['x','y'].includes(v.axis),q,'Invalid volume thickness.');
         if(v.center!==undefined)check(Array.isArray(v.center)&&v.center.length===2&&v.center.every(n=>finite(n,-1000,1000)),q,'Invalid part center.');
+        if(v.facingFade!==undefined)check(finite(v.facingFade,.01,1)&&['front','back'].includes(v.facing),q,'Facing fade requires a facing side and range .01..1.');
         if(v.facing!==undefined)check(['front','back'].includes(v.facing),q,'Invalid facing.');
         if(v.surface!==undefined)check(record(v.surface)&&finite(v.surface.x,-500,500)&&finite(v.surface.width,1,500)&&finite(v.surface.depth,1,500)&&Math.abs(v.surface.x)<v.surface.width,q,'Invalid curved surface.');
         if(v.mask!==undefined)check(pack.parts.some(p=>p.id===v.mask)&&v.mask!==part.id,q,'Missing mask part.');

@@ -59,3 +59,5 @@ Campfire arms use one continuous skin over upper-arm, elbow and wrist joints. Se
 A part can declare `spatial.softLimb: {elbow: "elbow-id", hand: "hand-id", radius: 7}`. The elbow must be a direct child of the part's joint and the hand a child of that elbow. Radius is 1..30 local units. This bounded two-bone skin uses the existing SVG renderer, not mesh physics. Declare `soft-limbs` in required features.
 
 Dummy's left and right foot joints already attach to their respective calves. Their spatial artwork now retains heel/toe volume when turned, with separate outward resting angles. Select a foot to key its Yaw or Pitch without turning the calf. **Hands & feet** in the Turn & pose demo demonstrates ankle and wrist motion.
+
+`spatial.facingFade` optionally fades paired front/back coverings as they approach profile. With range `0.3`, the front covering fades as its facing value goes from 0.3 to 0, while the rear covering appears over that same interval. Both still follow the head transform. This avoids a gap where both hair coverings would be hidden. Opacity channels multiply this facing opacity.

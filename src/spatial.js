@@ -38,9 +38,11 @@ export function spatialParts(pack,frame){
   if(s.surface){const {x,width,depth}=s.surface,u=clamp(x/width,-.95,.95),z=depth*Math.sqrt(1-u*u),slope=-depth*u/(width*Math.sqrt(1-u*u)),point=apply(m,x,0,z);
    v[0]=m[0]+m[2]*slope;v[1]=m[3]+m[5]*slope;v[2]=m[1];v[3]=m[4];v[4]=j.x+point.x-v[0]*x;v[5]=j.y+point.y-v[1]*x;facing=m[8]-m[6]*slope;
   }
+  // Front hair fades before profile; the rear covering fills the same interval.
+  const frontCoverage=s.facingFade?clamp(facing/s.facingFade,0,1):1,opacity=s.facingFade?(s.facing==='back'?1-frontCoverage:frontCoverage):1;
   // Depth is sampled at an authored part center, not just its attachment pivot.
   const center=apply(m,s.center?.[0]||0,s.center?.[1]||0,s.depth||0);
-  result.set(part.id,{matrix:v,transform:`matrix(${v.map(n=>+n.toFixed(5)).join(' ')})`,depth:j.z+j.layerDepth+center.z+(s.order||0)*.001,index,visible:s.facing==='front'?facing>.035:s.facing==='back'?facing<-.035:true,d:s.softLimb?softLimbPath(pack,part,pose,world):s.morph?morphPath(part,frame.pose[s.morph.channel]):null});
+  result.set(part.id,{matrix:v,transform:`matrix(${v.map(n=>+n.toFixed(5)).join(' ')})`,depth:j.z+j.layerDepth+center.z+(s.order||0)*.001,index,opacity,visible:s.facingFade?opacity>0:s.facing==='front'?facing>.035:s.facing==='back'?facing<-.035:true,d:s.softLimb?softLimbPath(pack,part,pose,world):s.morph?morphPath(part,frame.pose[s.morph.channel]):null});
  });
  return {world,parts:result,order:[...result.keys()].sort((a,b)=>result.get(a).depth-result.get(b).depth||result.get(a).index-result.get(b).index)};
 }
