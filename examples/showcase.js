@@ -29,7 +29,7 @@ export function createDemo(id){
  if(id==='light-and-shade'){
   const doc=createDemo('turn-and-pose');doc.id=id;doc.name='Light & shade';doc.props=[rect('wall',400,150,800,300,'#d8d0c9'),rect('floor',400,375,800,150,'#beb4aa')];
   for(const a of doc.actors){a.transform.y=365-standingTarget(doc,a,doc.packs[a.pack],a.transform.x).box.bottom;a.inputs.action='glance';}
-  doc.lighting={enabled:true,angle:-135,elevation:45,intensity:.8,ambient:.6,color:'#fff1d6',shadowColor:'#292438',softness:3,floorY:365,wallY:300,floorShadow:.24,wallShadow:.14,reflection:.22,gloss:.35};doc.requiredFeatures.push('scene-lighting');return doc;
+  doc.lighting={enabled:true,shading:'cel',angle:-135,elevation:45,intensity:.8,ambient:.6,color:'#fff1d6',shadowColor:'#292438',softness:3,floorY:365,wallY:300,floorShadow:.24,wallShadow:.14,reflection:.22,gloss:.35};doc.requiredFeatures.push('scene-lighting');return doc;
  }
  if(id==='turn-and-pose'){
   const doc=scene(id,'Turn & pose',[actor('ona','ona',250,285,1.8),actor('dummy','dummy',565,235,1.6)],[rect('backdrop',400,225,800,450,'#f1ece3'),rect('ground',400,395,800,110,'#dfd6c7')]);

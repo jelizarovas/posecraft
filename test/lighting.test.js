@@ -7,8 +7,8 @@ import {validateDocument} from '../src/schema.js';
 import {lightingConfig,surfaceRamp,surfaceFocus,shadowProjection,contactShadow} from '../src/lighting.js';
 test('lighting is opt-in and scene data round-trips with bounded values',()=>{
  const doc=createDemo('light-and-shade');assert.ok(validateDocument(JSON.parse(JSON.stringify(doc))).valid);
- for(const [key,value] of [['angle',181],['elevation',0],['softness',17],['reflection',1],['enabled','yes'],['color','url(https://example.com)'],['shadowColor','#fff']]){const d=structuredClone(doc);d.lighting[key]=value;assert.equal(validateDocument(d).valid,false,key);}
- const c=new SceneController(doc),f=c.frame();assert.match(renderSVG(doc,f),/data-floor-shadow/);doc.lighting.enabled=false;const flat=renderSVG(doc,f);assert.doesNotMatch(flat,/data-surface|data-reflection|data-light-effects|feGaussianBlur/);delete doc.lighting;assert.equal(lightingConfig(doc).enabled,false);c.dispose();
+ for(const [key,value] of [['angle',181],['elevation',0],['softness',17],['reflection',1],['enabled','yes'],['shading','unknown'],['color','url(https://example.com)'],['shadowColor','#fff']]){const d=structuredClone(doc);d.lighting[key]=value;assert.equal(validateDocument(d).valid,false,key);}
+ const c=new SceneController(doc),f=c.frame();assert.match(renderSVG(doc,f),/data-floor-shadow/);doc.lighting.enabled=false;const flat=renderSVG(doc,f);assert.doesNotMatch(flat,/data-surface|data-reflection|data-light-effects|feGaussianBlur/);delete doc.lighting;assert.equal(lightingConfig(doc).enabled,false);assert.equal(lightingConfig(doc).shading,'gradient');c.dispose();
 });
 test('surface ramps preserve detail, tint colors, and compensate mirrored joint transforms',()=>{
  const l=lightingConfig(createDemo('light-and-shade'));assert.equal(surfaceRamp('none',l),null);assert.equal(surfaceRamp('#111111',l),null);assert.equal(surfaceRamp('#abcd',l),null);assert.equal(surfaceRamp('#fff',l).length,3);

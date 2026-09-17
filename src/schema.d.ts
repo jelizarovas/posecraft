@@ -1,4 +1,4 @@
-export interface SceneLighting {enabled?:boolean;angle?:number;elevation?:number;intensity?:number;ambient?:number;color?:string;shadowColor?:string;softness?:number;floorY?:number;wallY?:number;floorShadow?:number;wallShadow?:number;reflection?:number;gloss?:number}
+export interface SceneLighting {shading?:'gradient'|'cel';enabled?:boolean;angle?:number;elevation?:number;intensity?:number;ambient?:number;color?:string;shadowColor?:string;softness?:number;floorY?:number;wallY?:number;floorShadow?:number;wallShadow?:number;reflection?:number;gloss?:number}
 export interface Joint { id:string; parent:string|null; x:number; y:number; length:number; rotation:number; min:number; max:number }
 export interface Camera {x:number;y:number;zoom:number;rotation:number;width:number;height:number}
 export type Keyframe = [number, number, ('linear'|'smooth'|'step')?];

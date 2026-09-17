@@ -52,6 +52,7 @@ function drawControls(){
  const action=(id,label,fn)=>{const b=document.createElement('button');b.id=id;b.textContent=label;b.onclick=()=>{resume();fn();};$('demo-actions').append(b);};
  if(selected.id==='light-and-shade'){
   const relight=patch=>{Object.assign(documentData.lighting,patch);document.querySelectorAll('[data-light-control]').forEach(input=>input.value=documentData.lighting[input.dataset.lightControl]);renderer?.dispose();renderer=null;show(frame||controller.frame());};
+  const shading=document.createElement('label');shading.innerHTML='<span>Shading</span><select id="demo-shading" aria-label="Character shading"><option value="gradient">Soft gradient</option><option value="cel">Sharp / cel</option></select>';$('demo-controls').insertBefore(shading,$('demo-actions'));$('demo-shading').value=documentData.lighting.shading||'gradient';$('demo-shading').onchange=e=>relight({shading:e.target.value,enabled:true});
   action('light-warm','Warm',()=>{relight({enabled:true,color:'#fff1d6',ambient:.6,intensity:.8,gloss:.35});});
   action('light-cool','Moonlight',()=>{relight({enabled:true,color:'#a8caff',ambient:.35,intensity:1.1,gloss:.5});});
   action('light-flat','Flat',()=>relight({enabled:false}));

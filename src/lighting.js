@@ -1,11 +1,16 @@
 // Stylized receivers and surface ramps. No mesh, ray tracing or layout reads.
 export const lightRanges={angle:[-180,180],elevation:[10,85],intensity:[0,2],ambient:[0,1],softness:[0,16],floorY:[0,4096],wallY:[0,4096],floorShadow:[0,1],wallShadow:[0,1],reflection:[0,.8],gloss:[0,1]};
-export function lightingConfig(scene){return {enabled:false,angle:-135,elevation:45,intensity:.8,ambient:.6,color:'#fff1d6',shadowColor:'#292438',softness:3,floorY:scene.bounds.height*.82,wallY:scene.bounds.height*.66,floorShadow:.24,wallShadow:.14,reflection:.18,gloss:.25,...scene.lighting};}
+export function lightingConfig(scene){return {enabled:false,shading:'gradient',angle:-135,elevation:45,intensity:.8,ambient:.6,color:'#fff1d6',shadowColor:'#292438',softness:3,floorY:scene.bounds.height*.82,wallY:scene.bounds.height*.66,floorShadow:.24,wallShadow:.14,reflection:.18,gloss:.25,...scene.lighting};}
 const rad=Math.PI/180;
 function rgb(hex){if(!/^#(?:[a-f\d]{3}|[a-f\d]{6})$/i.test(hex))return null;let s=hex.slice(1);if(s.length===3)s=[...s].map(c=>c+c).join('');return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16));}
 export function surfaceRamp(fill,light){const base=rgb(fill),tint=rgb(light.color);if(!base||Math.max(...base)<65)return null;
  const color=(gain,mix)=>'#'+base.map((v,i)=>Math.round(Math.max(0,Math.min(255,v*gain*(1-mix)+tint[i]*mix))).toString(16).padStart(2,'0')).join('');
  return [color(light.ambient+light.intensity*.55,light.gloss*light.intensity*.48),color(light.ambient+light.intensity*.42,.04*light.intensity),color(light.ambient*.76,.025)];}
+export function surfaceStops(ramp,light){
+ // Coincident stops make an antialiased edge with no color interpolation band.
+ const stops=light.shading==='cel'?[[0,ramp[0]],[.72,ramp[0]],[.72,ramp[2]],[1,ramp[2]]]:[[0,ramp[0]],[.42,ramp[1]],[1,ramp[2]]];
+ return stops.map(([offset,color])=>`<stop offset="${offset}" stop-color="${color}"/>`).join('');
+}
 export function surfaceFocus(light,rotation=0,partTransform=''){
  // Inverse linear part of the authored transform also handles mirrored artwork.
  let a=1,b=0,c=0,d=1;

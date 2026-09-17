@@ -1,4 +1,4 @@
-import {lightingConfig,surfaceRamp,surfaceFocus,shadowProjection,contactShadow,lightingDefinitions} from './lighting.js';
+import {lightingConfig,surfaceStops,surfaceRamp,surfaceFocus,shadowProjection,contactShadow,lightingDefinitions} from './lighting.js';
 import {spatialParts} from './spatial.js';
 let spatialInstance=0;
 import { assertDocument } from './schema.js';
@@ -37,7 +37,7 @@ export function renderSVG(document, frame, { label = document.name, bones = fals
     if (!evaluated) throw new Error(`Missing evaluated actor ${actor.id}`);
     const spatial=spatialParts(pack,evaluated),ordered=spatial?spatial.order.map(id=>pack.parts[spatial.parts.get(id).index]):pack.parts;
     const masks=spatial?[...new Set(pack.parts.map(p=>p.spatial?.mask).filter(Boolean))]:[];
-    const gradients=light.enabled?pack.parts.map(part=>{const paint=appearance(part,actor,evaluated),ramp=surfaceRamp(paint.fill,light);if(!ramp)return '';const focus=surfaceFocus(light,(evaluated.world[part.joint]?.rotation||0)+(evaluated.placement||actor.transform).rotation,paint.transform);return `<radialGradient data-surface="${part.id}" id="${prefix}-${actor.id}-${part.id}-surface" cx="${focus.cx}" cy="${focus.cy}" r=".85"><stop stop-color="${ramp[0]}"/><stop offset=".42" stop-color="${ramp[1]}"/><stop offset="1" stop-color="${ramp[2]}"/></radialGradient>`;}).join(''):'';
+    const gradients=light.enabled?pack.parts.map(part=>{const paint=appearance(part,actor,evaluated),ramp=surfaceRamp(paint.fill,light);if(!ramp)return '';const focus=surfaceFocus(light,(evaluated.world[part.joint]?.rotation||0)+(evaluated.placement||actor.transform).rotation,paint.transform);return `<radialGradient data-surface="${part.id}" data-shading="${light.shading}" id="${prefix}-${actor.id}-${part.id}-surface" cx="${focus.cx}" cy="${focus.cy}" r=".85">${surfaceStops(ramp,light)}</radialGradient>`;}).join(''):'';
     const definitions=gradients+masks.map(id=>{const p=pack.parts.find(p=>p.id===id),paint=appearance(p,actor,evaluated);return `<clipPath id="${prefix}-${actor.id}-${id}" clipPathUnits="userSpaceOnUse"><path data-mask-part="${id}" d="${escape(paint.d)}" transform="${spatial.parts.get(id).transform} ${escape(paint.transform)}"/></clipPath>`;}).join('');
     return `<g data-actor="${actor.id}" data-response="${escape(evaluated.response||'calm')}" data-emotion="${escape(evaluated.inputs?.emotion||'neutral')}" transform="${placement(evaluated.placement||actor.transform)}"><defs>${definitions}</defs><g data-artwork="" id="${prefix}-${actor.id}-artwork">${ordered.map(part => {
       const paint = appearance(part,actor,evaluated),view=spatial?.parts.get(part.id);

@@ -33,6 +33,7 @@ function validateStructure(doc) {
   check(Number.isSafeInteger(doc.revision) && doc.revision >= 0, 'revision', 'Expected a nonnegative revision.');
   check(record(doc.bounds) && finite(doc.bounds.width, 1, 4096) && finite(doc.bounds.height, 1, 4096), 'bounds', 'Width and height must be 1..4096.');
   if(doc.lighting!==undefined){const l=doc.lighting;check(record(l),'lighting','Expected scene lighting.');if(record(l)){
+    if(l.shading!==undefined)check(['gradient','cel'].includes(l.shading),'lighting.shading','Expected gradient or cel.');
     if(l.enabled!==undefined)check(typeof l.enabled==='boolean','lighting.enabled','Expected boolean.');
     for(const [key,[min,max]] of Object.entries(lightRanges))if(l[key]!==undefined)check(finite(l[key],min,max),'lighting.'+key,`Expected ${min}..${max}.`);
     for(const key of ['color','shadowColor'])if(l[key]!==undefined)check(typeof l[key]==='string'&&/^#[a-fA-F0-9]{6}$/.test(l[key]),'lighting.'+key,'Expected a six-digit hex color.');
