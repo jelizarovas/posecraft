@@ -35,9 +35,9 @@ The scenes reuse the existing owner-provided characters. Their original provenan
 
 ## Campfire night
 
-Maple, Juniper, Ember and Clover have different hair, eye colors and outfits. Each follows a 24-second cooking loop, staggered by five seconds. Use **Roast**, **Burn**, **Eat** and **Replace** to inspect the stages, or scrub the full minute. **Meteor** jumps to the first shooting star. Fire and embers loop every four seconds; clouds and two meteors run on a 60-second sky track.
+Maple, Juniper, Ember and Clover have different hair, eye colors and outfits. Each follows a 24-second cooking loop, staggered by five seconds. Use **Roast**, **Burn**, **Brace**, **Slide off**, **Eat** and **Replace** to inspect the stages, or scrub the full minute. **Meteor** jumps to the first shooting star. Fire and embers loop every four seconds; clouds and two meteors run on a 60-second sky track.
 
-The download contains all drawings, states and numeric animation keys. Four character actors sit between an unlit background actor and an unlit foreground fire actor. The warm point light flickers with scene time. Open the scene in Studio to edit the clips, looks and light. The roasting props hide when a camper switches to another action. This is authored choreography, not simulated cooking or object grasping.
+The download contains all drawings, states and numeric animation keys. Four character actors sit between an unlit background actor and an unlit foreground fire actor. The warm point light flickers with scene time. Open the scene in Studio to edit the clips, looks and light. The campfire cast uses dedicated two-segment arms with hands drawn in front of the body and face. Each camper lowers the stick, plants its butt near the foot, slides the snack off with the free hand, takes bites and replaces it. Stick depth foreshortens its projected length as it is raised. Baked hand/food contacts, blinks, worried brows, blowing and chewing stay editable in the cooking clip. The roasting props and campfire-specific arms/faces hide when a camper switches to another action. This is authored choreography, not simulated cooking or object grasping.
 
 ## Phone motion and returning to a mark
 

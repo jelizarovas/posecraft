@@ -54,7 +54,7 @@ function drawControls(){
  const action=(id,label,fn)=>{const b=document.createElement('button');b.id=id;b.textContent=label;b.onclick=()=>{resume();fn();};$('demo-actions').append(b);};
  if(selected.id==='campfire-night'){
   $('demo-target').parentElement.remove();
-  for(const [id,label,t] of [['roast','Roast',0],['burn','Burn',12.4],['eat','Eat',18.2],['replace','Replace',21.2],['meteor','Meteor',8.8]])action('camp-'+id,label,()=>controller.seek(t));
+  for(const [id,label,t] of [['roast','Roast',0],['burn','Burn',12.4],['brace','Brace',15.52],['slide','Slide off',16.72],['eat','Eat',18.2],['replace','Replace',21.2],['meteor','Meteor',8.8]])action('camp-'+id,label,()=>controller.seek(t));
  }else if(selected.id==='light-and-shade'){
   documentData.lighting=lightingConfig(documentData);
   const relight=patch=>{Object.assign(documentData.lighting,patch);document.querySelectorAll('[data-light-control]').forEach(input=>input.value=documentData.lighting[input.dataset.lightControl]);renderer?.dispose();renderer=null;show(frame||controller.frame());};

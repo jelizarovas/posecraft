@@ -29,7 +29,7 @@ export function surfaceFocus(light,rotation=0,partTransform=''){
 export function sampleLighting(base,time=0){
  const l={...base},t=(base.motion==='flicker'?Math.floor(time*30)/30:time)*l.motionSpeed;
  if(l.type==='point'&&l.motion==='orbit'){l.pointX+=Math.sin(t*.65)*l.motionRadius;l.pointY+=Math.cos(t*.65)*l.motionRadius*.3;}
- if(l.motion==='flicker')l.intensity*=1-l.flicker*(.5+.25*Math.sin(t*13)+.15*Math.sin(t*23+1)+.1*Math.sin(t*37));
+ if(l.motion==='flicker'){const dim=l.flicker*(.5+.25*Math.sin(t*13)+.15*Math.sin(t*23+1)+.1*Math.sin(t*37));l.intensity*=1-dim;l.celThickness=Math.min(1,l.celThickness*(1+.9*dim));}
  return l;
 }
 export function actorAnchor(actor,evaluated){const t=evaluated.placement||actor.transform,root=Object.values(evaluated.world)[0]||{x:0,y:0},r=t.rotation*rad;return {x:t.x+t.scale*(root.x*Math.cos(r)-root.y*Math.sin(r)),y:t.y+t.scale*(root.x*Math.sin(r)+root.y*Math.cos(r))};}

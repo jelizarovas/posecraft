@@ -1,7 +1,5 @@
 import ona from './characters/ona.json' with {type:'json'};
 import {addSpatialRig} from './spatial-rigs.js';
-import {forwardKinematics} from '../src/index.js';
-import {poseDefaults} from '../src/spatial.js';
 const joint=(id,parent,x=0,y=0)=>({id,parent,x,y,rotation:0,min:-180,max:180,length:0});
 const path=(id,joint,d,fill,extra={})=>({id,joint,d,fill,...extra});
 const ellipse=(x,y,rx,ry)=>`M${x-rx} ${y}a${rx} ${ry} 0 1 0 ${2*rx} 0a${rx} ${ry} 0 1 0 ${-2*rx} 0`;
@@ -31,22 +29,73 @@ function fire(){
  for(let i=0;i<3;i++){const id='smoke-'+i;p.joints.push(joint(id,'root',400+i*5,283-i*23));p.parts.push(path(id,id,ellipse(0,0,12+i*5,7+i*4),'#9da392',{opacityChannel:id+'.opacity'}));tracks[id+'.y']=[[0,0],[4,-35]];tracks[id+'.x']=[[0,0],[4,26]];tracks[id+'.opacity']=[[0,0],[1,.13],[4,0]];}
  loop(p,4,tracks);return p;
 }
-export function campPhase(time,index=0){const t=(time+index*5)%24;return t<9?'roasting':t<12?'toasting':t<15?'burning':t<17?'blowing':t<20?'eating':t<22?'replacing':'fresh';}
+export function campPhase(time,index=0){const t=(time+index*5)%24;return t<9?'roasting':t<12?'toasting':t<13.5?'burning':t<15?'lowering the stick':t<15.8?'blowing':t<16.4?'reaching':t<17?'sliding off':t<19?'eating':t<20?'swallowing':t<21.5?'replacing':t<23?'returning to fire':'fresh';}
+const mix=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});
+const ramp=(t,a,b)=>ease((t-a)/(b-a));
+const angle=v=>Math.atan2(v.y,v.x)*180/Math.PI;
+const wrap=v=>((v+540)%360)-180;
+function armPose(shoulder,hand,bend){
+ const dx=hand.x-shoulder.x,dy=hand.y-shoulder.y,d=Math.max(.001,Math.hypot(dx,dy)),h=Math.sqrt(Math.max(0,26*26-d*d/4));
+ const elbow={x:(shoulder.x+hand.x)/2-dy/d*h*bend,y:(shoulder.y+hand.y)/2+dx/d*h*bend},upper=angle({x:elbow.x-shoulder.x,y:elbow.y-shoulder.y}),lower=angle({x:hand.x-elbow.x,y:hand.y-elbow.y});
+ return {upper,lower:wrap(lower-upper),hand:wrap(-lower)};
+}
+// All contacts are solved in the character plane before baking portable keys.
+export function cookingPose(t,index,x,scale){
+ const sign=x<400?1:-1,rootY=365-58*scale,tip={x:(400+[-32,-10,12,34][index]-x)/scale,y:([267,275,269,279][index]-rootY)/scale},hold={x:sign*39,y:31},dist=Math.hypot(tip.x-hold.x,tip.y-hold.y),unit={x:(tip.x-hold.x)/dist,y:(tip.y-hold.y)/dist},roastBase={x:hold.x-unit.x*18,y:hold.y-unit.y*18},parkBase={x:sign*38,y:56},parkTip={x:0,y:-4},park=ramp(t,13.5,15)*(1-ramp(t,21.5,23)),base=mix(roastBase,parkBase,park),end=mix(tip,parkTip,park),length=dist+18,projected=Math.hypot(end.x-base.x,end.y-base.y),direction={x:(end.x-base.x)/projected,y:(end.y-base.y)/projected},holding={x:base.x+direction.x*18,y:base.y+direction.y*18};
+ const rest={x:-sign*39,y:30},bag={x:-sign*25,y:29},off={x:end.x+direction.x*10,y:end.y+direction.y*10},mouth={x:0,y:-12};let hand=rest,food=end;
+ if(t>=15.8&&t<16.4)hand=mix(rest,end,ramp(t,15.8,16.4));
+ else if(t>=16.4&&t<17){hand=food=mix(end,off,ramp(t,16.4,17));}
+ else if(t>=17&&t<17.8){hand=food=mix(off,mouth,ramp(t,17,17.8));}
+ else if(t>=17.8&&t<19){hand=food={x:mouth.x+Math.sin(t*15)*.8,y:mouth.y+Math.sin(t*15)*.6};}
+ else if(t>=19&&t<20){hand=mix(mouth,rest,ramp(t,19,20));food=hand;}
+ else if(t>=20&&t<20.7){hand=mix(rest,bag,ramp(t,20,20.7));food=hand;}
+ else if(t>=20.7&&t<21.5){hand=food=mix(bag,end,ramp(t,20.7,21.5));}
+ else if(t>=21.5&&t<22.3)hand=mix(parkTip,rest,ramp(t,21.5,22.3));
+ return {base,end,length,projected,holding,hand,food,sign,stickRotation:angle(direction),stickYaw:Math.acos(Math.min(1,projected/length))*180/Math.PI};
+}
 function camper(index,x,scale,colors,hair){
- const p=structuredClone(ona.packs.ona);addSpatialRig(p,'ona');p.name='Camper '+(index+1);const right=x<400,arm=right?'rightArm':'leftArm',free=right?'leftArm':'rightArm',sign=right?1:-1,rootY=365-58*scale,rest=poseDefaults(p),w=forwardKinematics(p.joints,rest)[arm],r=w.rotation*Math.PI/180,hand={x:w.x+sign*14*Math.cos(r)-30*Math.sin(r),y:w.y+sign*14*Math.sin(r)+30*Math.cos(r)},target={x:(400+[-32,-10,12,34][index]-x)/scale,y:([267,275,269,279][index]-rootY)/scale},dx=target.x-hand.x,dy=target.y-hand.y,angle=((Math.atan2(dy,dx)*180/Math.PI-w.rotation+540)%360)-180,length=Math.hypot(dx,dy);
- p.joints.push(joint('skewer',arm,sign*14,30),joint('food','root'),joint('toast','food'),joint('snack-flame','food'));
- p.parts.push(path('roasting-stick','skewer',`M0 0H${length}`,'none',{stroke:'#b99567',strokeWidth:2,spatial:{order:80}}),path('marshmallow','food',snack,'#fff1d9',{stroke:'#b79876',strokeWidth:.6,opacityChannel:'food.opacity',spatial:{order:90}}),path('toast','toast',snack,'#563523',{opacityChannel:'toast.opacity',spatial:{order:91}}),path('snack-flame','snack-flame',flame,'#ffad46',{transform:'scale(.23 .3)',opacityChannel:'snack-flame.opacity',spatial:{order:92}}));
- const tracks={};const add=(key,t,value,easing='smooth')=>(tracks[key]??=[]).push([t,value,easing]);
- // Baked numeric keys keep the complete performance portable in the scene JSON.
- for(let n=0;n<=192;n++){const time=n/8,t=(time+index*5)%24,phase=campPhase(time,index),eat=t>=17&&t<20,replace=t>=20&&t<22,bring=Math.max(0,Math.min(1,(t-16.5)/1.1)),returning=ease(t-21),eatWeight=ease((t-16.5)/.9)*ease((20.2-t)/.9),replaceWeight=ease((t-20)/.6)*ease((22.5-t)/.6),mouth={x:sign*3,y:-4},bag={x:-sign*24,y:27};let food={...target};
-  if(t>=16.5&&t<20)food={x:target.x+(mouth.x-target.x)*bring,y:target.y+(mouth.y-target.y)*bring};else if(t>=20&&t<22)food={x:bag.x+(target.x-bag.x)*returning,y:bag.y+(target.y-bag.y)*returning};
-  add('skewer.rotation',time,angle);add(arm+'.rotation',time,rest[arm+'.rotation']);add(free+'.rotation',time,rest[free+'.rotation']*(1-Math.max(eatWeight,replaceWeight))-sign*(112*eatWeight+48*replaceWeight));add('head.rotation',time,phase==='burning'?Math.sin(t*12)*7:eat?Math.sin(t*15)*3:Math.sin(t*.7)*3);add('head.y',time,8*eatWeight);add('head.yaw',time,sign*18);add('mouth.rotation',time,Math.sin(t*19)*8*eatWeight);
-  add('food.x',time,food.x);add('food.y',time,food.y);add('food.rotation',time,Math.sin(t*2)*6);add('food.opacity',time,t>=19&&t<20.7?0:1,'step');add('toast.opacity',time,t<9||t>=19?0:Math.min(.9,(t-9)/3));add('snack-flame.opacity',time,phase==='burning'?.65+.3*Math.sin(t*14):0,'step');add('snack-flame.rotation',time,Math.sin(t*12)*12);
+ const p=structuredClone(ona.packs.ona);addSpatialRig(p,'ona');p.name='Camper '+(index+1);const sign=x<400?1:-1,rootY=365-58*scale,length=cookingPose(0,index,x,scale).length;
+ p.joints.push(joint('camp-original','root'));
+ for(const part of p.parts)if(['leftArm','rightArm','eyes','mouth'].includes(part.joint)||['brows','hurt-cheek'].includes(part.id))part.opacityChannel='camp-original.opacity';
+ const addPart=(...args)=>{const v=path(...args);v.showWhen={input:'action',equals:'campfire'};p.parts.push(v);return v;};
+ for(const [name,side] of [['hold',sign],['take',-sign]]){
+  p.joints.push(joint(name+'-upper','root',side*27,0),joint(name+'-elbow',name+'-upper',26,0),joint(name+'-hand',name+'-elbow',26,0));
+  for(const [id,bone,width,order] of [[name+'-upper',name+'-upper',6,1],[name+'-forearm',name+'-elbow',5,2]])addPart(id,bone,`M0 -${width}Q-5 0 0 ${width}H26Q31 0 26 -${width}Z`,'#fafbf8',{channel:'skin',stroke:'#383936',strokeWidth:1.3,spatial:{order}});
+  addPart(name+'-palm',name+'-hand',ellipse(0,0,6,5),'#fafbf8',{channel:'skin',stroke:'#383936',strokeWidth:1.2,spatial:{order:100}});
  }
+ p.joints.push(joint('skewer','root'),joint('food','root'),joint('toast','food'),joint('snack-flame','food'));
+ addPart('roasting-stick','skewer',`M0 0H${length}`,'none',{stroke:'#b99567',strokeWidth:2,spatial:{order:80}});
+ addPart('marshmallow','food',snack,'#fff1d9',{stroke:'#b79876',strokeWidth:.6,opacityChannel:'food.opacity',spatial:{order:90,morph:{channel:'food.bend',target:'M-8 0Q0 6 8 0L8 10Q0 14 -8 10Z'}}});
+ addPart('toast','toast',snack,'#563523',{opacityChannel:'toast.opacity',spatial:{order:91,morph:{channel:'food.bend',target:'M-8 0Q0 6 8 0L8 10Q0 14 -8 10Z'}}});
+ addPart('snack-flame','snack-flame',flame,'#ffad46',{transform:'scale(.23 .3)',opacityChannel:'snack-flame.opacity',spatial:{order:92}});
+ const face=(id,d,fill,extra={})=>{p.joints.push(joint(id,'head'));return addPart(id,id,d,fill,{opacityChannel:id+'.opacity',spatial:{depth:26,order:60,facing:'front',mask:'face-0',surface:{x:0,width:44,depth:29}},...extra});};
+ face('camp-eyes',ellipse(-15,-10,4.2,6)+ellipse(17,-10,4.2,6),colors.eyes,{channel:'eyes'});
+ face('camp-eye-shine',ellipse(-16,-12,1.2,1.5)+ellipse(16,-12,1.2,1.5),'#fffdf4');
+ face('camp-blink','M-20 -9Q-15 -5 -10 -9M12 -9Q17 -5 22 -9','none',{stroke:'#383936',strokeWidth:1.8});
+ face('camp-brows','M-21 -21L-10 -22M11 -22L22 -21','none',{stroke:'#65504a',strokeWidth:1.7});
+ face('camp-worried','M-21 -20L-10 -24M11 -24L22 -20','none',{stroke:'#65504a',strokeWidth:1.7});
+ face('camp-smile','M-7 4Q0 13 7 4','none',{stroke:'#383936',strokeWidth:1.7});
+ face('camp-oh',ellipse(0,6,4,6),'#513d35');
+ face('camp-blow',ellipse(2,5,2.5,3),'#513d35');
+ face('camp-chew-open','M-5 3Q0 1 5 3Q4 10 0 10Q-4 10 -5 3Z','#513d35');
+ face('camp-chew-closed','M-5 5Q0 8 5 5','none',{stroke:'#383936',strokeWidth:1.8});
+ face('camp-cheeks',ellipse(-23,2,5,2.5)+ellipse(23,2,5,2.5),'#d98978');
+ const tracks={},add=(key,t,value,easing='linear')=>(tracks[key]??=[]).push([t,value,easing]);
+ // 24 fps sampling preserves visible hand/food contact, including scrubbed frames.
+ for(let n=0;n<=576;n++){
+  const time=n/24,t=(time+index*5)%24,c=cookingPose(t,index,x,scale),burn=t>=12&&t<15,blow=t>=15&&t<16.4,chew=t>=17.8&&t<19,blink=[2.2,6.6,10.4,15.4,19.6,22.8].some(at=>Math.abs(t-at)<.09),bite=(Math.sin(t*22)+1)/2;
+  add('camp-original.opacity',time,0);
+  for(const [name,side,hand,bend] of [['hold',sign,c.holding,-sign],['take',-sign,c.hand,sign]]){const pose=armPose({x:side*27,y:0},hand,bend);add(name+'-upper.rotation',time,pose.upper);add(name+'-elbow.rotation',time,pose.lower);add(name+'-hand.rotation',time,pose.hand);add(name+'-upper.z',time,42);}
+  add('skewer.x',time,c.base.x);add('skewer.y',time,c.base.y);add('skewer.rotation',time,c.stickRotation);add('skewer.yaw',time,c.stickYaw);add('skewer.z',time,43);
+  add('food.x',time,c.food.x);add('food.y',time,c.food.y);add('food.z',time,44);add('food.rotation',time,0);add('food.bend',time,t>=17.8&&t<19?ramp(t,17.8,18.9):0);add('food.opacity',time,t>=19&&t<20.7?0:1,'step');add('toast.opacity',time,t<9||t>=19?0:Math.min(.9,(t-9)/3));add('snack-flame.opacity',time,burn?.65+.3*Math.sin(t*14):0,'step');add('snack-flame.rotation',time,Math.sin(t*12)*12);
+  add('head.rotation',time,burn?Math.sin(t*9)*3:chew?Math.sin(t*22)*.6:Math.sin(t*.7)*1.5);add('head.yaw',time,0);
+  for(const [id,value] of [['camp-eyes',blink?0:1],['camp-eye-shine',blink?0:1],['camp-blink',blink?1:0],['camp-brows',burn?0:1],['camp-worried',burn?1:0],['camp-smile',!burn&&!blow&&!chew?1:0],['camp-oh',burn?1:0],['camp-blow',blow?1:0],['camp-chew-open',chew?bite:0],['camp-chew-closed',chew?1-bite:0],['camp-cheeks',chew?.45:burn?.3:.12]])add(id+'.opacity',time,value,'step');
+ }
+ // Drop only redundant held samples; retain transition endpoints and contact samples.
+ for(const [key,keys] of Object.entries(tracks))tracks[key]=keys.filter((v,i)=>i===0||i===keys.length-1||v[1]!==keys[i-1][1]||v[1]!==keys[i+1][1]);
  p.clips.campfire={duration:24,loop:true,tracks};p.states.campfire={clip:'campfire',transitions:[]};p.inputs.action.options.push('campfire');p.inputs.action.default='campfire';p.initial='campfire';
  for(const [name,state] of Object.entries(p.states))state.transitions=p.inputs.action.options.filter(to=>to!==name).map(to=>({to,duration:.25,when:{input:'action',equals:to}}));
- for(const part of p.parts.filter(part=>['roasting-stick','marshmallow','toast','snack-flame'].includes(part.id)))part.showWhen={input:'action',equals:'campfire'};
- const a={...structuredClone(ona.actors[0]),id:'camper-'+index,name:['Maple','Juniper','Ember','Clover'][index],pack:'camper-'+index,transform:{x,y:rootY,scale,rotation:0},appearance:{...ona.actors[0].appearance,...colors},inputs:{...ona.actors[0].inputs,action:'campfire',hair,emotion:'happy'},behavior:{mode:'animated',autoFace:false}};return {a,p};
+ const a={...structuredClone(ona.actors[0]),id:'camper-'+index,name:['Maple','Juniper','Ember','Clover'][index],pack:'camper-'+index,transform:{x,y:rootY,scale,rotation:0},appearance:{...ona.actors[0].appearance,...colors},inputs:{...ona.actors[0].inputs,action:'campfire',hair,emotion:'neutral'},behavior:{mode:'animated',autoFace:false}};return {a,p};
 }
 export function createCampfire(){
  const outfits=[{clothing:'#de9b69',hair:'#674538',eyes:'#477b78'},{clothing:'#a9bf8c',hair:'#b57840',eyes:'#72509b'},{clothing:'#a29acf',hair:'#372f3e',eyes:'#438e9a'},{clothing:'#78afb0',hair:'#ceb16d',eyes:'#729052'}],hair=['bob','curls','swept','ponytail'],campers=[140,278,522,660].map((x,i)=>camper(i,x,i%3===0?1.15:1.05,outfits[i],hair[i]));

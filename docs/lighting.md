@@ -54,7 +54,7 @@ Omitted properties use the example defaults, except `shading` defaults to `gradi
 
 ## Moving and flickering lights
 
-In **Light & shade**, choose **Moving point** to watch a light cross the scene. Character shading and cast directions follow its position. Studio exposes the source position, range, height, orbit radius and speed. **Campfire night** uses a stationary warm point source with flickering strength. Motion samples scene time, so pause freezes it and seeking reproduces the same light. Flicker updates at 30 Hz and surface intensity is quantized to limit redundant SVG updates. Existing gradient stops are reused.
+In **Light & shade**, choose **Moving point** to watch a light cross the scene. Character shading and cast directions follow its position. Studio exposes the source position, range, height, orbit radius and speed. **Campfire night** uses a stationary warm point source with flickering strength. Motion samples scene time, so pause freezes it and seeking reproduces the same light. Flicker modulates cel coverage along with intensity: dimmer moments widen the dark area, while zero coverage stays off. Flicker updates at 30 Hz and surface intensity is quantized to limit redundant SVG updates. Existing gradient stops are reused.
 
 ## Rendering cost and limits
 

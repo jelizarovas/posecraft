@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createCampfire,campPhase} from '../examples/campfire.js';
 import {SceneController} from '../src/scene.js';
 import {assertDocument,validateDocument} from '../src/schema.js';
+import {spatialParts} from '../src/spatial.js';
 import {renderSVG} from '../src/svg.js';
 import {lightingConfig,sampleLighting,lightAt,shadowVectors,shadowProjection,wallProjection,surfaceRamp,surfaceStopValues} from '../src/lighting.js';
 test('floor and wall projections meet at the same corner point',()=>{
@@ -40,4 +41,22 @@ test('campers can leave and return to cooking without carrying props into other 
  c.setInput('camper-0','action','campfire');for(let i=0;i<120;i++)c.step(1/120);
  assert.equal(c.frame().actors.find(a=>a.id==='camper-0').state,'campfire');
  assert.match(renderSVG(d,c.frame()),/data-part="roasting-stick"[^>]+visibility="visible"/);c.dispose();
+});
+
+test('campfire hands grip the planted stick and carry food in front of the face',()=>{
+ const d=createCampfire(),c=new SceneController(d);
+ for(let i=0;i<4;i++){
+  const actor=d.actors.find(a=>a.id==='camper-'+i),p=d.packs[actor.pack];
+  for(const t of [15.5,16.45,16.73,17.25,17.83,18.2,18.7,21,21.3]){
+   c.previewClip(actor.id,'campfire',(t-i*5+24)%24,{});const f=c.frame().actors.find(a=>a.id===actor.id),view=spatialParts(p,f),hand=view.world['take-hand'],food=view.world.food,stick=view.parts.get('roasting-stick').matrix,hold=view.world['hold-hand'],tip={x:stick[4]+stick[0]*Number(p.parts.find(v=>v.id==='roasting-stick').d.split('H')[1]),y:stick[5]+stick[1]*Number(p.parts.find(v=>v.id==='roasting-stick').d.split('H')[1])};
+   assert.ok(Math.abs(Math.hypot(hold.x-stick[4],hold.y-stick[5])-18)<.15,'holding hand stays on shaft');
+   if(t>=16.4&&t<19||t>=20.7&&t<21.5)assert.ok(Math.hypot(hand.x-food.x,hand.y-food.y)<.2,'food follows taking hand');
+   if(t===15.5){assert.ok(Math.abs(stick[5]-56)<.01,'butt of stick is planted at ground');assert.ok(Math.hypot(food.x-tip.x,food.y-tip.y)<.2,'food remains on stick before grasp');}
+   assert.ok(view.order.indexOf('take-palm')>view.order.indexOf('face-0'),'hand draws in front of head');
+  }
+ }
+ c.previewClip('camper-0','campfire',2.2,{});assert.equal(c.frame().actors.find(a=>a.id==='camper-0').pose['camp-blink.opacity'],1);
+ c.previewClip('camper-0','campfire',12.4,{});assert.equal(c.frame().actors.find(a=>a.id==='camper-0').pose['camp-oh.opacity'],1);
+ c.previewClip('camper-0','campfire',18.2,{});assert.ok(c.frame().actors.find(a=>a.id==='camper-0').pose['camp-chew-open.opacity']>0);c.dispose();
+ const light=lightingConfig(d),a=sampleLighting(light,1),b=sampleLighting(light,1.5);assert.notEqual(a.celThickness,b.celThickness);assert.equal(sampleLighting({...light,flicker:0},1).celThickness,light.celThickness);
 });
