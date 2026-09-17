@@ -1,7 +1,8 @@
 import ona from './characters/ona.json';
 import wwwzard from './characters/wwwzard.json';
 import rusty from './characters/rusty.json';
-export const library = { ona, wwwzard, rusty };
+import dummy from './characters/dummy.json';
+export const library = { ona, wwwzard, rusty, dummy };
 export const starter = structuredClone(ona);
 export function upgradeLibraryDocument(document){
  const next=structuredClone(document);let changed=false;

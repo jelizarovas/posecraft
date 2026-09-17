@@ -5,7 +5,22 @@ export const behaviorDefaults={mode:'animated',resistance:.65,gravity:1,bounce:.
 export const behaviorModes=['animated','floating','ragdoll','protective'];
 export function behaviorConfig(value={}){return {...behaviorDefaults,...value};}
 
-// One articulated character and a rectangular container. Fixtures are authored
+// Swept separating axes for two oriented rectangles, with fixed orientations
+// over the short prediction window. Actual contacts still come from the solver.
+function boxArrival(body, fixture, obstacle, horizon=.38){
+ const shape=fixture.getShape(),other=obstacle.getShape(),surface=obstacle.getBody();
+ const points=shape.m_vertices.map(v=>body.getWorldPoint(v)),target=other.m_vertices.map(v=>surface.getWorldPoint(v));
+ const v=body.getLinearVelocity();let enter=0,leave=horizon;
+ for(const angle of [body.getAngle(),surface.getAngle()])for(const a of [angle,angle+Math.PI/2]){
+  const x=Math.cos(a),y=Math.sin(a),p=points.map(p=>p.x*x+p.y*y),q=target.map(p=>p.x*x+p.y*y),speed=v.x*x+v.y*y;
+  const min=Math.min(...p),max=Math.max(...p),low=Math.min(...q),high=Math.max(...q);
+  if(Math.abs(speed)<1e-7){if(max<low||min>high)return Infinity;continue;}
+  const t1=(low-max)/speed,t2=(high-min)/speed;enter=Math.max(enter,Math.min(t1,t2));leave=Math.min(leave,Math.max(t1,t2));if(enter>leave)return Infinity;
+ }
+ return leave>=0?enter:Infinity;
+}
+
+// One articulated character, static props, and a container. Fixtures are authored
 // collision proxies, not inferred from SVG. Characters do not collide with each other.
 export class PhysicalCharacter {
  constructor(document,actor,pack,frame,config){
@@ -14,13 +29,18 @@ export class PhysicalCharacter {
   this.world=new World(Vec2(0,0));this.world.setAutoClearForces(false);this.world.setContinuousPhysics(false);this.bodies=new Map();this.joints=new Map();
   const wall=this.world.createBody();const w=document.bounds.width/UNIT,h=document.bounds.height/UNIT;
   for(const [x,y,hx,hy] of [[w/2,h+.2,w/2+.4,.2],[w/2,-.2,w/2+.4,.2],[-.2,h/2,.2,h/2],[w+.2,h/2,.2,h/2]])wall.createFixture(Box(hx,hy,Vec2(x,y)),{friction:.75,restitution:0,userData:{wall:true}});
+  this.propFixtures=[];
+  for(const p of document.props||[]){const c=p.collider;if(!c.enabled)continue;
+   const b=this.world.createBody({position:Vec2(p.x/UNIT,p.y/UNIT),angle:p.rotation*RAD});
+   this.propFixtures.push(b.createFixture(Box(c.width/UNIT/2,c.height/UNIT/2,Vec2(c.x/UNIT,c.y/UNIT)),{friction:c.friction,restitution:c.bounce,userData:{wall:true,prop:p.id}}));
+  }
   for(const j of pack.joints){const spec=pack.physics.bodies[j.id];if(!spec)continue;
    const point=this.toScene(frame.world[j.id]),angle=(frame.world[j.id].rotation+actor.transform.rotation)*RAD,s=actor.transform.scale/UNIT;
    const body=this.world.createDynamicBody({position:Vec2(point.x/UNIT,point.y/UNIT),angle,linearDamping:.12,angularDamping:.25,bullet:true});
    body.createFixture(Box(spec.width*s/2,spec.height*s/2,Vec2(spec.x*s,spec.y*s)),{density:spec.density||1,friction:.75,restitution:this.config.bounce,filterGroupIndex:-1,userData:{part:j.id}});
    this.bodies.set(j.id,body);
    if(j.parent){const parent=this.bodies.get(j.parent);if(!parent)throw new Error(`Physical parent missing for ${j.id}`);
-    const link=this.world.createJoint(RevoluteJoint({enableLimit:true,lowerAngle:(j.min-j.rotation)*RAD,upperAngle:(j.max-j.rotation)*RAD,referenceAngle:j.rotation*RAD,collideConnected:false},parent,body,body.getPosition()));this.joints.set(j.id,link);
+    const link=this.world.createJoint(RevoluteJoint({enableLimit:true,lowerAngle:(j.min-j.rotation)*RAD,upperAngle:(j.max-j.rotation)*RAD,referenceAngle:body.getAngle()-parent.getAngle()-(frame.pose[j.id+'.rotation']-j.rotation)*RAD,collideConnected:false},parent,body,body.getPosition()));this.joints.set(j.id,link);
    }
   }
   this.root=this.bodies.get(pack.physics.root);this.head=this.bodies.get(pack.physics.head);
@@ -38,17 +58,27 @@ export class PhysicalCharacter {
    const a=contact.getFixtureA(),b=contact.getFixtureB(),dynamic=a.getBody().isDynamic()?a:b;
    if(!a.getUserData()?.wall&&!b.getUserData()?.wall)return;
    const speed=arrivals.get(contact)||0;arrivals.delete(contact);
-   if(speed>90&&this.time-this.lastImpact>.4&&(!this.pendingImpact||speed>this.pendingImpact.speed))this.pendingImpact={speed,part:dynamic.getUserData()?.part,strength:clamp(speed/350,.1,1)};
+   if(speed>90&&this.time-this.lastImpact>.4&&(!this.pendingImpact||speed>this.pendingImpact.speed))this.pendingImpact={speed,part:dynamic.getUserData()?.part,surface:(a.getUserData()?.wall?a:b).getUserData()?.prop||'bounds',strength:clamp(speed/350,.1,1)};
   });
  }
  toScene(p){const t=this.actor.transform,a=t.rotation*RAD;return {x:t.x+(p.x*Math.cos(a)-p.y*Math.sin(a))*t.scale,y:t.y+(p.x*Math.sin(a)+p.y*Math.cos(a))*t.scale};}
  toLocal(p){const t=this.actor.transform,a=-t.rotation*RAD,x=p.x*UNIT-t.x,y=p.y*UNIT-t.y;return {x:(x*Math.cos(a)-y*Math.sin(a))/t.scale,y:(x*Math.sin(a)+y*Math.cos(a))/t.scale};}
  configure(config){this.config=behaviorConfig(config);for(const b of this.bodies.values())for(let f=b.getFixtureList();f;f=f.getNext())f.setRestitution(this.config.bounce);}
+ translate(dx,dy){
+  const turns=new Map();
+  for(const b of this.bodies.values()){const p=b.getPosition(),angle=b.getAngle();b.setPosition(Vec2(p.x+dx,p.y+dy));turns.set(b,b.getAngle()-angle);}
+  // Planck normalizes angles when teleporting. Keep each joint's authored
+  // reference consistent when a drop follows one or more complete turns.
+  for(const [id,j] of this.joints){const a=j.getBodyA(),b=j.getBodyB(),delta=turns.get(b)-turns.get(a);if(Math.abs(delta)<1e-8)continue;
+   const def={localAnchorA:j.getLocalAnchorA(),localAnchorB:j.getLocalAnchorB(),referenceAngle:j.getReferenceAngle()+delta,enableLimit:true,lowerAngle:j.getLowerLimit(),upperAngle:j.getUpperLimit(),collideConnected:false};
+   this.world.destroyJoint(j);this.joints.set(id,this.world.createJoint(RevoluteJoint(def,a,b)));
+  }
+ }
  command(type,strength=1){
   if(type==='drop'){
    const top=Math.min(...[...this.bodies.values()].map(b=>b.getFixtureList().getAABB(0).lowerBound.y))*UNIT;
    const lift=Math.max(0,Math.min(75,top-12))/UNIT;
-   for(const b of this.bodies.values()){const p=b.getPosition();b.setPosition(Vec2(p.x,p.y-lift));b.setLinearVelocity(Vec2(0,2.8*strength));b.setAwake(true);}
+   this.translate(0,-lift);for(const b of this.bodies.values()){b.setLinearVelocity(Vec2(0,2.8*strength));b.setAwake(true);}
   }else if(type==='toss'){
    for(const b of this.bodies.values()){const v=b.getLinearVelocity();b.setLinearVelocity(Vec2(v.x+4.5*strength,v.y-3.5*strength));b.setAwake(true);}this.root.setAngularVelocity(this.root.getAngularVelocity()+2.5*strength);
   }else if(type==='catch'){
@@ -66,7 +96,9 @@ export class PhysicalCharacter {
   const vy=velocity.y*UNIT,vx=velocity.x*UNIT;
   const floorTime=vy>20?Math.max(0,(this.bounds.height-bottom)/vy):Infinity;
   const wallTime=Math.abs(vx)>30?Math.max(0,(vx>0?this.bounds.width-right:left)/Math.abs(vx)):Infinity;
-  const predicted=Math.min(floorTime,wallTime)<.38;
+  let arrival=Math.min(floorTime,wallTime),predictedSurface=Number.isFinite(arrival)?'bounds':null;
+  for(const b of this.bodies.values())for(const f of this.propFixtures){const time=boxArrival(b,b.getFixtureList(),f);if(time<arrival){arrival=time;predictedSurface=f.getUserData().prop;}}
+  const predicted=arrival<.38;
   let state=floating?'floating':'falling',response=null;
   if(active){
    if(predicted){response=c.strategy==='auto'?(tilt>35?'protect':'brace'):c.strategy;state={protect:'protecting',brace:'bracing',curl:'curling'}[response];}
@@ -86,20 +118,21 @@ export class PhysicalCharacter {
   // Explicit upright assistance, bounded by muscle strength. It applies torque,
   // never teleports the body or invents a support contact.
   if(active&&!response){const b=this.root;const torque=(-wrapAngle(b.getAngle()/RAD)*RAD*10-b.getAngularVelocity()*3)*b.getMass();b.applyTorque(clamp(torque,-60*c.resistance,60*c.resistance),true);}
-  // Discrete 240 Hz contacts keep linked bodies together. Per-body continuous
+  // Discrete 240/480 Hz contacts keep linked bodies together. Per-body continuous
   // collision correction can separate a chain; speed caps prevent wall tunneling.
-  this.world.step(dt/2,20,20);this.world.step(dt/2,20,20);this.world.clearForces();
+  const substeps=this.bodies.size>10?4:2;for(let i=0;i<substeps;i++)this.world.step(dt/substeps,20,20);this.world.clearForces();
   this.contacts=[];for(let contact=this.world.getContactList();contact;contact=contact.getNext())if(contact.isTouching()){
    const a=contact.getFixtureA(),b=contact.getFixtureB();if(!a.getUserData()?.wall&&!b.getUserData()?.wall)continue;const m=contact.getWorldManifold(null);
-   if(m)for(const p of m.points.slice(0,contact.getManifold().pointCount))this.contacts.push({x:p.x*UNIT,y:p.y*UNIT,part:(a.getUserData()?.part||b.getUserData()?.part),normal:{x:m.normal.x,y:m.normal.y}});
+   const surface=a.getUserData()?.wall?a:b,sign=surface===a?1:-1;
+   if(m)for(const p of m.points.slice(0,contact.getManifold().pointCount))this.contacts.push({x:p.x*UNIT,y:p.y*UNIT,part:(a.getUserData()?.part||b.getUserData()?.part),surface:surface.getUserData()?.prop||'bounds',normal:{x:m.normal.x*sign,y:m.normal.y*sign}});
   }
-  const supported=this.contacts.some(p=>p.y>this.bounds.height-4),speed=Math.hypot(...Object.values(this.root.getLinearVelocity()))*UNIT;
+  const supported=this.contacts.some(p=>p.normal.y<-.5),speed=Math.hypot(...Object.values(this.root.getLinearVelocity()))*UNIT;
   this.stable=supported&&speed<35?this.stable+dt:0;
   if(this.stable>.25){state=active?(tilt<12?'calm':'recovering'):'resting';if(state==='recovering'){this.recoveryTime+=dt;if(this.recoveryTime>3)state='resting';}else this.recoveryTime=0;}
   if(caught)state='relieved';
   const impact=this.pendingImpact;this.pendingImpact=null;if(impact)this.lastImpact=this.time;
   const center=this.root.getWorldCenter();
-  this.diagnostics={state,predictedImpact:predicted,timeToImpact:Number.isFinite(Math.min(floorTime,wallTime))?Math.min(floorTime,wallTime):null,contacts:this.contacts,center:{x:center.x*UNIT,y:center.y*UNIT},velocity:{x:vx,y:vy},mode:c.mode,resistance:c.resistance,impact};
+  this.diagnostics={state,predictedImpact:predicted,predictedSurface:predicted?predictedSurface:null,timeToImpact:Number.isFinite(arrival)?arrival:null,contacts:this.contacts,center:{x:center.x*UNIT,y:center.y*UNIT},velocity:{x:vx,y:vy},mode:c.mode,resistance:c.resistance,impact};
   return this.diagnostics;
  }
  apply(pose){

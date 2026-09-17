@@ -15,3 +15,5 @@
 @media(max-height:700px){.face-auto{margin:7px 0}.sound-controls{margin:6px 0}.interaction-grid button{padding:4px}.response-status{padding:5px;margin-top:6px}}
 .feel-panel .field{margin:5px 0;gap:4px}.feel-panel .face-auto{margin:8px 0}.feel-panel .sound-controls{margin:7px 0}.feel-panel .section-label{margin-top:8px;padding-top:7px}.feel-panel .response-status{margin-top:7px;padding:7px}.feel-panel .note{font-size:9px;line-height:1.35;margin:6px 0}.feel-panel .inspector-heading{font-size:14px;margin:4px 0 8px}
 .stage:has([data-motion-mode]:not([data-motion-mode="animated"])){overflow:hidden}
+
+.library{grid-template-columns:repeat(4,1fr)}.asset-card{font-size:9px}.prop-tools{display:flex;gap:3px;align-items:center}.prop-tools select{width:0;flex:1;font-size:11px}.prop-tools button{width:27px;height:27px;padding:3px}.prop-tabs{display:flex;gap:6px;margin-bottom:10px}.prop-tabs button{flex:1;font-size:11px}.art [data-prop]{cursor:move}

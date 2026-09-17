@@ -19,7 +19,7 @@ Actual contact arrival speed triggers impact and hurt responses. Sustained suppo
 
 ## Faces and events
 
-All three packs have 14 selectable expressions: neutral, happy, excited, sad, angry, surprised, sleepy, curious, scared, hurt, dizzy, focused, relieved, and wink. Facial variants alter eye and mouth geometry; hurt adds red cheek marks. Ona also has separate brows. Choosing an expression in the UI disables automatic face changes for that actor until **Automatic facial responses** is enabled again.
+All four packs have 14 selectable expressions: neutral, happy, excited, sad, angry, surprised, sleepy, curious, scared, hurt, dizzy, focused, relieved, and wink. Facial variants alter eye and mouth geometry; hurt adds red cheek marks. Ona also has separate brows. Choosing an expression in the UI disables automatic face changes for that actor until **Automatic facial responses** is enabled again.
 
 Response states include calm, startled, scared, falling, bracing, protecting, curling, hurt, recovering, resting, floating, happy, and relieved. They are separate from the action state machine. The evaluated frame exposes `actor.response` and the effective `actor.inputs.emotion`. Input defaults are retained while a transient response chooses a face.
 
@@ -67,9 +67,9 @@ Effects cover interactions, action changes, protection, hurt, impacts, and relie
 
 ## Collision model and limits
 
-The scene runtime uses MIT-licensed [Planck](https://piqnt.com/planck.js/docs/), pinned to 1.4.2 for Node 22 compatibility. Packs declare rectangular collision proxies, densities, physical parent relationships, and protective target poses. Artwork remains separate from collision geometry. Each character has its own rectangular-container world. There are no inter-character or self-collisions, external platforms, grips, or moving support attachments in this slice.
+The scene runtime uses MIT-licensed [Planck](https://piqnt.com/planck.js/docs/), pinned to 1.4.2 for Node 22 compatibility. Packs declare rectangular collision proxies, densities, physical parent relationships, and protective target poses. Artwork remains separate from collision geometry. Each character has its own rectangular-container world containing the scene's enabled static prop boxes. Rotated props participate in prediction, impacts, and support detection. There are no inter-character or self-collisions, grips, or moving support attachments in this slice.
 
-World units are 50 scene pixels per meter. Simulation uses the scene's 120 Hz clock with two 240 Hz contact steps, 20 velocity and 20 position iterations. Physical container acceleration is clamped to 2000 px/s² per axis. Linear and angular velocity are bounded at 600 px/s and 12 radians/s. Discrete contacts with these bounds avoid per-body continuous collision corrections separating an articulated chain. Joint limits have normal solver tolerance; stress tests allow up to four degrees of transient error and verify anchor separation. Root rotation is a free world rotation, not an angle relative to a parent joint.
+World units are 50 scene pixels per meter. Simulation uses the scene's 120 Hz clock with two 240 Hz contact steps, or four 480 Hz steps for rigs with more than ten physical bodies. Each step uses 20 velocity and 20 position iterations. Physical container acceleration is clamped to 2000 px/s² per axis. Linear and angular velocity are bounded at 600 px/s and 12 radians/s. Discrete contacts with these bounds avoid per-body continuous collision corrections separating an articulated chain. Joint limits have normal solver tolerance; stress tests allow up to four degrees of transient error and verify anchor separation. Root rotation is a free world rotation, not an angle relative to a parent joint.
 
 `frame.actors[i].physics` exposes current response, predicted impact time, contact points/normals/parts, center, velocity, muscle strength, and current impact. Studio's Feel view shows orange contact points, a blue center marker, and a velocity line. `renderSVG` and `mountSVG` accept `physicsDebug: true` to display them. Oversized collision profiles are rejected on explicit mode entry; a loaded scene that cannot simulate reports an error and retains an authored fallback.
 
@@ -89,3 +89,5 @@ CLI simulation accepts behavior and interaction events alongside input and accel
 ```
 
 Run `node tools/cli.mjs simulate examples/characters/ona.json scenario.json`. Output includes contact diagnostics and emitted response/impact events. Tightening joint limits requires clamping both animation keys and `physics.responses` targets in the same transaction; Studio does this automatically.
+
+Prop prediction sweeps oriented body boxes along their current linear velocities over 0.38 seconds. It holds orientation constant for that prediction window. Actual contacts come from the solver, including rotational motion. Props must be placed clear of the character at its starting pose to avoid an initial overlap.

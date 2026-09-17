@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {SceneController,STEP} from '../src/scene.js';
 import {validateDocument} from '../src/schema.js';
 import {SoundEffects,soundPattern} from '../src/audio.js';
-const library=Object.fromEntries(['ona','wwwzard','rusty'].map(id=>[id,JSON.parse(fs.readFileSync(new URL(`../examples/characters/${id}.json`,import.meta.url)))]));
+const library=Object.fromEntries(['ona','wwwzard','rusty','dummy'].map(id=>[id,JSON.parse(fs.readFileSync(new URL(`../examples/characters/${id}.json`,import.meta.url)))]));
 const advance=(c,n)=>{for(let i=0;i<n;i++)c.step(STEP);};
 test('physical rigs keep anchors and joint limits under forces and contacts',()=>{
  for(const [id,d] of Object.entries(library))for(const mode of ['floating','ragdoll','protective']){

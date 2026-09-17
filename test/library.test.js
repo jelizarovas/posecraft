@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {assertDocument,validateDocument} from '../src/schema.js';
 import {SceneController,STEP} from '../src/scene.js';
 import {renderSVG} from '../src/svg.js';
-const library=Object.fromEntries(['ona','wwwzard','rusty'].map(id=>[id,JSON.parse(fs.readFileSync(new URL(`../examples/characters/${id}.json`,import.meta.url)))]));
+const library=Object.fromEntries(['ona','wwwzard','rusty','dummy'].map(id=>[id,JSON.parse(fs.readFileSync(new URL(`../examples/characters/${id}.json`,import.meta.url)))]));
 
 test('all library actions and emotions stay finite and inside joint limits',()=>{
  for(const [id,d] of Object.entries(library)){

@@ -1,0 +1,1422 @@
+{
+  "schemaVersion": 1,
+  "kind": "scene",
+  "id": "dummy-demo",
+  "name": "Dummy",
+  "revision": 0,
+  "bounds": {
+    "width": 640,
+    "height": 400
+  },
+  "requiredFeatures": [
+    "rigs",
+    "rigid-body-physics",
+    "expressions",
+    "response-states"
+  ],
+  "packs": {
+    "dummy": {
+      "name": "Dummy",
+      "description": "Original articulated test mannequin with visible pivots and editable collision proxies.",
+      "provenance": {
+        "source": "Posecraft original vector mannequin",
+        "license": "MIT"
+      },
+      "joints": [
+        {
+          "id": "root",
+          "parent": null,
+          "x": 0,
+          "y": 0,
+          "rotation": 0,
+          "min": -40,
+          "max": 40,
+          "length": 1
+        },
+        {
+          "id": "torso",
+          "parent": "root",
+          "x": 0,
+          "y": -10,
+          "rotation": -90,
+          "min": -120,
+          "max": -60,
+          "length": 48
+        },
+        {
+          "id": "head",
+          "parent": "torso",
+          "x": 51,
+          "y": 0,
+          "rotation": 90,
+          "min": 45,
+          "max": 135,
+          "length": 1
+        },
+        {
+          "id": "leftUpper",
+          "parent": "torso",
+          "x": 39,
+          "y": -21,
+          "rotation": -165,
+          "min": -180,
+          "max": 180,
+          "length": 32
+        },
+        {
+          "id": "leftLower",
+          "parent": "leftUpper",
+          "x": 32,
+          "y": 0,
+          "rotation": 0,
+          "min": -145,
+          "max": 5,
+          "length": 29
+        },
+        {
+          "id": "leftHand",
+          "parent": "leftLower",
+          "x": 29,
+          "y": 0,
+          "rotation": 0,
+          "min": -65,
+          "max": 65,
+          "length": 13
+        },
+        {
+          "id": "leftThigh",
+          "parent": "root",
+          "x": -12,
+          "y": 10,
+          "rotation": 90,
+          "min": 30,
+          "max": 150,
+          "length": 39
+        },
+        {
+          "id": "leftCalf",
+          "parent": "leftThigh",
+          "x": 39,
+          "y": 0,
+          "rotation": 0,
+          "min": -5,
+          "max": 145,
+          "length": 36
+        },
+        {
+          "id": "leftFoot",
+          "parent": "leftCalf",
+          "x": 36,
+          "y": 0,
+          "rotation": -90,
+          "min": -125,
+          "max": -45,
+          "length": 19
+        },
+        {
+          "id": "rightUpper",
+          "parent": "torso",
+          "x": 39,
+          "y": 21,
+          "rotation": 165,
+          "min": -180,
+          "max": 180,
+          "length": 32
+        },
+        {
+          "id": "rightLower",
+          "parent": "rightUpper",
+          "x": 32,
+          "y": 0,
+          "rotation": 0,
+          "min": -5,
+          "max": 145,
+          "length": 29
+        },
+        {
+          "id": "rightHand",
+          "parent": "rightLower",
+          "x": 29,
+          "y": 0,
+          "rotation": 0,
+          "min": -65,
+          "max": 65,
+          "length": 13
+        },
+        {
+          "id": "rightThigh",
+          "parent": "root",
+          "x": 12,
+          "y": 10,
+          "rotation": 90,
+          "min": 30,
+          "max": 150,
+          "length": 39
+        },
+        {
+          "id": "rightCalf",
+          "parent": "rightThigh",
+          "x": 39,
+          "y": 0,
+          "rotation": 0,
+          "min": -145,
+          "max": 5,
+          "length": 36
+        },
+        {
+          "id": "rightFoot",
+          "parent": "rightCalf",
+          "x": 36,
+          "y": 0,
+          "rotation": -90,
+          "min": -125,
+          "max": -45,
+          "length": 19
+        }
+      ],
+      "parts": [
+        {
+          "id": "root-shell",
+          "joint": "root",
+          "d": "M-19 -12H19L16 13H-16Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "root-joint",
+          "joint": "root",
+          "d": "M-7.840000000000001 0a7.840000000000001 7.840000000000001 0 1 0 15.680000000000001 0a7.840000000000001 7.840000000000001 0 1 0 -15.680000000000001 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "torso-shell",
+          "joint": "torso",
+          "d": "M3 -17H45Q48 -17 48 0Q48 17 45 17H3Q0 17 0 0Q0 -17 3 -17Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "torso-joint",
+          "joint": "torso",
+          "d": "M-9.520000000000001 0a9.520000000000001 9.520000000000001 0 1 0 19.040000000000003 0a9.520000000000001 9.520000000000001 0 1 0 -19.040000000000003 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "head-shell",
+          "joint": "head",
+          "d": "M-16 -28Q-16 -36 0 -36Q16 -36 16 -28V-7Q16 3 0 3Q-16 3 -16 -7Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "head-joint",
+          "joint": "head",
+          "d": "M-8.96 0a8.96 8.96 0 1 0 17.92 0a8.96 8.96 0 1 0 -17.92 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "leftUpper-shell",
+          "joint": "leftUpper",
+          "d": "M3 -6H29Q32 -6 32 0Q32 6 29 6H3Q0 6 0 0Q0 -6 3 -6Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "leftUpper-joint",
+          "joint": "leftUpper",
+          "d": "M-3.3600000000000003 0a3.3600000000000003 3.3600000000000003 0 1 0 6.720000000000001 0a3.3600000000000003 3.3600000000000003 0 1 0 -6.720000000000001 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "leftLower-shell",
+          "joint": "leftLower",
+          "d": "M3 -5H26Q29 -5 29 0Q29 5 26 5H3Q0 5 0 0Q0 -5 3 -5Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "leftLower-joint",
+          "joint": "leftLower",
+          "d": "M-2.8000000000000003 0a2.8000000000000003 2.8000000000000003 0 1 0 5.6000000000000005 0a2.8000000000000003 2.8000000000000003 0 1 0 -5.6000000000000005 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "leftHand-shell",
+          "joint": "leftHand",
+          "d": "M3 -5.5H10Q13 -5.5 13 0Q13 5.5 10 5.5H3Q0 5.5 0 0Q0 -5.5 3 -5.5Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "leftHand-joint",
+          "joint": "leftHand",
+          "d": "M-3.08 0a3.08 3.08 0 1 0 6.16 0a3.08 3.08 0 1 0 -6.16 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "leftThigh-shell",
+          "joint": "leftThigh",
+          "d": "M3 -8H36Q39 -8 39 0Q39 8 36 8H3Q0 8 0 0Q0 -8 3 -8Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "leftThigh-joint",
+          "joint": "leftThigh",
+          "d": "M-4.48 0a4.48 4.48 0 1 0 8.96 0a4.48 4.48 0 1 0 -8.96 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "leftCalf-shell",
+          "joint": "leftCalf",
+          "d": "M3 -6H33Q36 -6 36 0Q36 6 33 6H3Q0 6 0 0Q0 -6 3 -6Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "leftCalf-joint",
+          "joint": "leftCalf",
+          "d": "M-3.3600000000000003 0a3.3600000000000003 3.3600000000000003 0 1 0 6.720000000000001 0a3.3600000000000003 3.3600000000000003 0 1 0 -6.720000000000001 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "leftFoot-shell",
+          "joint": "leftFoot",
+          "d": "M3 -5H16Q19 -5 19 0Q19 5 16 5H3Q0 5 0 0Q0 -5 3 -5Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "leftFoot-joint",
+          "joint": "leftFoot",
+          "d": "M-2.8000000000000003 0a2.8000000000000003 2.8000000000000003 0 1 0 5.6000000000000005 0a2.8000000000000003 2.8000000000000003 0 1 0 -5.6000000000000005 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "rightUpper-shell",
+          "joint": "rightUpper",
+          "d": "M3 -6H29Q32 -6 32 0Q32 6 29 6H3Q0 6 0 0Q0 -6 3 -6Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "rightUpper-joint",
+          "joint": "rightUpper",
+          "d": "M-3.3600000000000003 0a3.3600000000000003 3.3600000000000003 0 1 0 6.720000000000001 0a3.3600000000000003 3.3600000000000003 0 1 0 -6.720000000000001 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "rightLower-shell",
+          "joint": "rightLower",
+          "d": "M3 -5H26Q29 -5 29 0Q29 5 26 5H3Q0 5 0 0Q0 -5 3 -5Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "rightLower-joint",
+          "joint": "rightLower",
+          "d": "M-2.8000000000000003 0a2.8000000000000003 2.8000000000000003 0 1 0 5.6000000000000005 0a2.8000000000000003 2.8000000000000003 0 1 0 -5.6000000000000005 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "rightHand-shell",
+          "joint": "rightHand",
+          "d": "M3 -5.5H10Q13 -5.5 13 0Q13 5.5 10 5.5H3Q0 5.5 0 0Q0 -5.5 3 -5.5Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "rightHand-joint",
+          "joint": "rightHand",
+          "d": "M-3.08 0a3.08 3.08 0 1 0 6.16 0a3.08 3.08 0 1 0 -6.16 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "rightThigh-shell",
+          "joint": "rightThigh",
+          "d": "M3 -8H36Q39 -8 39 0Q39 8 36 8H3Q0 8 0 0Q0 -8 3 -8Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "rightThigh-joint",
+          "joint": "rightThigh",
+          "d": "M-4.48 0a4.48 4.48 0 1 0 8.96 0a4.48 4.48 0 1 0 -8.96 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "rightCalf-shell",
+          "joint": "rightCalf",
+          "d": "M3 -6H33Q36 -6 36 0Q36 6 33 6H3Q0 6 0 0Q0 -6 3 -6Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "rightCalf-joint",
+          "joint": "rightCalf",
+          "d": "M-3.3600000000000003 0a3.3600000000000003 3.3600000000000003 0 1 0 6.720000000000001 0a3.3600000000000003 3.3600000000000003 0 1 0 -6.720000000000001 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "rightFoot-shell",
+          "joint": "rightFoot",
+          "d": "M3 -5H16Q19 -5 19 0Q19 5 16 5H3Q0 5 0 0Q0 -5 3 -5Z",
+          "fill": "#d8b997",
+          "channel": "shell",
+          "stroke": "#69594d",
+          "strokeWidth": 1.2
+        },
+        {
+          "id": "rightFoot-joint",
+          "joint": "rightFoot",
+          "d": "M-2.8000000000000003 0a2.8000000000000003 2.8000000000000003 0 1 0 5.6000000000000005 0a2.8000000000000003 2.8000000000000003 0 1 0 -5.6000000000000005 0",
+          "fill": "#61564f",
+          "channel": "joints",
+          "stroke": "#fff4dd",
+          "strokeWidth": 1
+        },
+        {
+          "id": "eye-0",
+          "joint": "head",
+          "d": "M-9.5 -19a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0",
+          "fill": "#413a37",
+          "channel": "eyes",
+          "variantInput": "emotion",
+          "variants": {
+            "happy": {
+              "transform": "translate(0 -10) scale(1 .45)"
+            },
+            "sleepy": {
+              "transform": "translate(0 -16) scale(1 .15)"
+            },
+            "hurt": {
+              "transform": "translate(0 -16) scale(1 .15)"
+            },
+            "scared": {
+              "transform": "translate(0 4) scale(1 1.2)"
+            },
+            "angry": {
+              "transform": "translate(0 -8) scale(1 .6)"
+            },
+            "wink": {
+              "transform": "translate(0 -16) scale(1 .15)"
+            }
+          }
+        },
+        {
+          "id": "eye-1",
+          "joint": "head",
+          "d": "M4.5 -19a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0",
+          "fill": "#413a37",
+          "channel": "eyes",
+          "variantInput": "emotion",
+          "variants": {
+            "happy": {
+              "transform": "translate(0 -10) scale(1 .45)"
+            },
+            "sleepy": {
+              "transform": "translate(0 -16) scale(1 .15)"
+            },
+            "hurt": {
+              "transform": "translate(0 -16) scale(1 .15)"
+            },
+            "scared": {
+              "transform": "translate(0 4) scale(1 1.2)"
+            },
+            "angry": {
+              "transform": "translate(0 -8) scale(1 .6)"
+            },
+            "wink": {}
+          }
+        },
+        {
+          "id": "mouth",
+          "joint": "head",
+          "d": "M-5 -8H5",
+          "fill": "none",
+          "stroke": "#413a37",
+          "strokeWidth": 1.5,
+          "variantInput": "emotion",
+          "variants": {
+            "happy": {
+              "d": "M-6 -9Q0 -1 6 -9"
+            },
+            "excited": {
+              "d": "M-5 -10Q0 4 5 -10Z"
+            },
+            "sad": {
+              "d": "M-5 -6Q0 -12 5 -6"
+            },
+            "surprised": {
+              "d": "M-3 -8a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"
+            },
+            "scared": {
+              "d": "M-4 -8a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"
+            },
+            "hurt": {
+              "d": "M-6 -7L-3 -10L0 -7L3 -10L6 -7"
+            },
+            "dizzy": {
+              "d": "M-6 -8Q-3 -12 0 -8T6 -8"
+            },
+            "relieved": {
+              "d": "M-5 -9Q0 -3 5 -9"
+            },
+            "curious": {
+              "d": "M-5 -8L4 -10"
+            },
+            "angry": {
+              "d": "M-5 -7L5 -9"
+            },
+            "focused": {
+              "d": "M-4 -8H4"
+            },
+            "sleepy": {
+              "d": "M-2 -8H2"
+            },
+            "wink": {
+              "d": "M-5 -9Q0 -3 5 -9"
+            }
+          }
+        },
+        {
+          "id": "chest-target",
+          "joint": "torso",
+          "d": "M16 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0M16 0H34M25 -9V9",
+          "fill": "#f1d783",
+          "channel": "markings",
+          "stroke": "#61564f",
+          "strokeWidth": 1.5
+        },
+        {
+          "id": "hurt-cheek",
+          "joint": "head",
+          "d": "M-13 -12L-8 -14M8 -14L13 -12",
+          "fill": "none",
+          "stroke": "#db666a",
+          "strokeWidth": 2,
+          "showWhen": {
+            "input": "emotion",
+            "equals": "hurt"
+          }
+        }
+      ],
+      "clips": {
+        "idle": {
+          "duration": 3,
+          "loop": true,
+          "tracks": {
+            "root.rotation": [
+              [
+                0,
+                0,
+                "smooth"
+              ],
+              [
+                0.75,
+                2,
+                "smooth"
+              ],
+              [
+                1.5,
+                0,
+                "smooth"
+              ],
+              [
+                2.25,
+                -2,
+                "smooth"
+              ],
+              [
+                3,
+                0,
+                "smooth"
+              ]
+            ],
+            "head.rotation": [
+              [
+                0,
+                90,
+                "smooth"
+              ],
+              [
+                1.5,
+                92,
+                "smooth"
+              ],
+              [
+                3,
+                90,
+                "smooth"
+              ]
+            ]
+          }
+        },
+        "wave": {
+          "duration": 2,
+          "loop": true,
+          "tracks": {
+            "rightUpper.rotation": [
+              [
+                0,
+                165,
+                "smooth"
+              ],
+              [
+                0.6666666666666666,
+                45,
+                "smooth"
+              ],
+              [
+                1.3333333333333333,
+                45,
+                "smooth"
+              ],
+              [
+                2,
+                165,
+                "smooth"
+              ]
+            ],
+            "rightLower.rotation": [
+              [
+                0,
+                0,
+                "smooth"
+              ],
+              [
+                0.5,
+                110,
+                "smooth"
+              ],
+              [
+                1,
+                65,
+                "smooth"
+              ],
+              [
+                1.5,
+                110,
+                "smooth"
+              ],
+              [
+                2,
+                0,
+                "smooth"
+              ]
+            ],
+            "head.rotation": [
+              [
+                0,
+                90,
+                "smooth"
+              ],
+              [
+                1,
+                82,
+                "smooth"
+              ],
+              [
+                2,
+                90,
+                "smooth"
+              ]
+            ]
+          }
+        },
+        "nod": {
+          "duration": 1.5,
+          "loop": true,
+          "tracks": {
+            "head.rotation": [
+              [
+                0,
+                90,
+                "smooth"
+              ],
+              [
+                0.375,
+                108,
+                "smooth"
+              ],
+              [
+                0.75,
+                90,
+                "smooth"
+              ],
+              [
+                1.125,
+                108,
+                "smooth"
+              ],
+              [
+                1.5,
+                90,
+                "smooth"
+              ]
+            ]
+          }
+        },
+        "dance": {
+          "duration": 2,
+          "loop": true,
+          "tracks": {
+            "root.rotation": [
+              [
+                0,
+                -15,
+                "smooth"
+              ],
+              [
+                1,
+                15,
+                "smooth"
+              ],
+              [
+                2,
+                -15,
+                "smooth"
+              ]
+            ],
+            "leftUpper.rotation": [
+              [
+                0,
+                -165,
+                "smooth"
+              ],
+              [
+                1,
+                -100,
+                "smooth"
+              ],
+              [
+                2,
+                -165,
+                "smooth"
+              ]
+            ],
+            "rightUpper.rotation": [
+              [
+                0,
+                165,
+                "smooth"
+              ],
+              [
+                1,
+                110,
+                "smooth"
+              ],
+              [
+                2,
+                165,
+                "smooth"
+              ]
+            ],
+            "leftThigh.rotation": [
+              [
+                0,
+                80,
+                "smooth"
+              ],
+              [
+                1,
+                110,
+                "smooth"
+              ],
+              [
+                2,
+                80,
+                "smooth"
+              ]
+            ],
+            "rightThigh.rotation": [
+              [
+                0,
+                110,
+                "smooth"
+              ],
+              [
+                1,
+                80,
+                "smooth"
+              ],
+              [
+                2,
+                110,
+                "smooth"
+              ]
+            ]
+          }
+        },
+        "reach": {
+          "duration": 2,
+          "loop": true,
+          "tracks": {
+            "leftUpper.rotation": [
+              [
+                0,
+                -165,
+                "smooth"
+              ],
+              [
+                1,
+                -70,
+                "smooth"
+              ],
+              [
+                2,
+                -165,
+                "smooth"
+              ]
+            ],
+            "rightUpper.rotation": [
+              [
+                0,
+                165,
+                "smooth"
+              ],
+              [
+                1,
+                70,
+                "smooth"
+              ],
+              [
+                2,
+                165,
+                "smooth"
+              ]
+            ]
+          }
+        },
+        "crouch": {
+          "duration": 2,
+          "loop": true,
+          "tracks": {
+            "leftThigh.rotation": [
+              [
+                0,
+                90,
+                "smooth"
+              ],
+              [
+                1,
+                55,
+                "smooth"
+              ],
+              [
+                2,
+                90,
+                "smooth"
+              ]
+            ],
+            "rightThigh.rotation": [
+              [
+                0,
+                90,
+                "smooth"
+              ],
+              [
+                1,
+                125,
+                "smooth"
+              ],
+              [
+                2,
+                90,
+                "smooth"
+              ]
+            ],
+            "leftCalf.rotation": [
+              [
+                0,
+                0,
+                "smooth"
+              ],
+              [
+                1,
+                75,
+                "smooth"
+              ],
+              [
+                2,
+                0,
+                "smooth"
+              ]
+            ],
+            "rightCalf.rotation": [
+              [
+                0,
+                0,
+                "smooth"
+              ],
+              [
+                1,
+                -75,
+                "smooth"
+              ],
+              [
+                2,
+                0,
+                "smooth"
+              ]
+            ]
+          }
+        }
+      },
+      "inputs": {
+        "action": {
+          "type": "string",
+          "default": "idle",
+          "options": [
+            "idle",
+            "wave",
+            "nod",
+            "dance",
+            "reach",
+            "crouch"
+          ]
+        },
+        "emotion": {
+          "type": "string",
+          "default": "neutral",
+          "options": [
+            "neutral",
+            "happy",
+            "excited",
+            "sad",
+            "angry",
+            "surprised",
+            "sleepy",
+            "curious",
+            "scared",
+            "hurt",
+            "dizzy",
+            "focused",
+            "relieved",
+            "wink"
+          ]
+        }
+      },
+      "initial": "idle",
+      "states": {
+        "idle": {
+          "clip": "idle",
+          "transitions": [
+            {
+              "to": "wave",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "wave"
+              }
+            },
+            {
+              "to": "nod",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "nod"
+              }
+            },
+            {
+              "to": "dance",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "dance"
+              }
+            },
+            {
+              "to": "reach",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "reach"
+              }
+            },
+            {
+              "to": "crouch",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "crouch"
+              }
+            }
+          ]
+        },
+        "wave": {
+          "clip": "wave",
+          "transitions": [
+            {
+              "to": "idle",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "idle"
+              }
+            },
+            {
+              "to": "nod",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "nod"
+              }
+            },
+            {
+              "to": "dance",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "dance"
+              }
+            },
+            {
+              "to": "reach",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "reach"
+              }
+            },
+            {
+              "to": "crouch",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "crouch"
+              }
+            }
+          ]
+        },
+        "nod": {
+          "clip": "nod",
+          "transitions": [
+            {
+              "to": "idle",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "idle"
+              }
+            },
+            {
+              "to": "wave",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "wave"
+              }
+            },
+            {
+              "to": "dance",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "dance"
+              }
+            },
+            {
+              "to": "reach",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "reach"
+              }
+            },
+            {
+              "to": "crouch",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "crouch"
+              }
+            }
+          ]
+        },
+        "dance": {
+          "clip": "dance",
+          "transitions": [
+            {
+              "to": "idle",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "idle"
+              }
+            },
+            {
+              "to": "wave",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "wave"
+              }
+            },
+            {
+              "to": "nod",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "nod"
+              }
+            },
+            {
+              "to": "reach",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "reach"
+              }
+            },
+            {
+              "to": "crouch",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "crouch"
+              }
+            }
+          ]
+        },
+        "reach": {
+          "clip": "reach",
+          "transitions": [
+            {
+              "to": "idle",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "idle"
+              }
+            },
+            {
+              "to": "wave",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "wave"
+              }
+            },
+            {
+              "to": "nod",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "nod"
+              }
+            },
+            {
+              "to": "dance",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "dance"
+              }
+            },
+            {
+              "to": "crouch",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "crouch"
+              }
+            }
+          ]
+        },
+        "crouch": {
+          "clip": "crouch",
+          "transitions": [
+            {
+              "to": "idle",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "idle"
+              }
+            },
+            {
+              "to": "wave",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "wave"
+              }
+            },
+            {
+              "to": "nod",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "nod"
+              }
+            },
+            {
+              "to": "dance",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "dance"
+              }
+            },
+            {
+              "to": "reach",
+              "duration": 0.25,
+              "when": {
+                "input": "action",
+                "equals": "reach"
+              }
+            }
+          ]
+        }
+      },
+      "appearanceDefaults": {
+        "shell": "#d8b997",
+        "joints": "#61564f",
+        "eyes": "#413a37",
+        "markings": "#f1d783"
+      },
+      "expressions": {
+        "neutral": {},
+        "happy": {},
+        "excited": {},
+        "sad": {},
+        "angry": {},
+        "surprised": {},
+        "sleepy": {},
+        "curious": {},
+        "scared": {},
+        "hurt": {},
+        "dizzy": {},
+        "focused": {},
+        "relieved": {},
+        "wink": {}
+      },
+      "reaction": {
+        "joint": "root",
+        "strength": 1,
+        "stiffness": 35,
+        "damping": 8
+      },
+      "physics": {
+        "root": "root",
+        "head": "head",
+        "bodies": {
+          "root": {
+            "width": 38,
+            "height": 25,
+            "x": 0,
+            "y": 0,
+            "density": 2
+          },
+          "torso": {
+            "width": 48,
+            "height": 34,
+            "x": 24,
+            "y": 0,
+            "density": 1
+          },
+          "head": {
+            "width": 32,
+            "height": 38,
+            "x": 0,
+            "y": -16,
+            "density": 1
+          },
+          "leftUpper": {
+            "width": 32,
+            "height": 12,
+            "x": 16,
+            "y": 0,
+            "density": 1
+          },
+          "leftLower": {
+            "width": 29,
+            "height": 10,
+            "x": 14.5,
+            "y": 0,
+            "density": 1
+          },
+          "leftHand": {
+            "width": 13,
+            "height": 11,
+            "x": 6.5,
+            "y": 0,
+            "density": 1
+          },
+          "leftThigh": {
+            "width": 39,
+            "height": 16,
+            "x": 19.5,
+            "y": 0,
+            "density": 1
+          },
+          "leftCalf": {
+            "width": 36,
+            "height": 12,
+            "x": 18,
+            "y": 0,
+            "density": 1
+          },
+          "leftFoot": {
+            "width": 19,
+            "height": 10,
+            "x": 9.5,
+            "y": 0,
+            "density": 1
+          },
+          "rightUpper": {
+            "width": 32,
+            "height": 12,
+            "x": 16,
+            "y": 0,
+            "density": 1
+          },
+          "rightLower": {
+            "width": 29,
+            "height": 10,
+            "x": 14.5,
+            "y": 0,
+            "density": 1
+          },
+          "rightHand": {
+            "width": 13,
+            "height": 11,
+            "x": 6.5,
+            "y": 0,
+            "density": 1
+          },
+          "rightThigh": {
+            "width": 39,
+            "height": 16,
+            "x": 19.5,
+            "y": 0,
+            "density": 1
+          },
+          "rightCalf": {
+            "width": 36,
+            "height": 12,
+            "x": 18,
+            "y": 0,
+            "density": 1
+          },
+          "rightFoot": {
+            "width": 19,
+            "height": 10,
+            "x": 9.5,
+            "y": 0,
+            "density": 1
+          }
+        },
+        "responses": {
+          "brace": {
+            "leftUpper.rotation": -110,
+            "rightUpper.rotation": 110,
+            "leftLower.rotation": -30,
+            "rightLower.rotation": 30
+          },
+          "protect": {
+            "leftUpper.rotation": -45,
+            "rightUpper.rotation": 45,
+            "leftLower.rotation": -125,
+            "rightLower.rotation": 125,
+            "head.rotation": 110
+          },
+          "curl": {
+            "leftUpper.rotation": -110,
+            "rightUpper.rotation": 110,
+            "leftLower.rotation": -130,
+            "rightLower.rotation": 130,
+            "leftThigh.rotation": 45,
+            "rightThigh.rotation": 135,
+            "leftCalf.rotation": 110,
+            "rightCalf.rotation": -110
+          }
+        }
+      }
+    }
+  },
+  "actors": [
+    {
+      "id": "dummy",
+      "name": "Dummy",
+      "pack": "dummy",
+      "transform": {
+        "x": 320,
+        "y": 205,
+        "scale": 1.25,
+        "rotation": 0
+      }
+    }
+  ]
+}

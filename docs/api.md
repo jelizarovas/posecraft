@@ -4,7 +4,7 @@ The new scene API supplements the original skeletal API in `posecraft`. Existing
 
 ## Portable scene
 
-`examples/characters/{ona,wwwzard,rusty}.json` are complete importable scenes. The original `examples/ona.posecraft.json` retains its boolean `greeting` input for compatibility. `src/schema.d.ts` defines the public types. `validateDocument(unknown)` returns errors with field paths. `assertDocument` throws with the same diagnostics. Unsupported schema versions and required capabilities fail explicitly. No migration is needed for this first version.
+`examples/characters/{ona,wwwzard,rusty,dummy}.json` are complete importable scenes. The original `examples/ona.posecraft.json` retains its boolean `greeting` input for compatibility. `src/schema.d.ts` defines the public types. `validateDocument(unknown)` returns errors with field paths. `assertDocument` throws with the same diagnostics. Unsupported schema versions and required capabilities fail explicitly. No migration is needed for this first version.
 
 A scene contains an ID, name, revision, bounds, embedded reusable packs, and independent actors. An actor has an ID, pack ID, name, transform, appearance overrides, and optional persisted input values. Pack edits affect every instance of that pack; appearance and placement edits affect one actor. Duplicate a pack under a new ID to give an actor independent authored animation. No external asset fetches or account are required.
 
@@ -14,7 +14,7 @@ Angles use degrees. Positive X goes right and positive Y goes down. Joint transl
 
 ### Library inputs and appearance
 
-All three packs accept string `action` and `emotion` inputs. Read their allowed values from `pack.inputs`; Ona has 13 actions, wwwzard 10, and seated Rusty eight. Expressions are neutral, happy, excited, sad, angry, surprised, sleepy, curious, scared, hurt, dizzy, focused, relieved, and wink. Ona also accepts `hair`: none, short, swept, bob, curls, or ponytail. These values can be persisted in `actor.inputs` or changed through `setInput`.
+All four packs accept string `action` and `emotion` inputs. Read their allowed values from `pack.inputs`; Ona has 13 actions, wwwzard 10, seated Rusty eight, and the original Dummy six. Dummy has 15 articulated joints including elbows, wrists, knees, and ankles. Expressions are neutral, happy, excited, sad, angry, surprised, sleepy, curious, scared, hurt, dizzy, focused, relieved, and wink. Ona also accepts `hair`: none, short, swept, bob, curls, or ponytail. These values can be persisted in `actor.inputs` or changed through `setInput`.
 
 `actor.appearance` maps color channels to hex colors. `pack.appearanceDefaults` lists the library defaults. Parts can declare `variantInput` and a `variants` map containing allowlisted `d`, numeric `transform`, and boolean `visible` fields. `showWhen` supports input-based visibility. `pack.expressions` maps emotion names to additive joint-channel offsets; final rotation constraints still apply. These features require `appearance-variants` and `expressions` capabilities.
 
@@ -87,3 +87,15 @@ node tools/cli.mjs simulate changed.json scenario.json
 Transactions require `expectedRevision` and `commands`. A scenario contains `duration` in seconds and sorted `events`. Events support `{time,type:"input",actor,name,value}`, `{time,type:"acceleration",ax,ay}`, `{time,type:"behavior",actor,value}`, and `{time,type:"interaction",actor,interaction,strength?}`. Simulation output includes engine/schema version, revision, fixed step, evaluated transforms, spring diagnostics, and emitted events. SVG preview samples authored initial-state animation; use SDK simulation plus `renderSVG` for a scenario frame.
 
 The repo skill is `skills/posecraft/SKILL.md`. It is available alongside the runtime and can be copied into an agent's skill directory. No paid service or model call is used for playback.
+
+## Static props and collision boxes
+
+A scene may include up to 32 `props`. Each prop is a visible rectangle with its own collision rectangle. Both use scene coordinates, independent of actor placement. `x` and `y` locate the visual rectangle center. `rotation` turns both rectangles in degrees. Collider `x` and `y` are offsets in the prop's local coordinates. Width and height must be 4..4096. Friction is 0..2 and bounce is 0..1.
+
+```json
+{"id":"platform","name":"Platform","x":320,"y":355,"width":220,"height":20,"rotation":-8,"fill":"#b9c8c2","collider":{"enabled":true,"width":200,"height":20,"x":0,"y":0,"friction":0.75,"bounce":0.1}}
+```
+
+Set `props` through the existing transaction API. Add `prop-colliders` to `requiredFeatures` when a scene depends on support for props. Older documents without props remain valid. Disabled colliders keep the visible prop. Animated mode does not collide; Floating, Falling ragdoll, and Protective do. Props are static during playback and are included in every character's physical world. Prop edits in Studio restart the physical preview. There are no dynamic props, prop keyframes, or inter-character collisions yet.
+
+`renderSVG` and `mountSVG` accept `colliders: true` to show collision rectangles, and `selectedProp` to highlight one. Contact diagnostics and impacts include `surface`, either a prop ID or `bounds`. `predictedSurface` identifies the anticipated collision. Contact normals point from the support into the character, so negative Y indicates support from below.

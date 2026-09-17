@@ -1,4 +1,4 @@
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -114,6 +114,18 @@ function validateStructure(doc) {
       check(pack.inputs.emotion?.options?.includes(emotion) && record(pose), `${p}.expressions.${emotion}`, 'Expression needs an emotion input.');
       for (const [key, value] of Object.entries(pose)) check(channels.has(key) && finite(value,-180,180), `${p}.expressions.${emotion}.${key}`, 'Invalid expression channel.');
     }
+  }
+  check(doc.props === undefined || Array.isArray(doc.props), 'props', 'Expected prop array.');
+  const propIds = new Set();
+  check((doc.props?.length || 0) <= 32, 'props', 'At most 32 props.');
+  for (const prop of Array.isArray(doc.props) ? doc.props : []) {
+    if (!record(prop)) { check(false, 'props', 'Expected prop.'); continue; }
+    const p = `props.${prop.id}`;
+    check(safeId.test(prop.id) && !propIds.has(prop.id), p, 'Prop IDs must be unique.'); propIds.add(prop.id);
+    check(typeof prop.name === 'string' && prop.name.length <= 100, p, 'Expected name.');
+    check(finite(prop.x) && finite(prop.y) && finite(prop.width, 4, 4096) && finite(prop.height, 4, 4096) && finite(prop.rotation, -180, 180) && colors.test(prop.fill), p, 'Invalid prop rectangle.');
+    const c = prop.collider;
+    check(record(c) && typeof c.enabled === 'boolean' && finite(c.width, 4, 4096) && finite(c.height, 4, 4096) && finite(c.x, -4096, 4096) && finite(c.y, -4096, 4096) && finite(c.friction, 0, 2) && finite(c.bounce, 0, 1), p+'.collider', 'Invalid collision box.');
   }
   const actorIds = new Set();
   for (const a of doc.actors) {

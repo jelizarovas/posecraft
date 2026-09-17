@@ -7,7 +7,8 @@ export interface CharacterPack { name:string; joints:Joint[]; parts:Part[]; clip
 export interface BehaviorSettings {mode?:'animated'|'floating'|'ragdoll'|'protective';resistance?:number;gravity?:number;bounce?:number;strategy?:'auto'|'brace'|'protect'|'curl';autoFace?:boolean}
 export interface PhysicsProfile {root:string;head:string;bodies:Record<string,{width:number;height:number;x:number;y:number;density:number}>;responses:Record<string,Record<string,number>>}
 export interface Actor {id:string;name:string;pack:string;transform:{x:number;y:number;scale:number;rotation:number};appearance?:Record<string,string>;inputs?:Record<string,string|number|boolean>;behavior?:BehaviorSettings}
-export interface SceneDocument { schemaVersion:1;kind:'scene';id:string;name:string;revision:number;bounds:{width:number;height:number};requiredFeatures?:string[];packs:Record<string,CharacterPack>;actors:Actor[] }
+export interface SceneProp {id:string;name:string;x:number;y:number;width:number;height:number;rotation:number;fill:string;collider:{enabled:boolean;width:number;height:number;x:number;y:number;friction:number;bounce:number}}
+export interface SceneDocument { schemaVersion:1;kind:'scene';id:string;name:string;revision:number;bounds:{width:number;height:number};requiredFeatures?:string[];packs:Record<string,CharacterPack>;actors:Actor[];props?:SceneProp[] }
 export const capabilities: {schemaVersion:1;renderer:string;features:readonly string[];unavailable:readonly string[]};
 export function validateDocument(doc:unknown):{valid:boolean;errors:{path:string;message:string}[]};
 export function assertDocument(doc:unknown):SceneDocument;

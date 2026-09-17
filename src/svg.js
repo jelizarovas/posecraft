@@ -16,9 +16,10 @@ function physicsOverlay(frame){return frame.actors.filter(a=>a.physics).map(a=>{
  const p=a.physics,c=p.center,n=value=>Number(value).toFixed(2);
  return p.contacts.map(v=>`<circle cx="${n(v.x)}" cy="${n(v.y)}" r="3" fill="#df7951"/>`).join('')+`<circle cx="${n(c.x)}" cy="${n(c.y)}" r="3" fill="#418ea1"/><path d="M${n(c.x)} ${n(c.y)}l${n(p.velocity.x*.15)} ${n(p.velocity.y*.15)}" stroke="#418ea1" stroke-width="1.5"/>`;
 }).join('');}
-export function renderSVG(document, frame, { label = document.name, bones = false, limits = false, selectedActor, selectedJoint,physicsDebug=false } = {}) {
+export function renderSVG(document, frame, { label = document.name, bones = false, limits = false, selectedActor, selectedJoint,physicsDebug=false,colliders=false,selectedProp } = {}) {
   assertDocument(document);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${document.bounds.width} ${document.bounds.height}" role="img" aria-label="${escape(label)}" width="100%" height="100%">${document.actors.map(actor => {
+  const props=(document.props||[]).map(p=>{const c=p.collider;return `<g data-prop="${p.id}" transform="${transform(p)}"><title>${escape(p.name)}</title><rect x="${-p.width/2}" y="${-p.height/2}" width="${p.width}" height="${p.height}" rx="3" fill="${escape(p.fill)}" stroke="${p.id===selectedProp?'#7351bd':'#797481'}" stroke-width="${p.id===selectedProp?2:1}"/>${colliders||physicsDebug||p.id===selectedProp?`<rect data-collider="${p.id}" x="${c.x-c.width/2}" y="${c.y-c.height/2}" width="${c.width}" height="${c.height}" fill="none" stroke="${c.enabled?'#df7951':'#999999'}" stroke-width="1.5" stroke-dasharray="5 3" pointer-events="none"/>`:''}</g>`;}).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${document.bounds.width} ${document.bounds.height}" role="img" aria-label="${escape(label)}" width="100%" height="100%">${props}${document.actors.map(actor => {
     const pack = document.packs[actor.pack], evaluated = frame.actors.find(a => a.id === actor.id);
     if (!evaluated) throw new Error(`Missing evaluated actor ${actor.id}`);
     return `<g data-actor="${actor.id}" data-response="${escape(evaluated.response||'calm')}" data-emotion="${escape(evaluated.inputs?.emotion||'neutral')}" transform="${placement(actor.transform)}">${pack.parts.map(part => {

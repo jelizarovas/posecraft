@@ -16,12 +16,14 @@ Open the localhost address printed by Vite. `npm run build` creates the static G
 ## What works in 0.1
 
 - One-screen Studio with Material icons, selectable body parts, draggable rotation handles, joint-limit arcs and editable limits, keyframes, transition blending, undo/redo, local recovery, and JSON open/save/export.
-- Ona (13 actions), wwwzard (10 actions), and Rusty (8 seated actions), each with 14 expressions. Ona includes six hair options. Appearance and input settings are independent per character.
+- Ona (13 actions), wwwzard (10 actions), Rusty (8 seated actions), and an original jointed Dummy (6 actions), each with 14 expressions. Ona includes six hair options. Appearance and input settings are independent per character.
 - Shared portable scene compiler, SVG renderer, and fixed-step inertial response to a moving container.
 - Floating and falling ragdolls, contact-driven protective poses, adjustable muscle strength, automatic facial responses, and opt-in synthesized sound effects. Read the [reaction guide](docs/reactions.md).
 - React and plain browser adapters with input/events, automatic sizing, reduced motion, offscreen/hidden suspension, and disposal.
 - Agent SDK, CLI, [repo skill](skills/posecraft/SKILL.md), [API docs](docs/api.md), and TypeScript declarations for the new scene APIs.
 - Preserved wwwzard example with its original artwork, action layers, keyboard targets, and robe simulation.
+
+Use **Add Dummy** in the character library. Use **+** beside the Props selector to add a platform, then drag it into place. Its **Collision box** tab controls size, offset, friction, bounce, and whether it collides. Test falls through **Feel**. The React playground has a Platforms toggle.
 
 This is the first MVP. Ona's arms rotate at the shoulder. Full foot planting, corrective steps, grip constraints, quadruped locomotion, fluids and the ship in a bottle remain later milestones. See the [scope and requirements mapping](docs/mvp-status.md) and [full product brief](POSECRAFT_REQUIREMENTS.md). The portable wwwzard pack uses sampled actions, solid fills, and rigid sleeves; the original demo retains procedural cloth and typing. Ukis has not been migrated.
 

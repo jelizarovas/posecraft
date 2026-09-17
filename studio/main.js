@@ -19,6 +19,8 @@ let store;
 try {const raw=localStorage.getItem(key),old=JSON.parse(raw)||starter,upgrade=upgradeLibraryDocument(old);store=new DocumentStore(upgrade.document);if(upgrade.changed){localStorage.setItem(key+'.before-responses',raw);localStorage.setItem(key,JSON.stringify(store.document));}}catch{store=new DocumentStore(starter);}
 let selected=store.document.actors[0]?.id, joint='head', clip='idle', controller, renderer, playing=!media.matches;
 let inspector='pose', tab='timeline', previewTime=0, overrides={}, bones=true, limits=true, dragMode=false, motionMode='system';
+let selectedProp=null, propPanel='shape', colliders=true;
+const prop=()=>store.document.props?.find(p=>p.id===selectedProp);
 let last=null, scenario=null, drag=null, offset={x:0,y:0}, toastTimer, transitionIndex=0;
 const actor=()=>store.document.actors.find(a=>a.id===selected);
 const pack=()=>store.document.packs[actor()?.pack];
@@ -31,7 +33,7 @@ const labels={root:'Body',head:'Head',eyes:'Eyes',mouth:'Mouth',leftArm:'Left ar
 const title=v=>labels[v] || v.charAt(0).toUpperCase()+v.slice(1);
 document.querySelector('#app').innerHTML=`
 <header class="topbar"><a class="brand" href="./"><span class="brand-mark">p</span>posecraft</a><div class="toolbar-group mobile-panels">${button('scene-panel','skeleton','Scene panel')}${button('inspector-panel','tune','Inspector panel')}</div><div class="toolbar-group">${button('undo','undo','Undo')}${button('redo','redo','Redo')}<span class="divider"></span>${button('import','folder_open','Open project')}${button('save','save','Save project')}${button('export','download','Export scene')}<input id="file" hidden type="file" accept=".json,application/json"></div><div class="toolbar-group end"><span id="saved" class="caption">Local draft</span><a class="icon-button" href="./react-demo.html" title="React playground" aria-label="React playground">${icon('open_in_new')}</a><a class="icon-button" href="https://github.com/jelizarovas/posecraft" title="Source and agent API" aria-label="Source and agent API">${icon('code')}</a><details class="more"><summary class="icon-button" aria-label="More options">${icon('more_horiz')}</summary><div><button id="new">New scene</button><button id="legacy">Open previous studio draft</button><button id="svg-export">Export current SVG</button><a href="./wwwzard.html">Original wwwzard demo</a></div></details></div></header>
-<main class="workspace"><aside class="sidebar left"><div class="section-label">Characters <span class="caption">Add to scene</span></div><div id="library" class="library"></div><label class="scene-label">Scene <select id="actors" aria-label="Selected character"></select></label><div class="hierarchy-head"><span>Body parts</span><span id="joint-count"></span></div><div id="hierarchy"></div><div class="actor-actions">${button('duplicate','content_copy','Duplicate character')}${button('delete','delete','Remove character')}<span id="pack-note" class="caption"></span></div></aside>
+<main class="workspace"><aside class="sidebar left"><div class="section-label">Characters <span class="caption">Add to scene</span></div><div id="library" class="library"></div><label class="scene-label">Scene <select id="actors" aria-label="Selected character"></select></label><div class="prop-tools"><select id="props" aria-label="Selected prop"><option value="">Props</option></select>${button('add-prop','add','Add prop')}${button('show-colliders','tune','Show collision boxes','class="active"')}</div><div class="hierarchy-head"><span>Body parts</span><span id="joint-count"></span></div><div id="hierarchy"></div><div class="actor-actions">${button('duplicate','content_copy','Duplicate character')}${button('delete','delete','Remove character')}<span id="pack-note" class="caption"></span></div></aside>
 <section class="viewport" aria-label="Scene viewport"><div class="viewport-bar"><div class="tool-palette">${button('select-tool','edit','Select and pose body parts','class="active"')}${button('drag-tool','pan_tool','Drag container')}${button('bones','skeleton','Show joints','class="active"')}${button('limits','tune','Show joint limits','class="active"')}</div><div class="tool-palette">${button('shake','gesture','Move and stop')}${button('reset','restart_alt','Reset preview')}<select id="motion-policy" aria-label="Motion preview"><option value="system">System motion</option><option value="full">Motion on</option><option value="reduced">Still preview</option></select></div></div><div id="stage" class="stage" tabindex="0" aria-label="Scene card. Drag empty card space to test motion; select a body part to pose it."><div id="art" class="art"></div></div><div class="viewport-bottom"><div class="demo-controls"><label>Action <select id="demo-action" aria-label="Demo action"></select></label><label>Emotion <select id="emotion" aria-label="Emotion"></select></label></div><span id="hint">Drag empty card space to test motion. Drag a body part to pose it.</span></div></section>
 <aside class="sidebar right"><nav class="inspector-tabs"><button data-panel="pose" class="active">${icon('edit')}Pose</button><button data-panel="look">${icon('palette')}Look</button><button data-panel="motion">${icon('animation')}Motion</button><button data-panel="feel">${icon('gesture')}Feel</button></nav><div id="inspector"></div></aside></main>
 <section class="timeline"><div class="timeline-toolbar"><div class="tabs"><button id="timeline-tab" class="active">Timeline</button><button id="states-tab">States</button></div><div class="playback">${button('start','skip_previous','Jump to start')}${button('play','play_arrow','Play animation')}<select id="clip" aria-label="Animation clip"></select><span id="time" class="time-label"></span></div><div class="key-tools">${button('add-key','add','Add keyframe','class="primary"')}${button('remove-key','delete','Remove keyframe')}<select id="easing" aria-label="Keyframe easing"><option value="smooth">Smooth</option><option value="linear">Linear</option><option value="step">Step</option></select></div></div><div id="timeline-content"></div></section>
@@ -41,10 +43,10 @@ function persist(){try{localStorage.setItem(key,JSON.stringify(store.document));
 function transact(commands,message){try{store.transact(commands);persist();rebuild();if(message)toast(message);}catch(e){toast(e.message);}}
 function baseValue(){const j=rigJoint();return overrides[joint+'.rotation']??sampleClip({...pack().clips[clip],loop:false},previewTime)[joint+'.rotation']??j.rotation;}
 function frame(){if(actor()&&tab==='timeline')controller.previewClip(selected,clip,previewTime,overrides);return controller.frame();}
-function mount(){renderer=mountSVG($('art'),store.document,frame(),{bones,limits,selectedActor:selected,selectedJoint:joint,physicsDebug:inspector==='feel'});}
+function mount(){renderer=mountSVG($('art'),store.document,frame(),{bones:!selectedProp&&bones,limits,selectedActor:selectedProp?undefined:selected,selectedJoint:joint,physicsDebug:inspector==='feel',colliders,selectedProp});}
 function refresh(){renderer.update(frame());updateTime();if($('rotation')){$('rotation').value=baseValue();$('rotation-number').value=Math.round(baseValue()*10)/10;}}
 function rebuild(){
- controller?.dispose();if(!actor())selected=store.document.actors[0]?.id;
+ controller?.dispose();if(!prop())selectedProp=null;if(!actor())selected=store.document.actors[0]?.id;
  if(pack()&&!pack().joints.some(j=>j.id===joint))joint=pack().joints[0].id;
  if(pack()&&!pack().clips[clip])clip=Object.keys(pack().clips)[0];
  if(pack())previewTime=Math.min(previewTime,pack().clips[clip].duration);
@@ -52,23 +54,25 @@ function rebuild(){
  $('stage').style.aspectRatio=`${store.document.bounds.width}/${store.document.bounds.height}`;
  $('undo').disabled=!store.past.length;$('redo').disabled=!store.future.length;
  $('delete').disabled=$('duplicate').disabled=!actor();
- drawLibrary();drawHierarchy();drawInspector();drawTimeline();drawDemo();mount();updateTime();last=null;
+ drawProps();drawLibrary();drawHierarchy();drawInspector();drawTimeline();drawDemo();mount();updateTime();last=null;
 }
 function drawLibrary(){
  $('library').innerHTML=Object.entries(library).map(([id,d])=>{const c=new SceneController(d);const preview=renderSVG(d,c.frame());return `<button data-add="${id}" class="asset-card" title="Add ${d.name}" aria-label="Add ${d.name}"><span class="asset-thumb">${preview}</span><span>${d.name}</span></button>`;}).join('');
  $('library').querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addActor(b.dataset.add));
 }
 function drawHierarchy(){
+ drawProps();
  $('actors').innerHTML=store.document.actors.map(a=>`<option value="${a.id}" ${a.id===selected?'selected':''}>${esc(a.name)}</option>`).join('');
  $('hierarchy').innerHTML=(pack()?.joints||[]).map(j=>`<button class="joint-row ${joint===j.id?'active':''}" data-select-joint="${j.id}">${icon(j.parent?'link':'skeleton')}<span>${title(j.id)}</span><small>${j.min}°…${j.max}°</small></button>`).join('');
  $('hierarchy').style.setProperty('--joint-count',pack()?.joints.length||1);
  $('hierarchy').querySelectorAll('[data-select-joint]').forEach(b=>b.onclick=()=>selectJoint(selected,b.dataset.selectJoint));
  $('joint-count').textContent=pack()?`${pack().joints.length} joints`:'';$('pack-note').textContent=actor()?`${store.document.actors.length} in scene`:'';
 }
-function selectJoint(actorId,jointId){if(selected!==actorId){controller.clearPreview(selected);overrides={};}selected=actorId;joint=jointId;if(!pack().clips[clip])clip=Object.keys(pack().clips)[0];previewTime=Math.min(previewTime,pack().clips[clip].duration);inspector='pose';drawHierarchy();drawInspector();drawTimeline();drawDemo();mount();}
+function selectJoint(actorId,jointId){selectedProp=null;if(selected!==actorId){controller.clearPreview(selected);overrides={};}selected=actorId;joint=jointId;if(!pack().clips[clip])clip=Object.keys(pack().clips)[0];previewTime=Math.min(previewTime,pack().clips[clip].duration);inspector='pose';drawHierarchy();drawInspector();drawTimeline();drawDemo();mount();}
 function field(label,id,value,attrs=''){return `<label class="field">${label}<input id="${id}" value="${esc(value)}" ${attrs}></label>`;}
 function drawInspector(){
- $('inspector').classList.toggle('feel-panel',inspector==='feel');
+ $('inspector').classList.toggle('feel-panel',inspector==='feel'||!!selectedProp);
+ if(prop()){drawPropInspector();return;}
  document.querySelectorAll('[data-panel]').forEach(b=>b.classList.toggle('active',b.dataset.panel===inspector));
  const a=actor(),p=pack(),j=rigJoint();if(!a){$('inspector').innerHTML='<p class="note">Add a character from the library.</p>';return;}
  const index=store.document.actors.indexOf(a);
@@ -153,12 +157,12 @@ function addKey(){
  overrides={};transact([set(['packs',actor().pack,'clips',clip,'tracks'],tracks)],Object.keys(values).length>1?'Keyframes saved for all posed joints.':'Keyframe saved.');
 }
 function removeKey(){if(!pack())return;const tracks=structuredClone(pack().clips[clip].tracks),name=joint+'.rotation';const keys=(tracks[name]||[]).filter(([t])=>Math.abs(t-previewTime)>.011);if(keys.length)tracks[name]=keys;else delete tracks[name];overrides={};transact([set(['packs',actor().pack,'clips',clip,'tracks'],tracks)]);}
-function addActor(id,duplicate=false){const source=library[id];if(!source&&!duplicate)return;const a=duplicate?structuredClone(actor()):structuredClone(source.actors[0]);const packId=duplicate?a.pack:id;const commands=[];if(!store.document.packs[packId])commands.push(set(['packs',packId],structuredClone(source.packs[id])));a.id=`${packId}-${Date.now().toString(36)}`;if(duplicate)a.name=(a.name+' copy').slice(0,100);a.transform.x=clamp(a.transform.x+(store.document.actors.length%2?90:-90),80,store.document.bounds.width-80);selected=a.id;joint=packId==='rusty'?'head':'head';clip='idle';previewTime=0;overrides={};commands.push(set(['actors'],[...store.document.actors,a]));transact(commands);}
+function addActor(id,duplicate=false){selectedProp=null;const source=library[id];if(!source&&!duplicate)return;const a=duplicate?structuredClone(actor()):structuredClone(source.actors[0]);const packId=duplicate?a.pack:id;const commands=[];if(!store.document.packs[packId])commands.push(set(['packs',packId],structuredClone(source.packs[id])));a.id=`${packId}-${Date.now().toString(36)}`;if(duplicate)a.name=(a.name+' copy').slice(0,100);a.transform.x=clamp(a.transform.x+(store.document.actors.length%2?90:-90),80,store.document.bounds.width-80);selected=a.id;joint=packId==='rusty'?'head':'head';clip='idle';previewTime=0;overrides={};commands.push(set(['actors'],[...store.document.actors,a]));transact(commands);}
 function download(name,content,type='application/json'){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function reset(){offset={x:0,y:0};scenario=null;drag=null;$('stage').style.transform='';previewTime=0;overrides={};playing=false;rebuild();}
 function shake(){if(reduced()){toast('Still preview is active. Choose Motion on to preview reactions.');return;}scenario={start:performance.now(),origin:{...offset}};}
-function load(doc){const next=new DocumentStore(doc);store=next;selected=next.document.actors[0]?.id;joint='head';clip='idle';previewTime=0;overrides={};offset={x:0,y:0};$('stage').style.transform='';persist();rebuild();}
-$('actors').onchange=e=>{selected=e.target.value;clip=inputValue('action')||'idle';overrides={};previewTime=0;rebuild();};
+function load(doc){selectedProp=null;const next=new DocumentStore(doc);store=next;selected=next.document.actors[0]?.id;joint='head';clip='idle';previewTime=0;overrides={};offset={x:0,y:0};$('stage').style.transform='';persist();rebuild();}
+$('actors').onchange=e=>{selectedProp=null;selected=e.target.value;clip=inputValue('action')||'idle';overrides={};previewTime=0;rebuild();};
 $('clip').onchange=$('demo-action').onchange=e=>chooseAction(e.target.value);$('emotion').onchange=e=>{changeBehavior({autoFace:false});changeInput('emotion',e.target.value);};
 $('play').onclick=()=>{playing=!playing;overrides={};last=null;updateTime();};$('start').onclick=()=>seek(0);$('add-key').onclick=addKey;$('remove-key').onclick=removeKey;
 $('undo').onclick=()=>{store.undo();overrides={};persist();rebuild();};$('redo').onclick=()=>{store.redo();overrides={};persist();rebuild();};
@@ -172,21 +176,40 @@ $('reset').onclick=reset;$('shake').onclick=shake;
 $('bones').onclick=()=>{bones=!bones;$('bones').classList.toggle('active',bones);mount();};$('limits').onclick=()=>{limits=!limits;bones=true;$('limits').classList.toggle('active',limits);$('bones').classList.add('active');mount();};
 $('select-tool').onclick=()=>{dragMode=false;$('select-tool').classList.add('active');$('drag-tool').classList.remove('active');};$('drag-tool').onclick=()=>{dragMode=true;$('select-tool').classList.remove('active');$('drag-tool').classList.add('active');};
 $('motion-policy').onchange=e=>{motionMode=e.target.value;controller.reducedMotion=reduced();controller.rebaseline();if(reduced())playing=false;refresh();};
-for(const b of document.querySelectorAll('[data-panel]'))b.onclick=()=>{inspector=b.dataset.panel;drawInspector();mount();};
+for(const b of document.querySelectorAll('[data-panel]'))b.onclick=()=>{selectedProp=null;drawProps();inspector=b.dataset.panel;drawInspector();mount();};
 for(const t of ['timeline','states'])$(t+'-tab').onclick=()=>{tab=t;overrides={};if(t==='states')controller.clearPreview(selected);drawTimeline();};
 $('scene-panel').onclick=()=>{document.querySelector('.workspace').classList.toggle('show-scene');document.querySelector('.workspace').classList.remove('show-inspector');};$('inspector-panel').onclick=()=>{document.querySelector('.workspace').classList.toggle('show-inspector');document.querySelector('.workspace').classList.remove('show-scene');};
+function drawProps(){
+ $('props').innerHTML='<option value="">Props</option>'+(store.document.props||[]).map(p=>`<option value="${p.id}" ${p.id===selectedProp?'selected':''}>${esc(p.name)}</option>`).join('');
+}
+function selectProp(id){selectedProp=id||null;drawProps();drawInspector();mount();}
+function editProp(patch){if(!prop())return;const index=store.document.props.indexOf(prop());transact([set(['props',index],{...prop(),...patch})]);}
+function drawPropInspector(){
+ const p=prop(),c=p.collider;
+ document.querySelectorAll('[data-panel]').forEach(b=>b.classList.remove('active'));
+ $('inspector').innerHTML=`<div class="inspector-heading">${esc(p.name)}<small>Static prop</small></div><div class="prop-tabs"><button id="prop-shape" class="${propPanel==='shape'?'active':''}">Shape</button><button id="prop-box" class="${propPanel==='box'?'active':''}">Collision box</button></div>${propPanel==='shape'?`${field('Name','prop-name',p.name,'maxlength="100"')}<div class="two-col">${['x','y','width','height','rotation'].map(k=>field(title(k),'prop-'+k,p[k],`type="number" step="1" ${k==='rotation'?'min="-180" max="180"':k==='width'||k==='height'?'min="4" max="4096"':''}`)).join('')}${field('Color','prop-fill',p.fill,'type="color"')}</div><p class="note">Drag the prop on the canvas, or use arrow keys. Placement changes restart the physical preview.</p>`:`<label class="face-auto"><input id="prop-enabled" type="checkbox" ${c.enabled?'checked':''}> Collision enabled</label><div class="two-col">${['width','height','x','y'].map(k=>field(k==='x'?'Offset X':k==='y'?'Offset Y':title(k),'box-'+k,c[k],`type="number" step="1" ${k==='width'||k==='height'?'min="4" max="4096"':''}`)).join('')}${field('Friction','box-friction',c.friction,'type="number" min="0" max="2" step=".05"')}${field('Bounce','box-bounce',c.bounce,'type="number" min="0" max="1" step=".05"')}</div><button id="fit-box" class="text-button">Fit box to shape</button><p class="note">Orange shows the physical surface. Gray means collision is off. The box rotates with the prop. Physical body modes collide with it.</p>`}<button id="remove-prop" class="text-button">${icon('delete')}Remove prop</button>`;
+ $('prop-shape').onclick=()=>{propPanel='shape';drawPropInspector();};$('prop-box').onclick=()=>{propPanel='box';drawPropInspector();};
+ if(propPanel==='shape')for(const k of ['name','x','y','width','height','rotation','fill'])$('prop-'+k).onchange=e=>editProp({[k]:['name','fill'].includes(k)?e.target.value:Number(e.target.value)});
+ else{for(const k of ['width','height','x','y','friction','bounce'])$('box-'+k).onchange=e=>editProp({collider:{...c,[k]:Number(e.target.value)}});$('prop-enabled').onchange=e=>editProp({collider:{...c,enabled:e.target.checked}});$('fit-box').onclick=()=>editProp({collider:{...c,x:0,y:0,width:p.width,height:p.height}});}
+ $('remove-prop').onclick=()=>transact([set(['props'],store.document.props.filter(v=>v.id!==p.id))]);
+}
+function scenePoint(x,y){return new DOMPoint(x,y).matrixTransform($('art').querySelector('svg').getScreenCTM().inverse());}
+$('props').onchange=e=>selectProp(e.target.value);
+$('add-prop').onclick=()=>{const {width:w,height:h}=store.document.bounds,id='prop-'+Date.now().toString(36),width=Math.min(220,w*.65),height=20;selectedProp=id;propPanel='shape';transact([set(['props'],[...(store.document.props||[]),{id,name:'Platform',x:w/2,y:h-15,width,height,rotation:0,fill:'#b9c8c2',collider:{enabled:true,width,height,x:0,y:0,friction:.75,bounce:.1}}])]);};
+$('show-colliders').onclick=()=>{colliders=!colliders;$('show-colliders').classList.toggle('active',colliders);mount();};
 function localPoint(actorId,x,y){const g=$('art').querySelector(`[data-actor="${actorId}"]`);return new DOMPoint(x,y).matrixTransform(g.getScreenCTM().inverse());}
 $('stage').onpointerdown=e=>{
  if(e.button!==0)return;scenario=null;
+ const propHit=e.target.closest('[data-prop]');if(!dragMode&&propHit){selectProp(propHit.dataset.prop);const p=scenePoint(e.clientX,e.clientY);drag={type:'prop',start:p,origin:{x:prop().x,y:prop().y},next:null};$('stage').setPointerCapture(e.pointerId);return;}
  const hit=e.target.closest('[data-joint],[data-bone]'),a=e.target.closest('[data-actor]');
- if(!dragMode&&hit&&a&&behaviorConfig(store.document.actors.find(v=>v.id===a.dataset.actor)?.behavior).mode!=='animated'){selected=a.dataset.actor;runInteraction('tap');drag=null;return;}
+ if(!dragMode&&hit&&a&&behaviorConfig(store.document.actors.find(v=>v.id===a.dataset.actor)?.behavior).mode!=='animated'){selectedProp=null;selected=a.dataset.actor;inspector='feel';drawHierarchy();drawInspector();mount();runInteraction('tap');drag=null;return;}
  if(!dragMode&&hit&&a){const id=hit.dataset.joint||hit.dataset.bone;selectJoint(a.dataset.actor,id);playing=false;const w=frame().actors.find(a=>a.id===selected).world[id],p=localPoint(selected,e.clientX,e.clientY);drag={type:'pose',x:e.clientX,y:e.clientY,pivot:w,angle:Math.atan2(p.y-w.y,p.x-w.x),rotation:baseValue()};}
  else drag={type:'card',x:e.clientX,y:e.clientY,origin:{...offset}};
  $('stage').setPointerCapture(e.pointerId);
 };
-$('stage').onpointermove=e=>{if(!drag)return;if(drag.type==='card'){offset={x:clamp(drag.origin.x+e.clientX-drag.x,-170,170),y:clamp(drag.origin.y+e.clientY-drag.y,-100,100)};$('stage').style.transform=`translate(${offset.x}px,${offset.y}px)`;}else if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>3){const p=localPoint(selected,e.clientX,e.clientY),angle=Math.atan2(p.y-drag.pivot.y,p.x-drag.pivot.x);pose(drag.rotation+wrapAngle((angle-drag.angle)*180/Math.PI));}};
-$('stage').onpointerup=$('stage').onpointercancel=()=>{drag=null;};
-$('stage').onkeydown=e=>{if(!e.key.startsWith('Arrow'))return;e.preventDefault();if(e.shiftKey||dragMode){offset.x=clamp(offset.x+(e.key==='ArrowLeft'?-16:e.key==='ArrowRight'?16:0),-170,170);offset.y=clamp(offset.y+(e.key==='ArrowUp'?-16:e.key==='ArrowDown'?16:0),-100,100);$('stage').style.transform=`translate(${offset.x}px,${offset.y}px)`;}else if(actor())pose(baseValue()+(e.key==='ArrowLeft'||e.key==='ArrowDown'?-2:2));};
+$('stage').onpointermove=e=>{if(!drag)return;if(drag.type==='prop'){const p=scenePoint(e.clientX,e.clientY);drag.next={x:clamp(drag.origin.x+p.x-drag.start.x,0,store.document.bounds.width),y:clamp(drag.origin.y+p.y-drag.start.y,0,store.document.bounds.height)};const node=$('art').querySelector(`[data-prop="${selectedProp}"]`);node?.setAttribute('transform',`translate(${drag.next.x} ${drag.next.y}) rotate(${prop().rotation})`);return;}if(drag.type==='card'){offset={x:clamp(drag.origin.x+e.clientX-drag.x,-170,170),y:clamp(drag.origin.y+e.clientY-drag.y,-100,100)};$('stage').style.transform=`translate(${offset.x}px,${offset.y}px)`;}else if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>3){const p=localPoint(selected,e.clientX,e.clientY),angle=Math.atan2(p.y-drag.pivot.y,p.x-drag.pivot.x);pose(drag.rotation+wrapAngle((angle-drag.angle)*180/Math.PI));}};
+$('stage').onpointerup=()=>{const d=drag;drag=null;if(d?.type==='prop'&&d.next)editProp(d.next);};$('stage').onpointercancel=()=>{drag=null;mount();};
+$('stage').onkeydown=e=>{if(!e.key.startsWith('Arrow'))return;e.preventDefault();if(prop()&&!dragMode&&!e.shiftKey){editProp({x:clamp(prop().x+(e.key==='ArrowLeft'?-4:e.key==='ArrowRight'?4:0),0,store.document.bounds.width),y:clamp(prop().y+(e.key==='ArrowUp'?-4:e.key==='ArrowDown'?4:0),0,store.document.bounds.height)});return;}if(e.shiftKey||dragMode){offset.x=clamp(offset.x+(e.key==='ArrowLeft'?-16:e.key==='ArrowRight'?16:0),-170,170);offset.y=clamp(offset.y+(e.key==='ArrowUp'?-16:e.key==='ArrowDown'?16:0),-100,100);$('stage').style.transform=`translate(${offset.x}px,${offset.y}px)`;}else if(actor())pose(baseValue()+(e.key==='ArrowLeft'||e.key==='ArrowDown'?-2:2));};
 window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){e.preventDefault();(e.shiftKey?$('redo'):$('undo')).click();}});
 window.addEventListener('blur',()=>{drag=null;last=null;controller.rebaseline();});
 window.addEventListener('pagehide',()=>sound.dispose());
@@ -195,13 +218,13 @@ rebuild();
 function tick(now){const dt=last===null||document.hidden?0:Math.min((now-last)/1000,.05);last=now;
  if(!document.hidden){
  if(scenario){const t=(now-scenario.start)/1000;offset={x:scenario.origin.x+Math.sin(Math.min(t/.9,1)*Math.PI*2)*95,y:scenario.origin.y-Math.sin(Math.min(t/.9,1)*Math.PI)*25};$('stage').style.transform=`translate(${offset.x}px,${offset.y}px)`;if(t>.9)scenario=null;}
- controller.animationPlaying=tab==='timeline'||playing;controller.sampleHost({...offset,time:now/1000});controller.step(dt);
+ controller.animationPlaying=tab==='timeline'||playing;controller.sampleHost({...offset,time:now/1000});controller.step(drag?.type==='prop'?0:dt);
  if(playing&&!reduced()&&pack()){if(tab==='timeline')previewTime=(previewTime+dt)%pack().clips[clip].duration;else{const r=selectedRuntime();previewTime=r.runtime.layers[0].time%pack().clips[pack().states[r.runtime.layers[0].state].clip].duration;}}
  renderer.update(frame());updateTime();if(playing&&$('rotation')&&document.activeElement!==$('rotation-number')){$('rotation').value=baseValue();$('rotation-number').value=Math.round(baseValue()*10)/10;}
  const s=selectedRuntime()?.spring;
  $('status').textContent=`${store.document.actors.length} character${store.document.actors.length===1?'':'s'} · ${title(joint)} · ${title(selectedRuntime()?.response.state||'calm')}${Object.keys(overrides).length?' · Unsaved pose, add a key':''}`;
  $('motion-status').textContent=reduced()?'Still preview · motion disabled':`Lean ${Math.abs(s?.x||0).toFixed(1)}° · ${drag?.type==='card'?'Dragging':'Motion on'}`;
- $('hint').textContent=reduced()?'Still preview is active. Choose Motion on to test reactions.':dragMode?'Drag anywhere on the card. Watch the character lean and settle.':'Drag empty card space to test motion. Drag a body part to pose it.';
+ $('hint').textContent=reduced()?'Still preview is active. Choose Motion on to test reactions.':dragMode?'Drag anywhere on the card. Watch the character lean and settle.':selectedProp?'Drag this prop to place it. Orange outline = collision box.':'Drag empty card space to test motion. Drag a body part to pose it.';
  if($('active-state'))$('active-state').textContent='Action: '+(selectedRuntime()?.runtime.layers[0].state||'')+' · Response: '+(selectedRuntime()?.response.state||'calm');
  if($('response-status')){const a=selectedRuntime(),d=a?.physics?.diagnostics;$('response-status').textContent=`${title(a?.response.state||'calm')} · ${d?.contacts?.length||0} contacts${d?.predictedImpact?' · impact predicted':''}`;}
  if($('face-live'))$('face-live').textContent='Face: '+title(frame().actors.find(a=>a.id===selected)?.inputs.emotion||'neutral');
