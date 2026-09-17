@@ -1,7 +1,7 @@
 import { World, Vec2, Box, RevoluteJoint, AABB } from 'planck';
 import { clamp, wrapAngle } from './index.js';
 const UNIT=50, RAD=Math.PI/180;
-export const behaviorDefaults={mode:'animated',resistance:.65,gravity:1,bounce:.15,strategy:'auto',autoFace:true};
+export const behaviorDefaults={mode:'animated',resistance:.65,gravity:1,bounce:.15,strategy:'auto',autoFace:true,autoRecover:false};
 export const behaviorModes=['animated','floating','ragdoll','protective'];
 export function behaviorConfig(value={}){return {...behaviorDefaults,...value};}
 

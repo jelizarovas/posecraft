@@ -47,7 +47,7 @@ export function mountSVG(element, document, frame, options) {
       for (const b of bindings) {
         const evaluated = next.actors.find(a => a.id === b.actor.id);
         if(evaluated.placement)attribute(b.root,'transform',placement(evaluated.placement));
-        attribute(b.root,'data-response',evaluated.response||'calm');attribute(b.root,'data-emotion',evaluated.inputs?.emotion||'neutral');attribute(b.root,'data-motion-mode',evaluated.physics?.mode||'animated');
+        attribute(b.root,'data-recovery',evaluated.recovery?.phase||'none');attribute(b.root,'data-response',evaluated.response||'calm');attribute(b.root,'data-emotion',evaluated.inputs?.emotion||'neutral');attribute(b.root,'data-motion-mode',evaluated.physics?.mode||'animated');
         for (const node of b.joints) attribute(node,'transform', transform(evaluated.world[node.dataset.joint || node.dataset.bone]));
         const inputKey=JSON.stringify(evaluated.inputs);
         if(inputKey!==b.inputKey){b.inputKey=inputKey;for (const {part,node} of b.paths) if (part.variants || part.showWhen) { const paint=appearance(part,b.actor,evaluated);attribute(node,'d',paint.d);attribute(node,'transform',paint.transform);attribute(node,'visibility',paint.visible?'visible':'hidden'); }}

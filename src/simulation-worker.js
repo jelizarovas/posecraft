@@ -22,7 +22,7 @@ self.onmessage=({data:m})=>{
   controller.reducedMotion=m.reducedMotion;controller.animationPlaying=m.animationPlaying;
   for(const [method,...args] of m.commands){
    try{
-    if(!['setInput','setBehavior','interact','previewClip','clearPreview','setAcceleration','rebaseline','play','pause','reset','seek'].includes(method))throw new Error('Unknown simulation command.');
+    if(!['walkTo','setInput','setBehavior','interact','previewClip','clearPreview','setAcceleration','rebaseline','play','pause','reset','seek'].includes(method))throw new Error('Unknown simulation command.');
     controller[method](...args);
    }catch(error){events.push({type:'error',actor:args[0],message:error.message,time:controller.time});}
   }

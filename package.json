@@ -49,6 +49,10 @@
     "./performance": {
       "types": "./src/performance.d.ts",
       "default": "./src/performance.js"
+    },
+    "./device-motion": {
+      "types": "./src/device-motion.d.ts",
+      "default": "./src/device-motion.js"
     }
   },
   "bin": {
@@ -81,7 +85,8 @@
     "test:director": "node test/director-browser.mjs",
     "test:capture": "node test/capture-browser.mjs",
     "test:vision": "node test/vision-browser.mjs",
-    "test:demos": "node test/demos-browser.mjs"
+    "test:demos": "node test/demos-browser.mjs",
+    "test:motion": "node test/motion-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

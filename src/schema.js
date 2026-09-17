@@ -1,4 +1,4 @@
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -140,6 +140,7 @@ function validateStructure(doc) {
       if(b.mode!==undefined)check(['animated','floating','ragdoll','protective'].includes(b.mode)&&(b.mode==='animated'||doc.packs[a.pack]?.physics),`actors.${a.id}.behavior.mode`,'Mode requires a physical rig.');
       for(const [key,max] of [['resistance',1],['gravity',2],['bounce',1]])if(b[key]!==undefined)check(finite(b[key],0,max),`actors.${a.id}.behavior.${key}`,'Invalid physical setting.');
       if(b.strategy!==undefined)check(['auto','brace','protect','curl'].includes(b.strategy),`actors.${a.id}.behavior.strategy`,'Unknown protective strategy.');
+      if(b.autoRecover!==undefined)check(typeof b.autoRecover==='boolean',`actors.${a.id}.behavior.autoRecover`,'Expected boolean.');
       if(b.autoFace!==undefined)check(typeof b.autoFace==='boolean',`actors.${a.id}.behavior.autoFace`,'Expected boolean.');
     }
     for (const [name, value] of Object.entries(a.inputs || {})) {

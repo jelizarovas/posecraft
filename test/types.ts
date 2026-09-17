@@ -36,3 +36,11 @@ const take=assertTake(incoming,scene.packs[scene.actors[0].pack]);
 sampleTake(take,.5).pose;
 applyTake(episode.project,'hello','ona',take,0);
 new PerformanceRetargeter(scene.packs[scene.actors[0].pack]);
+
+background.walkTo("ona",200);
+background.setBehavior("ona",{autoRecover:true});
+player.walkTo("ona",200);
+import {PhoneMotion,MotionSignal} from "posecraft/device-motion";
+const phone=new PhoneMotion({onStatus:message=>console.log(message)});
+phone.signal.sample(performance.now()).ax;
+new MotionSignal().update({acceleration:{x:1,y:0}},0);

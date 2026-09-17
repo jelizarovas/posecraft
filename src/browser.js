@@ -33,6 +33,7 @@ export function mountScene(element, document, { host = element, reducedMotion = 
   schedule();
   return {
     controller,
+    walkTo(actor,x){controller.walkTo(actor,x);renderer.update(controller.frame());},
     setBehavior(actor,settings){controller.setBehavior(actor,settings);renderer.update(controller.frame());},
     interact(actor,type,strength){controller.interact(actor,type,strength);renderer.update(controller.frame());},
     setInput(actor, name, value) { controller.setInput(actor, name, value); if (controller.reducedMotion&&controller.tick) controller.tick(); renderer.update(controller.frame()); },

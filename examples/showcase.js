@@ -1,9 +1,11 @@
+import {standingTarget} from '../src/recovery.js';
 import ona from './characters/ona.json' with {type:'json'};
 import wwwzard from './characters/wwwzard.json' with {type:'json'};
 import rusty from './characters/rusty.json' with {type:'json'};
 import dummy from './characters/dummy.json' with {type:'json'};
 const library={ona,wwwzard,rusty,dummy};
 export const demoCatalog=[
+ {id:'shake-and-settle',title:'Shake & settle',category:'Phone motion & recovery',description:'Shake or turn your phone to tumble the cast. They get up and walk back to their marks.',features:['Phone sensors','Assisted get-up','Walk & return'],instruction:'Enable phone motion, or use Shake scene. Stop moving to let the cast recover. Select a character and tap the stage to walk somewhere.',color:'#d4e4df',kind:'scene'},
  {id:'www-after-hours',title:'WWW after hours',category:'Short cartoon',description:'A late night at the studio. wwwzard takes a break, Ona has an idea, and Rusty wants attention.',features:['3 characters','3 camera shots','Expression timing'],instruction:'Play the scene, or scrub through the camera cuts. Open it in Director to change the performance.',color:'#dce6ee',kind:'episode'},
  {id:'neon-rehearsal',title:'Neon rehearsal',category:'Choreography',description:'Four performers, staggered actions and a moving camera on a neon stage.',features:['4 characters','2 sets','Staggered actions'],instruction:'A silent staging demo for a future music video. Try the different shots, then edit the timing in Director.',color:'#dfd0ed',kind:'episode'},
  {id:'rusty-in-the-park',title:'Rusty in the park',category:'Character acting',description:'Ona waves hello. Rusty offers a paw, gets excited, then settles down in the park.',features:['2 characters','Reaction shots','Reusable actions'],instruction:'Watch the exchange through three shots. Every pose, expression and camera move can be edited.',color:'#d6e5cc',kind:'episode'},
@@ -21,6 +23,12 @@ const shot=(id,name,set,actors,duration=4,view=camera())=>({id,name,scene:set,du
 const episode=(id,name,scenes,shots)=>({schemaVersion:1,kind:'episode',id,name,revision:0,fps:24,size:{width:1280,height:720},scenes,shots});
 const parkProps=()=>[rect('sky',400,200,800,500,'#d8e9e5'),rect('grass',400,425,800,110,'#a8c38c'),rect('path',400,415,800,32,'#ded1ac'),rect('tree-trunk',110,230,26,280,'#9b795f'),rect('tree-crown',100,104,165,155,'#89ae83',false,8),rect('tree-leaves',137,114,112,108,'#a1be90',false,30),rect('bench-seat',605,331,225,15,'#ac8c68'),rect('bench-back',605,287,225,60,'#bf9e76'),rect('bench-leg-a',520,368,14,60,'#897662'),rect('bench-leg-b',690,368,14,60,'#897662')];
 export function createDemo(id){
+ if(id==='shake-and-settle'){
+  const actors=[actor('wwwzard','wwwzard',170,300,.65),actor('ona','ona',400,340,1.4),actor('dummy','dummy',635,320,1.15)];
+  const doc=scene(id,'Shake & settle',actors,[rect('wall',400,225,800,450,'#e3e9e4'),rect('window-a',210,110,190,120,'#abc6c9'),rect('window-b',590,110,190,120,'#abc6c9'),rect('floor',400,430,800,40,'#acb6a5',true),...actors.map((a,i)=>rect('mark-'+i,a.transform.x,406,90,5,'#867598'))]);
+  doc.requiredFeatures=['assisted-recovery'];
+  for(const a of actors){a.transform.y=standingTarget(doc,a,doc.packs[a.pack],a.transform.x).y;a.behavior={mode:'protective',autoRecover:true,strategy:'auto',resistance:.85,gravity:1,bounce:.2};}return doc;
+ }
  if(id==='www-after-hours'){
   const office=scene('www-office','WWW studio',[actor('wwwzard','wwwzard',205,305,.8),actor('ona','ona',450,335,1.15),actor('rusty','rusty',650,355,1.8)],[rect('wall',400,200,800,500,'#d4dce5'),rect('floor',400,432,800,90,'#b5a8a6'),rect('window-frame',620,140,240,175,'#7c8aa2'),rect('night-sky',620,140,219,154,'#38415f'),rect('moon',675,103,32,32,'#eddfa4',false,15),rect('window-cross',620,140,8,154,'#7c8aa2'),rect('shelf',190,118,210,15,'#997e76'),rect('book-a',130,85,20,51,'#b891aa'),rect('book-b',158,91,23,40,'#c4b278'),rect('book-c',188,80,22,62,'#88a7a1'),rect('desk-top',206,278,218,18,'#a78675'),rect('desk-leg',115,343,14,125,'#a78675'),rect('monitor',180,230,92,68,'#536576'),rect('monitor-screen',180,227,78,51,'#92c5c0')]);
   return episode(id,'WWW after hours',{office},[shot('late-night','A late night','office',{wwwzard:cue('work','focused'),ona:cue('think','curious'),rusty:cue('sniff')},4),shot('an-idea','Ona has an idea','office',{wwwzard:cue('wave','happy'),ona:cue('celebrate','excited',{expressions:[[0,'curious'],[.7,'excited'],[3,'happy']]}),rusty:cue('tilt','curious')},4,camera(440,270,1.4)),shot('goodnight','Rusty gets the last word','office',{wwwzard:cue('bow','relieved'),ona:cue('wave','happy'),rusty:cue('bark','happy',{expressions:[[0,'surprised'],[1.2,'happy'],[3,'sleepy']]})},4,{...camera(590,290,1.5),zoom:[[0,1.5],[4,1,'smooth']],x:[[0,590],[4,400,'smooth']],y:[[0,290],[4,225,'smooth']]})]);

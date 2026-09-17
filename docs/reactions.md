@@ -91,3 +91,15 @@ CLI simulation accepts behavior and interaction events alongside input and accel
 Run `node tools/cli.mjs simulate examples/characters/ona.json scenario.json`. Output includes contact diagnostics and emitted response/impact events. Tightening joint limits requires clamping both animation keys and `physics.responses` targets in the same transaction; Studio does this automatically.
 
 Prop prediction sweeps oriented body boxes along their current linear velocities over 0.38 seconds. It holds orientation constant for that prediction window. Actual contacts come from the solver, including rotational motion. Props must be placed clear of the character at its starting pose to avoid an initial overlap.
+
+## Assisted get-up and walking
+
+`actor.behavior.autoRecover: true` enables assisted recovery in Falling ragdoll and Protective modes. It defaults to false so raw physics scenes retain their behavior. In Studio, use **Feel → Stand up & return**. The shake demo enables it from the start; Drop and Toss in the drop lab enable it too. Floating remains passive.
+
+After floor contact and a quiet interval, the controller captures the visible physical pose, blends upright over 1.25 seconds, then walks toward the original actor placement at 75 scene pixels per second. A new toss or significant container acceleration interrupts assistance and starts physics at the current visible pose. The actor's authored placement is its home mark. A loaded auto-recovery scene starts standing on its support. Recovery root rotation is free, as it is in physics; limb limits remain constrained.
+
+`SceneController`, `WorkerSceneController` and browser players expose `walkTo(actorId, sceneX)`. Commands while falling/getting up are ignored. Supported straight routes animate the walk clip or a limited fallback gait. Blocked routes stop at the current standing position with `frame.actors[i].recovery.blocked === true`. Recovery diagnostics contain `phase` and a target position. Phases are `getting-up`, `returning`, `walking`, `home`, and `blocked`.
+
+This is authored assistance, not physically balanced walking. It checks approximate body bounds against static props and support along a straight route. It does not use the separate A* route API, walk around obstacles, climb stairs or plant feet. Prefer a broad flat floor for this first version. Avatar collisions remain independent. The scene worker runs both physics and assistance; sensor events only supply coalesced force samples.
+
+`posecraft/device-motion` exports `PhoneMotion` and the pure `MotionSignal` filter. Call `phone.enable()` directly inside a button handler, feed `phone.signal.sample(performance.now()).ax/ay` to the scene controller's `setAcceleration`, and call `disable()` on pause/hide/disposal. Do not also call `sampleHost` in that loop, since it would replace the force. Permission and readings remain local. The filter removes gravity when only gravity-inclusive samples are available, accounts for screen orientation, bounds forces and fades stale samples.
