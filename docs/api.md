@@ -4,13 +4,19 @@ The new scene API supplements the original skeletal API in `posecraft`. Existing
 
 ## Portable scene
 
-`examples/ona.posecraft.json` is the complete importable example. `src/schema.d.ts` defines the public types. `validateDocument(unknown)` returns errors with field paths. `assertDocument` throws with the same diagnostics. Unsupported schema versions and required capabilities fail explicitly. No migration is needed for this first version.
+`examples/characters/{ona,wwwzard,rusty}.json` are complete importable scenes. The original `examples/ona.posecraft.json` retains its boolean `greeting` input for compatibility. `src/schema.d.ts` defines the public types. `validateDocument(unknown)` returns errors with field paths. `assertDocument` throws with the same diagnostics. Unsupported schema versions and required capabilities fail explicitly. No migration is needed for this first version.
 
-A scene contains an ID, name, revision, bounds, embedded reusable packs, and independent actors. An actor has an ID, pack ID, name, transform, and appearance overrides. Pack edits affect every instance of that pack; appearance and placement edits affect one actor. Duplicate a pack under a new ID to give an actor independent authored animation. No external asset fetches or account are required.
+A scene contains an ID, name, revision, bounds, embedded reusable packs, and independent actors. An actor has an ID, pack ID, name, transform, appearance overrides, and optional persisted input values. Pack edits affect every instance of that pack; appearance and placement edits affect one actor. Duplicate a pack under a new ID to give an actor independent authored animation. No external asset fetches or account are required.
 
 Each pack has parent-first joints, ordered path parts bound to joints, typed inputs, clips, states, an initial state, and optional spring settings. Parts contain path geometry and allowlisted numeric transforms. Importing arbitrary SVG, images, masks, gradients, text, mesh deformation, attachments, and nested scene instances is deferred. Unrecognized extension metadata is retained but never executed.
 
 Angles use degrees. Positive X goes right and positive Y goes down. Joint translations and art use SVG units; time uses seconds. Scale-to-fit uses the viewBox and preserves aspect ratio. Container resizing changes presentation only, not world dimensions, gravity, or authored transforms. The current inertial response is intentionally tuned in CSS pixels, independent of device pixel ratio.
+
+### Library inputs and appearance
+
+All three packs accept string `action` and `emotion` inputs. Read their allowed values from `pack.inputs`; Ona has 13 actions, wwwzard 10, and seated Rusty eight. Emotions are neutral, happy, excited, sad, angry, surprised, sleepy, and curious. Ona also accepts `hair`: none, short, swept, bob, curls, or ponytail. These values can be persisted in `actor.inputs` or changed through `setInput`.
+
+`actor.appearance` maps color channels to hex colors. `pack.appearanceDefaults` lists the library defaults. Parts can declare `variantInput` and a `variants` map containing allowlisted `d`, numeric `transform`, and boolean `visible` fields. `showWhen` supports input-based visibility. `pack.expressions` maps emotion names to additive joint-channel offsets; final rotation constraints still apply. These features require `appearance-variants` and `expressions` capabilities.
 
 ## Editing
 
@@ -32,7 +38,7 @@ Transactions apply to a cloned document and commit only if all commands and the 
 import { SceneController } from 'posecraft/scene';
 import { renderSVG } from 'posecraft/svg';
 const player = new SceneController(scene);
-player.setInput('ona', 'greeting', true);
+player.setInput('ona', 'action', 'wave');
 player.setAcceleration(1200, 0);
 const frame = player.step(1 / 60);
 const svg = renderSVG(scene, frame);
@@ -40,17 +46,21 @@ const svg = renderSVG(scene, frame);
 
 Clips contain strictly increasing keys `[seconds, value, easing?]`. Easing is `smooth`, `linear`, or `step`. Rotation keys obey joint limits. Supported channels are joint rotation and X/Y offsets. States select a clip and transition on a typed input equality condition. The first matching transition wins. Transitions start from the displayed blended pose, last 0..2 seconds, and emit an event through `subscribe`. Triggers, timed transitions, and editing arbitrary graphs remain future work.
 
-The existing skeletal engine samples clips and transitions. A bounded damped spring then adds to the designated joint's rotation and Y offset, followed by joint limits and final forward kinematics. Animation owns the base pose and the spring owns this additive offset. There are no dynamic bodies or contact solver in 0.1. The spring is a stylized inertial response, not a balance or foot-friction model.
+The existing skeletal engine samples clips and transitions. A bounded damped spring then adds to the designated joint's rotation and X/Y offsets, followed by joint limits and final forward kinematics. Animation owns the base pose and the spring owns this additive offset. There are no dynamic bodies or contact solver in 0.1. The spring is a stylized inertial response, not a balance or foot-friction model.
 
-`step` uses fixed 1/120-second substeps and accepts at most 0.1 seconds per call. Excess elapsed time is dropped. `sampleHost({x,y,time,teleport})` derives acceleration from translation samples, ignores the first two derivative samples, clamps acceleration to ±6000 px/s², and rebaselines gaps over 0.1 seconds or jumps over 300px. Constant velocity produces no force. Use explicit `teleport` for discontinuities; pass `setAcceleration` for deterministic authored tests.
+`step` uses fixed 1/120-second substeps and accepts at most 0.1 seconds per call. Excess elapsed time is dropped. `sampleHost({x,y,time,teleport})` smooths measured velocity over 60 ms before deriving acceleration from translation samples, ignores the first two derivative samples, clamps acceleration to ±6000 px/s², and rebaselines gaps over 0.1 seconds or jumps over 300px. Constant velocity produces no force. Use explicit `teleport` for discontinuities; pass `setAcceleration` for deterministic authored tests.
 
 Input and acceleration history is retained for the first 60 seconds, up to 20,000 events. `seek(0..60)` resets and replays that history using fixed steps, without emitting duplicate application events. Editing input after seeking discards future recorded events. Replay is deterministic within the same JS runtime; cross-device bitwise identity is not promised. The current simulation has no stochastic operations, so scenario seed is fixed at zero. Reset creates initial playback state and clears history. It does not reapply React input props until they change.
+
+`previewClip(actorId, clipId, time, overrides?)` freezes an authored clip at a chosen time while the spring continues stepping. Overrides are finite joint channels; final joint limits apply. `clearPreview(actorId)` returns that actor to its state machine. These transient editor previews are not serialized or recorded in replay history. `animationPlaying = false` holds the state-machine animation clock while allowing spring simulation; `pause()` stops both. Replay assumes the animation clock is running.
+
+`renderSVG` and `mountSVG` accept `bones`, `limits`, `selectedActor`, and `selectedJoint` options for picking overlays and local-angle limit arcs. Studio clamps all rotation keys when tightening a joint limit; SDK callers must include any necessary key edits in the same transaction.
 
 ## Browser and React
 
 ```jsx
 import { Posecraft } from 'posecraft/react';
-<Posecraft scene={scene} inputs={{ona: {greeting: true}}}
+<Posecraft scene={scene} inputs={{ona: {action: 'wave', emotion: 'happy'}}}
   hostRef={modalRef} label="Ona waves hello"
   onEvent={event => console.log(event)} />
 ```

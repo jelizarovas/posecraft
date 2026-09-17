@@ -1,42 +1,56 @@
-import { chromium } from '@playwright/test';
+import {chromium} from '@playwright/test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-const browser = await chromium.launch({headless:true, ...(process.platform==='win32'?{channel:'msedge'}:{})});
-const page = await browser.newPage({viewport:{width:1440,height:1000}});
+import {assertDocument} from '../src/schema.js';
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+const page=await browser.newPage({viewport:{width:1366,height:768},reducedMotion:'no-preference'});
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
-const base=process.env.POSECRAFT_URL || 'http://127.0.0.1:5178';
+const base=(process.env.POSECRAFT_URL||'http://127.0.0.1:5178').replace(/\/$/,'');
 fs.mkdirSync('test-results',{recursive:true});
+const saved=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('posecraft.studio.v2')));
+const rotation=selector=>page.locator(selector).first().getAttribute('transform').then(v=>Number(v.match(/rotate\(([^)]+)\)/)[1]));
+async function noOverflow(){assert.ok(await page.evaluate(()=>document.documentElement.scrollHeight<=innerHeight+1&&document.documentElement.scrollWidth<=innerWidth+1),'page must fit viewport');}
+async function dragCard(selector,root){const box=await page.locator(selector).boundingBox();await page.mouse.move(box.x+40,box.y+40);await page.mouse.down();const samples=[];for(let i=0;i<=12;i++){await page.mouse.move(box.x+40+i*10,box.y+40);await page.waitForTimeout(20);samples.push(await rotation(root));}await page.mouse.up();for(let i=0;i<12;i++){await page.waitForTimeout(40);samples.push(await rotation(root));}return samples;}
 try {
- await page.goto(base);await page.locator('[data-part]').first().waitFor();
- await page.screenshot({path:'test-results/studio.png',fullPage:true});
- assert.equal(await page.locator('[data-actor="ona"]').count(),1);
- await page.locator('#greet').click();assert.equal(await page.locator('#clip').inputValue(),'wave');await page.locator('#reset').click();
- await page.locator('#actor-name').fill('Ona test');await page.locator('#actor-name').press('Tab');
- await page.locator('#duplicate').click();assert.equal(await page.locator('#art [data-actor]').count(),2);
- await page.locator('#undo').click();assert.equal(await page.locator('#art [data-actor]').count(),1);
- await page.locator('#redo').click();assert.equal(await page.locator('#art [data-actor]').count(),2);
- await page.locator('#clip').selectOption('wave');
- await page.locator('#scrub').fill('0.45');await page.locator('#scrub').dispatchEvent('input');
- await page.locator('#rotation').fill('-100');await page.locator('#rotation').dispatchEvent('input');
- await page.locator('#add-key').click();
- const saved = await page.evaluate(()=>JSON.parse(localStorage.getItem('posecraft.studio.v1')));
- assert.ok(saved.packs.ona.clips.wave.tracks['rightArm.rotation'].some(([t,v])=>t===.45&&v===-100));
- await page.reload();await page.locator('[data-part]').first().waitFor();assert.equal(await page.locator('#art [data-actor]').count(),2);
- await page.locator('#states-tab').click();await page.locator('#blend').fill('0.4');await page.locator('#blend').press('Tab');
- const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;await download.saveAs('test-results/roundtrip.json');
- const exported=JSON.parse(fs.readFileSync('test-results/roundtrip.json'));assert.equal(exported.packs.ona.states.idle.transitions[0].duration,.4);
- await page.locator('#file').setInputFiles('test-results/roundtrip.json');await page.waitForTimeout(200);assert.equal(await page.locator('#art [data-actor]').count(),2);
- await page.locator('#file').setInputFiles({name:'invalid.json',mimeType:'application/json',buffer:Buffer.from('{"schemaVersion":99}')});await page.waitForTimeout(100);assert.equal(await page.locator('#art [data-actor]').count(),2);
- await page.goto(base+'/react-demo.html');await page.locator('[data-posecraft] svg').waitFor();
- await page.getByRole('button',{name:'Wave',exact:true}).click();await page.waitForTimeout(400);assert.match(await page.locator('.event-log').textContent(),/idle → wave/);
- const root=page.locator('[data-posecraft] [data-joint="root"]').first();const before=await root.getAttribute('transform');
- const box=await page.locator('.react-modal').boundingBox();await page.mouse.move(box.x+box.width/2,box.y+25);await page.mouse.down();await page.mouse.move(box.x+box.width/2+110,box.y+25,{steps:12});await page.mouse.up();await page.waitForTimeout(100);const after=await root.getAttribute('transform');assert.notEqual(before,after);
- await page.getByRole('button',{name:'Unmount',exact:true}).click();assert.equal(await page.locator('[data-posecraft] svg').count(),0);await page.getByRole('button',{name:'Mount',exact:true}).click();await page.locator('[data-posecraft] svg').waitFor();assert.equal(await page.locator('[data-posecraft] svg').count(),1);
- await page.locator('[aria-label="Container width"]').fill('320');await page.locator('[aria-label="Container width"]').dispatchEvent('input');
- await page.screenshot({path:'test-results/react.png',fullPage:true});
- await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(100);const still=await root.getAttribute('transform');await page.waitForTimeout(300);assert.equal(await root.getAttribute('transform'),still);
- await page.goto(base+'/wwwzard.html');await page.locator('svg').waitFor();await page.getByPlaceholder('Type here and watch his hands...').pressSequentially('hello');await page.screenshot({path:'test-results/wwwzard.png',fullPage:true});
- await page.setViewportSize({width:390,height:844});await page.goto(base);await page.locator('[data-part]').first().waitFor();await page.screenshot({path:'test-results/mobile.png',fullPage:true});
- assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'mobile layout has horizontal overflow');
- assert.deepEqual(errors,[]);console.log('Browser checks passed: editor edit/undo/redo, keys, local recovery, export/import, invalid import, React input/events, inertia, remount, resize, reduced motion, wwwzard typing, mobile layout.');
-} finally { await browser.close(); }
+ await page.goto(base);await page.locator('#art [data-part]').first().waitFor();await page.locator('#reset').click();await noOverflow();
+ await page.evaluate(()=>document.fonts.ready);assert.ok(await page.evaluate(()=>document.fonts.check('20px "Material Symbols Outlined"')),'self-hosted Material icons load');
+ assert.equal(await page.locator('#demo-action option').count(),13);assert.equal(await page.locator('#emotion option').count(),8);
+ await page.screenshot({path:'test-results/studio.png'});
+ await page.locator('#motion-policy').selectOption('full');await page.locator('#drag-tool').click();
+ const samples=await dragCard('#stage','#art [data-bone="root"]');
+ const peak=Math.max(...samples.map(Math.abs));assert.ok(peak>2,`actual drag must visibly react (>2 degrees), got ${peak}`);assert.ok(peak<=25);
+ await page.waitForTimeout(3000);assert.ok(Math.abs(await rotation('#art [data-bone="root"]'))<.1,'reaction settles');console.log('Studio actual drag peak:',peak.toFixed(2),'degrees');
+ await page.locator('#motion-policy').selectOption('reduced');await page.locator('#reset').click();const still=await dragCard('#stage','#art [data-bone="root"]');assert.ok(still.every(v=>v===0));
+ await page.locator('#reset').click();await page.locator('#motion-policy').selectOption('full');await page.locator('#select-tool').click();
+ // Select artwork directly, rotate its handle, then save a precise key.
+ await page.locator('[data-select-joint="root"]').click();const fb=await page.locator('#art [data-part="face-0"]').boundingBox();await page.mouse.click(fb.x+fb.width/2,fb.y+15);assert.equal(await page.locator('.inspector-heading').innerText(),'Head\nOna');
+ const handle=page.locator('#art [data-handle="head"]');const hb=await handle.boundingBox();const before=Number(await page.locator('#rotation-number').inputValue());await page.mouse.move(hb.x+hb.width/2,hb.y+hb.height/2);await page.mouse.down();await page.mouse.move(hb.x+hb.width/2-8,hb.y+hb.height/2+25,{steps:8});await page.mouse.up();const after=Number(await page.locator('#rotation-number').inputValue());assert.ok(Math.abs(after-before)>5,'canvas handle changes joint rotation');
+ await page.locator('#demo-action').selectOption('wave');await page.locator('[data-select-joint="rightArm"]').click();await page.locator('#key-time').fill('0.45');await page.locator('#key-time').press('Tab');await page.locator('[data-select-joint="head"]').click();await page.locator('#rotation-number').fill('9');await page.locator('#rotation-number').dispatchEvent('input');await page.locator('[data-select-joint="rightArm"]').click();await page.locator('#rotation-number').fill('-100');await page.locator('#rotation-number').dispatchEvent('input');await page.locator('#add-key').click();
+ let d=await saved();assert.ok(d.packs.ona.clips.wave.tracks['rightArm.rotation'].some(([t,v])=>t===.45&&v===-100));assert.ok(d.packs.ona.clips.wave.tracks['head.rotation'].some(([t,v])=>t===.45&&v===9),'all drafted body parts are keyed together');
+ await page.locator('#limit-min').fill('-60');await page.locator('#limit-min').press('Tab');d=await saved();assert.equal(d.packs.ona.joints.find(j=>j.id==='rightArm').min,-60);assert.ok(Object.values(d.packs.ona.clips).every(c=>(c.tracks['rightArm.rotation']||[]).every(([,v])=>v>=-60)));
+ await page.locator('#undo').click();assert.equal((await saved()).packs.ona.joints.find(j=>j.id==='rightArm').min,-120);await page.locator('#redo').click();assert.equal((await saved()).packs.ona.joints.find(j=>j.id==='rightArm').min,-60);assert.equal(await page.locator('[data-limit="rightArm"]').count(),1);
+ await page.locator('[data-panel="look"]').click();await page.locator('#hair').selectOption('bob');await page.locator('[data-color="eyes"]').fill('#4488cc');await page.locator('[data-color="eyes"]').dispatchEvent('change');await page.locator('#emotion').selectOption('happy');
+ assert.equal((await saved()).actors[0].inputs.hair,'bob');assert.equal((await saved()).actors[0].appearance.eyes,'#4488cc');assert.ok(await page.locator('#art path[fill="#4488cc"]').count()>=2);
+ const happy=await page.locator('#art').innerHTML();await page.locator('#emotion').selectOption('sad');assert.notEqual(await page.locator('#art').innerHTML(),happy);
+ await page.locator('#actor-name').fill('Ona test');await page.locator('#actor-name').press('Tab');await page.locator('#duplicate').click();assert.equal(await page.locator('#art [data-actor]').count(),2);await page.locator('#undo').click();assert.equal(await page.locator('#art [data-actor]').count(),1);
+ for(const id of ['wwwzard','rusty']){await page.locator(`[data-add="${id}"]`).click();assert.equal(await page.locator('#demo-action option').count(),id==='wwwzard'?10:8);}
+ assert.equal(await page.locator('#art [data-actor]').count(),3);await page.reload();await page.locator('#art [data-part]').first().waitFor();assert.equal(await page.locator('#art [data-actor]').count(),3);
+ await page.locator('#actors').selectOption('ona');await page.locator('#demo-action').selectOption('idle');await page.locator('#states-tab').click();await page.locator('#blend').fill('0.4');await page.locator('#blend').press('Tab');
+ const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();await(await downloadPromise).saveAs('test-results/roundtrip.json');const exported=assertDocument(JSON.parse(fs.readFileSync('test-results/roundtrip.json')));assert.equal(exported.packs.ona.states.idle.transitions[0].duration,.4);assert.equal(exported.actors[0].inputs.hair,'bob');
+ await page.locator('#file').setInputFiles('test-results/roundtrip.json');await page.waitForTimeout(200);assert.equal(await page.locator('#art [data-actor]').count(),3);
+ const hostile=structuredClone(exported);hostile.packs.ona.inputs.emotion.options.push('<img src=x onerror="alert(1)">');hostile.packs.ona.inputs.hair.options.push('<img src=x onerror="alert(1)">');
+ await page.locator('#file').setInputFiles({name:'literal-label.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(hostile))});await page.locator('[data-panel="look"]').click();assert.equal(await page.locator('img[src="x"]').count(),0);await page.locator('#file').setInputFiles('test-results/roundtrip.json');
+ await page.locator('#file').setInputFiles({name:'invalid.json',mimeType:'application/json',buffer:Buffer.from('{"schemaVersion":99}')});await page.waitForTimeout(100);assert.equal(await page.locator('#art [data-actor]').count(),3);
+ await page.setViewportSize({width:1440,height:900});await noOverflow();
+ await page.setViewportSize({width:390,height:844});await page.reload();await page.locator('#art [data-part]').first().waitFor();await noOverflow();assert.equal(await page.locator('.sidebar.left').isVisible(),false);assert.equal(await page.locator('.sidebar.right').isVisible(),false);await page.locator('#scene-panel').click();assert.equal(await page.locator('.sidebar.left').isVisible(),true);await page.locator('#scene-panel').click();await page.screenshot({path:'test-results/mobile.png'});await page.locator('#inspector-panel').click();await page.locator('[data-panel="pose"]').click();assert.ok((await page.locator('#turn').boundingBox()).y<844-138-23);await page.screenshot({path:'test-results/mobile-inspector.png'});
+ // Separate consumer exercises the same assets, states, variants, and real host measurement.
+ await page.setViewportSize({width:1366,height:768});await page.goto(base+'/react-demo.html');await page.locator('[data-posecraft] svg').waitFor();await page.getByLabel('Demo motion').selectOption('full');await page.getByLabel('Demo action').selectOption('wave');await page.waitForTimeout(400);assert.match(await page.locator('.event-log').textContent(),/idle → wave/);
+ await page.getByLabel('Demo action').selectOption('idle');await page.waitForTimeout(400);
+ const reactSamples=await dragCard('.react-modal','[data-posecraft] [data-joint="root"]');const reactPeak=Math.max(...reactSamples.map(Math.abs));assert.ok(reactPeak>2,`React drag peak ${reactPeak}`);console.log('React actual drag peak:',reactPeak.toFixed(2),'degrees');
+ await page.getByLabel('Demo hair').selectOption('ponytail');await page.getByLabel('Demo emotion').selectOption('excited');await page.screenshot({path:'test-results/react.png'});
+ for(const id of ['wwwzard','rusty']){await page.getByLabel('Demo character').selectOption(id);await page.locator(`[data-posecraft] [data-actor="${id}"]`).waitFor();await page.getByLabel('Demo action').selectOption(id==='wwwzard'?'celebrate':'wag');await page.waitForTimeout(350);assert.match(await page.locator('.event-log').textContent(),new RegExp(id));}
+ await page.getByRole('button',{name:'Unmount',exact:true}).click();assert.equal(await page.locator('[data-posecraft] svg').count(),0);await page.getByRole('button',{name:'Mount',exact:true}).click();await page.locator('[data-posecraft] svg').waitFor();
+ await page.getByLabel('Container width').fill('320');await page.getByLabel('Container width').dispatchEvent('input');await page.getByLabel('Demo motion').selectOption('system');await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(100);const root='[data-posecraft] [data-joint="root"]';const staticPose=await rotation(root);await page.waitForTimeout(300);assert.equal(await rotation(root),staticPose);
+ await page.goto(base+'/wwwzard.html');await page.locator('svg').waitFor();await page.getByPlaceholder('Type here and watch his hands...').pressSequentially('hello');
+ assert.deepEqual(errors,[]);console.log('Browser checks passed: visible actual drag and settling, still preview, artwork selection/handle rotation, keyframes, joint limits/undo, appearance, all three characters, round trip, compact desktop/mobile, React states/variants/remount/reduced motion, original wizard.');
+}finally{await browser.close();}

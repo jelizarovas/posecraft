@@ -1,4 +1,4 @@
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia'], unavailable: ['contacts', 'ragdoll', 'fluids', 'mesh-deformation', 'svg-import', 'attachments'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions'], unavailable: ['contacts', 'ragdoll', 'fluids', 'mesh-deformation', 'svg-import', 'attachments'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -58,6 +58,17 @@ function validateStructure(doc) {
       if (part.strokeWidth !== undefined) check(finite(part.strokeWidth, 0, 30), `${p}.parts.${part.id}.strokeWidth`, 'Invalid stroke width.');
       if (part.transform !== undefined) check(typeof part.transform === 'string' && part.transform.length < 300 && /^(\s*(translate|scale|rotate|matrix)\(\s*[-+0-9.eE,\s]+\)\s*)*$/.test(part.transform), `${p}.parts.${part.id}.transform`, 'Only numeric SVG transforms are supported.');
       if (part.channel !== undefined) check(safeId.test(part.channel), `${p}.parts.${part.id}.channel`, 'Invalid appearance channel.');
+      if (part.variants !== undefined) {
+        const input = pack.inputs[part.variantInput];
+        check(record(part.variants) && input?.type === 'string', `${p}.parts.${part.id}.variants`, 'Variants require a string input.');
+        for (const [name, variant] of Object.entries(part.variants || {})) {
+          check(input?.options?.includes(name) && record(variant), `${p}.parts.${part.id}.variants.${name}`, 'Unknown variant.');
+          if (variant.d !== undefined) check(typeof variant.d === 'string' && variant.d.length <= 200000 && /^[MmZzLlHhVvCcSsQqTtAaEe0-9.,+\s-]+$/.test(variant.d), `${p}.parts.${part.id}.variants.${name}.d`, 'Invalid variant geometry.');
+          if (variant.transform !== undefined) check(typeof variant.transform === 'string' && variant.transform.length < 300 && /^(\s*(translate|scale|rotate|matrix)\(\s*[-+0-9.eE,\s]+\)\s*)*$/.test(variant.transform), `${p}.parts.${part.id}.variants.${name}.transform`, 'Invalid variant transform.');
+          if (variant.visible !== undefined) check(typeof variant.visible === 'boolean', `${p}.parts.${part.id}.variants.${name}.visible`, 'Expected boolean.');
+        }
+      }
+      if (part.showWhen) check(Object.hasOwn(pack.inputs, part.showWhen.input) && typeof part.showWhen.equals === pack.inputs[part.showWhen.input].type, `${p}.parts.${part.id}.showWhen`, 'Invalid visibility condition.');
     }
     for (const [id, input] of Object.entries(pack.inputs)) {
       check(safeId.test(id), `${p}.inputs.${id}`, 'Invalid input ID.');
@@ -85,6 +96,15 @@ function validateStructure(doc) {
       }
     }
     if (pack.reaction) check(joints.has(pack.reaction.joint) && finite(pack.reaction.strength, 0, 2) && finite(pack.reaction.stiffness, 10, 200) && finite(pack.reaction.damping, 2, 40), `${p}.reaction`, 'Invalid spring settings.');
+    if (pack.appearanceDefaults !== undefined) {
+      check(record(pack.appearanceDefaults), `${p}.appearanceDefaults`, 'Expected color channel defaults.');
+      for (const [name, value] of Object.entries(pack.appearanceDefaults)) check(safeId.test(name) && colors.test(value), `${p}.appearanceDefaults`, 'Invalid color channel default.');
+    }
+    const channels = new Set(pack.joints.flatMap(j => ['x','y','rotation'].map(prop => `${j.id}.${prop}`)));
+    for (const [emotion, pose] of Object.entries(pack.expressions || {})) {
+      check(pack.inputs.emotion?.options?.includes(emotion) && record(pose), `${p}.expressions.${emotion}`, 'Expression needs an emotion input.');
+      for (const [key, value] of Object.entries(pose)) check(channels.has(key) && finite(value,-180,180), `${p}.expressions.${emotion}.${key}`, 'Invalid expression channel.');
+    }
   }
   const actorIds = new Set();
   for (const a of doc.actors) {
@@ -94,6 +114,10 @@ function validateStructure(doc) {
     check(Object.hasOwn(doc.packs, a.pack), `actors.${a.id}.pack`, 'Missing pack.');
     check(record(a.transform) && finite(a.transform.x) && finite(a.transform.y) && finite(a.transform.scale, .05, 10) && finite(a.transform.rotation, -180, 180), `actors.${a.id}.transform`, 'Invalid transform.');
     if (a.appearance) for (const value of Object.values(a.appearance)) check(colors.test(value), `actors.${a.id}.appearance`, 'Expected hex color.');
+    for (const [name, value] of Object.entries(a.inputs || {})) {
+      const spec = doc.packs[a.pack]?.inputs?.[name];
+      check(spec && typeof value === spec.type && (!spec.options || spec.options.includes(value)) && (spec.type !== 'number' || finite(value, spec.min, spec.max)), `actors.${a.id}.inputs.${name}`, 'Invalid actor input.');
+    }
   }
   return { valid: errors.length === 0, errors };
 }

@@ -1,4 +1,4 @@
-import { AnimationController, clamp, forwardKinematics, constrainPose } from './index.js';
+import { AnimationController, clamp, forwardKinematics, constrainPose, sampleClip } from './index.js';
 import { assertDocument } from './schema.js';
 export const STEP = 1 / 120;
 
@@ -11,12 +11,13 @@ export function compilePack(pack) {
 export class SceneController {
   constructor(document, { reducedMotion = false } = {}) {
     this.document = structuredClone(assertDocument(document)); this.reducedMotion = reducedMotion;
-    this.listeners = new Set(); this.log = []; this.playing = true; this.reset();
+    this.listeners = new Set(); this.log = []; this.playing = true; this.animationPlaying = true; this.reset();
   }
   reset() {
     this.log = [];
     this.actors = this.document.actors.map(actor => {
       const pack = this.document.packs[actor.pack], runtime = new AnimationController(compilePack(pack));
+      for (const [name, value] of Object.entries(actor.inputs || {})) runtime.setInput(name, value);
       runtime.subscribe(event => { if (!this.replaying) for (const fn of this.listeners) fn({ ...event, actor: actor.id }); });
       return { actor, pack, runtime, spring: { x: 0, y: 0, vx: 0, vy: 0 } };
     });
@@ -24,6 +25,14 @@ export class SceneController {
     return this.frame();
   }
   subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
+  previewClip(actorId, clip, time, overrides = {}) {
+    const a = this.actors.find(a => a.actor.id === actorId);
+    if (!a || !a.pack.clips[clip] || !Number.isFinite(time) || time < 0 || time > a.pack.clips[clip].duration) throw new Error('Invalid clip preview.');
+    for (const [key, value] of Object.entries(overrides)) if (!Object.hasOwn(a.runtime.definition.defaults, key) || !Number.isFinite(value)) throw new Error('Invalid pose override.');
+    a.preview = { clip, time, overrides: { ...overrides } };
+    return this.frame();
+  }
+  clearPreview(actorId) { const a = this.actors.find(a => a.actor.id === actorId); if (a) a.preview = null; }
   setInput(actorId, name, value) {
     const actor = this.actors.find(a => a.actor.id === actorId); if (!actor) throw new Error(`Missing actor ${actorId}`);
     actor.runtime.setInput(name, value);
@@ -48,7 +57,12 @@ export class SceneController {
     if (teleport || !old || dt <= 0 || dt > .1 || Math.hypot(x - old.x, y - old.y) > 300) {
       this.baseline = { x, y, time, vx: null, vy: null }; this.setAcceleration(0, 0); return;
     }
-    const vx = (x - old.x) / dt, vy = (y - old.y) / dt;
+    // Pointer events and animation frames arrive on different clocks. Smooth velocity
+    // before differentiating so alternating move/empty frames do not cancel the impulse.
+    const blend = 1 - Math.exp(-dt / .06);
+    const rawX = (x - old.x) / dt, rawY = (y - old.y) / dt;
+    const vx = old.vx === null ? rawX : old.vx + (rawX - old.vx) * blend;
+    const vy = old.vy === null ? rawY : old.vy + (rawY - old.vy) * blend;
     this.setAcceleration(old.vx === null ? 0 : (vx - old.vx) / dt, old.vy === null ? 0 : (vy - old.vy) / dt);
     this.baseline = { x, y, time, vx, vy };
   }
@@ -65,13 +79,13 @@ export class SceneController {
   tick() {
     this.time += STEP;
     for (const a of this.actors) {
-      a.runtime.step(this.reducedMotion ? 0 : STEP);
+      a.runtime.step(this.reducedMotion || !this.animationPlaying ? 0 : STEP);
       if (this.reducedMotion) { a.runtime.layers.forEach(layer => layer.transition = null); a.runtime.frame = a.runtime.evaluate(); }
       const r = a.pack.reaction, s = a.spring;
       if (r && !this.reducedMotion) {
         for (const axis of ['x', 'y']) {
           const v = 'v' + axis;
-          s[v] += (-this.motion['a' + axis] * .012 * r.strength - r.stiffness * s[axis] - r.damping * s[v]) * STEP;
+          s[v] += (-this.motion['a' + axis] * .6 * r.strength - r.stiffness * s[axis] - r.damping * s[v]) * STEP;
           s[axis] = clamp(s[axis] + s[v] * STEP, -15, 15);
           if (Math.abs(s[axis]) === 15) s[v] = 0;
         }
@@ -79,15 +93,17 @@ export class SceneController {
     }
   }
   frame() {
-    return { time: this.time, actors: this.actors.map(({ actor, pack, runtime, spring }) => {
-      let pose = { ...runtime.frame.pose };
+    return { time: this.time, actors: this.actors.map(({ actor, pack, runtime, spring, preview }) => {
+      let pose = preview ? { ...runtime.definition.defaults, ...sampleClip({ ...pack.clips[preview.clip], loop: false }, preview.time), ...preview.overrides } : { ...runtime.frame.pose };
+      for (const [key, value] of Object.entries(pack.expressions?.[runtime.inputs.emotion] || {})) pose[key] += value;
       if (pack.reaction && !this.reducedMotion) {
         const key = pack.reaction.joint;
         pose[`${key}.rotation`] += spring.x;
+        pose[`${key}.x`] += spring.x * 1.2;
         pose[`${key}.y`] += spring.y;
-        pose = constrainPose(runtime.joints, pose);
       }
-      return { id: actor.id, pose, world: forwardKinematics(runtime.joints, pose), state: runtime.layers[0].state, spring: { ...spring } };
+      pose = constrainPose(runtime.joints, pose);
+      return { id: actor.id, pose, inputs: { ...runtime.inputs }, world: forwardKinematics(runtime.joints, pose), state: preview?.clip || runtime.layers[0].state, spring: { ...spring } };
     }) };
   }
   seek(time) {

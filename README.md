@@ -15,13 +15,22 @@ Open the localhost address printed by Vite. `npm run build` creates the static G
 
 ## What works in 0.1
 
-- Studio with Ona's original SVG parts, editable joint poses and keyframes, idle/greeting states, transition blending, per-instance color and placement, undo/redo, local recovery, JSON open/save/export.
+- One-screen Studio with Material icons, selectable body parts, draggable rotation handles, joint-limit arcs and editable limits, keyframes, transition blending, undo/redo, local recovery, and JSON open/save/export.
+- Ona (13 actions), wwwzard (10 actions), and Rusty (8 seated actions), each with eight emotions. Ona includes six hair options. Appearance and input settings are independent per character.
 - Shared portable scene compiler, SVG renderer, and fixed-step inertial response to a moving container.
 - React and plain browser adapters with input/events, automatic sizing, reduced motion, offscreen/hidden suspension, and disposal.
 - Agent SDK, CLI, [repo skill](skills/posecraft/SKILL.md), [API docs](docs/api.md), and TypeScript declarations for the new scene APIs.
 - Preserved wwwzard example with its original artwork, action layers, keyboard targets, and robe simulation.
 
-This is the first MVP. Ona's arms rotate at the shoulder. Contact-aware planting, ragdolls, quadrupeds, fluids and the ship in a bottle remain required later milestones. See the [scope and requirements mapping](docs/mvp-status.md) and [full product brief](POSECRAFT_REQUIREMENTS.md). wwwzard's code-based definition is not yet a portable Studio pack. Ukis has not been migrated.
+This is the first MVP. Ona's arms rotate at the shoulder. Contact-aware planting, ragdolls, quadruped locomotion, fluids and the ship in a bottle remain required later milestones. See the [scope and requirements mapping](docs/mvp-status.md) and [full product brief](POSECRAFT_REQUIREMENTS.md). The portable wwwzard pack uses sampled actions, solid fills, and rigid sleeves; the original demo retains procedural cloth and typing. Ukis has not been migrated.
+
+## Studio controls
+
+Select a body part on the canvas or in the left list. Drag its purple handle or change Rotation, move the playhead, and press **+** to save keyframes for the parts you posed. The Pose tab exposes minimum/maximum angles and pivot coordinates. Tightening limits clamps existing rotation keys in the same undoable edit.
+
+Use **Look** for hair and colors, and **Motion** for spring settings. Use the hand tool or drag empty card space to test container reactions. The motion selector shows whether device preferences have disabled motion; choose **Motion on** for an explicit preview. The timeline can remain paused while the spring reacts. On narrow screens, the top scene and inspector buttons reveal each panel.
+
+Drafts use `posecraft.studio.v2`. The previous draft is preserved and can be opened from the **…** menu; a backup of the current project downloads first.
 
 ## Embed a scene
 
@@ -32,7 +41,7 @@ import { Posecraft } from 'posecraft/react';
 import scene from './my-scene.posecraft.json';
 
 <div style={{ width: 400, height: 250 }}>
-  <Posecraft scene={scene} inputs={{ ona: { greeting: true } }}
+  <Posecraft scene={scene} inputs={{ ona: { action: 'wave', emotion: 'happy' } }}
     label="Ona waves hello" onEvent={console.log} />
 </div>
 ```
@@ -43,9 +52,9 @@ For a moving modal, supply its ref as `hostRef`. The [API](docs/api.md) describe
 
 ```sh
 node tools/cli.mjs capabilities
-node tools/cli.mjs inspect examples/ona.posecraft.json
-node tools/cli.mjs validate examples/ona.posecraft.json
-node tools/cli.mjs preview examples/ona.posecraft.json preview.svg 0.5
+node tools/cli.mjs inspect examples/characters/ona.json
+node tools/cli.mjs validate examples/characters/ona.json
+node tools/cli.mjs preview examples/characters/ona.json preview.svg 0.5
 ```
 
 The command API used by Studio is also available as `posecraft/commands`. The CLI supports revision-checked edits and repeatable input/acceleration scenarios. Read [skills/posecraft/SKILL.md](skills/posecraft/SKILL.md) for the agent workflow.
@@ -88,4 +97,4 @@ The Career OS portfolio consumes this folder as a sibling file dependency. Keep 
 
 ## License and attribution
 
-MIT, copyright 2026 Arnas. Ona's original MIT notice is retained in `examples/ONA-LICENSE`. wwwzard source was reused from the owner's portfolio. The bundled Studio uses React, Vite, Playwright and TypeScript under their package licenses. Roboto is distributed under the SIL Open Font License; its installed license ships in the static site's notices. User-imported artwork retains its own license.
+MIT, copyright 2026 Arnas. Ona's original MIT notice is retained in `examples/ONA-LICENSE`. wwwzard source was reused from the owner's portfolio. The bundled Studio uses React, Vite, Playwright and TypeScript under their package licenses. Roboto uses the SIL Open Font License. Material Symbols uses Apache 2.0. Both fonts are self-hosted with their license notices. Rusty's source artwork is retained from the same owner-provided character library as Ona. User-imported artwork retains its own license.
