@@ -21,6 +21,7 @@ export function removeSceneEntity(document,kind,id){
  const field={actor:'actors',prop:'props',emitter:'emitters'}[kind];if(!field)throw new Error('Unknown scene item.');
  const next=structuredClone(document);if(!next[field]?.some(n=>n.id===id))throw new Error('Missing scene item.');next[field]=next[field].filter(n=>n.id!==id);
  if(kind==='actor'){
+  if(next.fluid&&(next.fluid.vessel===id||next.fluid.contents===id)){delete next.fluid;if(next.requiredFeatures)next.requiredFeatures=next.requiredFeatures.filter(feature=>feature!=='bottle-fluid');}
   if(next.interactions)next.interactions=next.interactions.filter(b=>b.actor!==id);
   if(next.contacts)next.contacts=next.contacts.filter(c=>c.actor!==id&&!(c.target.type==='joint'&&c.target.actor===id));
   if(next.emitters)next.emitters=next.emitters.filter(e=>e.actor!==id);

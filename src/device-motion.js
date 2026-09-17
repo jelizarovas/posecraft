@@ -18,7 +18,7 @@ export class MotionSignal{
  sample(time){const decay=Math.exp(-Math.max(0,time-this.last-100)/120);return Object.fromEntries(Object.entries(this.value).map(([k,v])=>[k,v*decay]));}
 }
 export class PhoneMotion{
- constructor({onStatus=()=>{},environment=globalThis}={}){this.env=environment;this.onStatus=onStatus;this.signal=new MotionSignal();this.generation=0;this.enabled=false;this.sensitivity=1;}
+ constructor({onStatus=()=>{},environment=globalThis,signal=new MotionSignal()}={}){this.env=environment;this.onStatus=onStatus;this.signal=signal;this.generation=0;this.enabled=false;this.sensitivity=1;}
  async enable(){
   this.disable();const token=++this.generation,api=this.env.DeviceMotionEvent;
   if(!api){this.onStatus('Motion sensors are unavailable here. Use Shake scene.');return false;}

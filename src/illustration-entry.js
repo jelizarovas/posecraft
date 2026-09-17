@@ -3,6 +3,7 @@ import {mountIllustration} from './illustration.js';
 /** Load only the optional feature modules used by this scene. */
 export async function illustrationProviders(document){
   const providers={};
+  if(document.fluid){providers.fluidFactory=(await import('./bottle-fluid.js')).BottleFluid;providers.mountBottleControls=(await import('./bottle-browser.js')).mountBottleControls;}
   if(document.ensemble)providers.ensembleFactory=(await import('./ensemble.js')).CampfireEnsemble;
   if(document.contacts?.length)providers.contactSolver=(await import('./contacts.js')).applyContacts;
   if(document.behaviorGraph&&document.presentation!=='sequence')providers.behaviorFactory=(await import('./behaviors.js')).BehaviorRuntime;

@@ -1,3 +1,5 @@
+import {BottleFluid} from './bottle-fluid.js';
+import {validateFluidCommand} from './bottle-validation.js';
 import {ScenePointerInteraction} from './pointer-interactions.js';
 import {BehaviorRuntime,validateBehaviorEvent,validateBehaviorVariable} from './behaviors.js';
 import {applyContacts} from './contacts.js';
@@ -28,11 +30,18 @@ export class SceneController {
       runtime.subscribe(event => { if (!this.replaying) for (const fn of this.listeners) fn({ ...event, actor: actor.id }); });
       return { actor, pack, runtime, behavior:behaviorConfig(actor.behavior), response:{state:'calm',until:0}, physics:null,recovery:null,quiet:0, spring: { x: 0, y: 0, vx: 0, vy: 0 } };
     });
+    this.fluid=this.document.fluid?new BottleFluid(this.document):null;
     this.ensemble=this.document.ensemble?new CampfireEnsemble(this.document):null;
     this.time = 0; this.accumulator = 0; this.motion = { ax: 0, ay: 0 }; this.baseline = null;
     this.graph=null;this.graph=this.document.behaviorGraph&&this.document.presentation!=='sequence'?new BehaviorRuntime(this.document,{apply:(action,payload)=>this.applyGraphAction(action,payload)}):null;
     this.pointers=new ScenePointerInteraction(this.document,{dispatch:(event,payload)=>this.dispatch(event,payload)});
     for(const a of this.actors)if(a.behavior.autoRecover&&a.behavior.mode!=='floating'&&a.behavior.mode!=='animated'){a.recovery=new RecoveryMotion(this.document,a.actor,a.pack,this.frame().actors.find(f=>f.id===a.actor.id),{walkX:a.actor.transform.x});a.recovery.tick(1);}
+    return this.frame();
+  }
+  fluidInput(command){
+    if(!this.fluid)throw new Error('This scene has no bottle fluid.');const safe=validateFluidCommand(command);this.frame();this.fluid.command(safe);
+    const manualStep=this.replaying?!!this.replayFluidManualStep:this.reducedMotion||!this.playing||!this.animationPlaying;if(manualStep)this.fluid.tick(STEP);
+    if(!this.replaying){const previous=this.log.at(-1);if(['move','motion','wind'].includes(safe.type)&&previous?.type==='fluid'&&previous.time===this.time&&previous.command.type===safe.type&&!manualStep&&!previous.manualStep)previous.command=safe;else this.record({type:'fluid',command:safe,manualStep});}
     return this.frame();
   }
   pointer(command){this.frame();this.applyingPointer=true;try{this.pointers.input(command);}finally{this.applyingPointer=false;}if(!this.replaying)this.record({type:'pointer',command:{...command}});}
@@ -132,6 +141,7 @@ export class SceneController {
   }
   tick() {
     this.time += STEP;
+    if(this.fluid&&!this.reducedMotion&&this.animationPlaying)this.fluid.tick(STEP);
     if(this.graph&&this.ensemble){this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));if(this.ensemble.drainEvents)for(const {event,...payload} of this.ensemble.drainEvents())this.graph.dispatch(event,payload);}
     this.graph?.tick(STEP);
     this.pointers?.step(STEP);
@@ -185,7 +195,8 @@ export class SceneController {
       const clip=preview?.clip||pack.states[runtime.layers[0].state]?.clip,definition=pack.clips[clip],elapsed=preview?.time??runtime.layers[0].time,clipTime=preview?elapsed:definition?.loop?elapsed%definition.duration:Math.min(elapsed,definition?.duration??elapsed);
       return { id: actor.id, clip, clipTime, pose, inputs, world, response:response.state, physics:behavior.mode==='animated'?null:physics?.diagnostics||null, recovery:recovery?{phase:recovery.phase,blocked:recovery.blocked,target:{x:recovery.to.x,y:recovery.to.y}}:null,state: recovery?.phase==='walking'||recovery?.phase==='returning'?'walk':preview?.clip || runtime.layers[0].state, spring: { ...spring } };
     }) };
-    const evaluated=this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
+    let evaluated=this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
+    if(this.fluid)evaluated=this.fluid.apply(evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
     if(this.graph){evaluated.behavior=this.graph.snapshot();evaluated.emitterOverrides={...this.graph.emitterOverrides,...evaluated.emitterOverrides};}
     return applyContacts(this.document,this.pointers?.apply(evaluated)||evaluated);
   }
@@ -196,7 +207,7 @@ export class SceneController {
     this.animationPlaying=true;this.reducedMotion=false;
     this.replaying = true; this.reset(); let cursor = 0;
     try {
-      const apply = () => { while (cursor < log.length && log[cursor].time <= this.time + 1e-9) { const e = log[cursor++]; if(e.type==='pointer')this.pointer(e.command);else if(e.type==='dispatch')this.dispatch(e.event,e.payload);else if(e.type==='variable')this.setVariable(e.name,e.value);else if(e.type==='ensemble')this.triggerEnsemble(e.event,e.payload);else if (e.type === 'input') this.setInput(e.actor, e.name, e.value); else if(e.type==='behavior')this.setBehavior(e.actor,e.value);else if(e.type==='walk')this.walkTo(e.actor,e.x);else if(e.type==='interaction')this.interact(e.actor,e.interaction,e.strength);else this.setAcceleration(e.ax, e.ay); } };
+      const apply = () => { while (cursor < log.length && log[cursor].time <= this.time + 1e-9) { const e = log[cursor++]; if(e.type==='fluid'){this.replayFluidManualStep=e.manualStep;this.fluidInput(e.command);this.replayFluidManualStep=false;}else if(e.type==='pointer')this.pointer(e.command);else if(e.type==='dispatch')this.dispatch(e.event,e.payload);else if(e.type==='variable')this.setVariable(e.name,e.value);else if(e.type==='ensemble')this.triggerEnsemble(e.event,e.payload);else if (e.type === 'input') this.setInput(e.actor, e.name, e.value); else if(e.type==='behavior')this.setBehavior(e.actor,e.value);else if(e.type==='walk')this.walkTo(e.actor,e.x);else if(e.type==='interaction')this.interact(e.actor,e.interaction,e.strength);else this.setAcceleration(e.ax, e.ay); } };
       while (this.time + STEP <= time + 1e-9) { apply(); this.tick(); } apply();
     } finally { this.log = log; this.replaying = false; this.playing = wasPlaying;this.animationPlaying=wasAnimating;this.reducedMotion=wasReduced; }
     return this.frame();

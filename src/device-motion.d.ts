@@ -5,7 +5,7 @@ export class MotionSignal {
  sample(time:number):{ax:number;ay:number;turn:number};
 }
 export class PhoneMotion {
- constructor(options?:{onStatus?:(message:string)=>void;environment?:typeof globalThis});
+ constructor(options?:{onStatus?:(message:string)=>void;environment?:typeof globalThis;signal?:MotionSignal});
  readonly signal:MotionSignal;readonly enabled:boolean;sensitivity:number;
  enable():Promise<boolean>;disable():void;
 }

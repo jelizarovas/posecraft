@@ -1,3 +1,4 @@
+import type {FluidCommand} from './bottle-fluid.js';
 import type {PointerCommand} from './schema.js';
 import type {BehaviorPayload,BehaviorSnapshot} from './behaviors.js';
 import type {SceneDocument,BehaviorSettings} from './schema.js';
@@ -10,6 +11,7 @@ export class WorkerSceneController {
  readonly ready:Promise<WorkerSceneController>;readonly stats:WorkerStats;readonly time:number;document:SceneDocument;playing:boolean;animationPlaying:boolean;reducedMotion:boolean;motion:{ax:number;ay:number};size?:{width:number;height:number};
  onFrame?:(frame:Frame)=>void;
  frame():Frame;step(dt:number):Frame;reset():Frame;seek(time:number):Frame;
+ fluidInput(command:FluidCommand):void;
  pointer(command:PointerCommand):void;
  dispatch(event:string,payload?:BehaviorPayload):boolean;setVariable(name:string,value:boolean|number):void;
  triggerEnsemble(type:'conversation'|'doze'|'meteor'|'share'|'share-missed'|'share-help'|'burn'|'fire-off'|'fire-relight'|'fire-on'|'food-throw'|'face-shoo',payload?:BehaviorPayload):void;

@@ -1,3 +1,5 @@
+import type {BottleFluidConfig} from './bottle-fluid.js';
+export type {BottleFluidConfig,FluidCommand} from './bottle-fluid.js';
 import type {BehaviorGraph} from './behaviors.js';
 export interface SceneLighting {emitter?:string;shadowLength?:number;celThickness?:number;celIntensity?:number;type?:'directional'|'point';receiver?:'corner'|'floor';pointX?:number;pointY?:number;pointHeight?:number;range?:number;motion?:'none'|'orbit'|'flicker';motionRadius?:number;motionSpeed?:number;flicker?:number;showSource?:boolean;shading?:'gradient'|'cel';enabled?:boolean;angle?:number;elevation?:number;intensity?:number;ambient?:number;color?:string;shadowColor?:string;softness?:number;floorY?:number;wallY?:number;floorShadow?:number;wallShadow?:number;reflection?:number;gloss?:number}
 export interface Joint { id:string; parent:string|null; x:number; y:number; length:number; rotation:number; min:number; max:number }
@@ -17,7 +19,7 @@ export interface SceneEmitter {id:string;name:string;type:'flame'|'smoke'|'ember
 export interface SceneContact {id:string;name:string;enabled:boolean;actor:string;chain:{upper:string;lower:string;end:string};target:{type:'point';x:number;y:number}|{type:'joint';actor:string;joint:string;offsetX?:number;offsetY?:number};bend:1|-1;weight:number;start:number;end:number;period?:number;clip?:string;keepOrientation?:boolean}
 export interface PointerBinding {id:string;actor:string;joint?:string;part?:string;gesture:'click'|'drag'|'hover-fast';response:'event'|'carry'|'resist';event:string;resistance:number;threshold?:number}
 export interface PointerCommand {binding:string;phase:'start'|'move'|'end'|'cancel'|'click'|'hover';x:number;y:number}
-export interface SceneDocument {interactions?:PointerBinding[];presentation?:'live'|'sequence';behaviorGraph?:BehaviorGraph;contacts?:SceneContact[];groups?:SceneGroup[];emitters?:SceneEmitter[];ensemble?:{type:'campfire';seed:number;members:string[];sky:string}; lighting?:SceneLighting; schemaVersion:1;kind:'scene';id:string;name:string;revision:number;bounds:{width:number;height:number};requiredFeatures?:string[];packs:Record<string,CharacterPack>;actors:Actor[];props?:SceneProp[] }
+export interface SceneDocument {fluid?:BottleFluidConfig;interactions?:PointerBinding[];presentation?:'live'|'sequence';behaviorGraph?:BehaviorGraph;contacts?:SceneContact[];groups?:SceneGroup[];emitters?:SceneEmitter[];ensemble?:{type:'campfire';seed:number;members:string[];sky:string}; lighting?:SceneLighting; schemaVersion:1;kind:'scene';id:string;name:string;revision:number;bounds:{width:number;height:number};requiredFeatures?:string[];packs:Record<string,CharacterPack>;actors:Actor[];props?:SceneProp[] }
 export const capabilities: {schemaVersion:1;renderer:string;features:readonly string[];unavailable:readonly string[]};
 export function validateDocument(doc:unknown):{valid:boolean;errors:{path:string;message:string}[]};
 export function assertDocument(doc:unknown):SceneDocument;

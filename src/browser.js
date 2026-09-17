@@ -1,3 +1,4 @@
+import {mountBottleControls} from './bottle-browser.js';
 import {mountScenePointers} from './pointer-browser.js';
 import { SceneController } from './scene.js';
 import { mountSVG } from './svg.js';
@@ -32,9 +33,12 @@ export function mountScene(element, document, { host = element, reducedMotion = 
   media.addEventListener('change', policy);
   if (!autoplay) controller.pause();
   const pointers=mountScenePointers(element,document,controller,{onInteract:()=>{controller.play();schedule();},onUpdate:()=>renderer.update(controller.frame())});
+  const bottle=mountBottleControls(element,document,controller,{onInteract:()=>{controller.play();schedule();},onUpdate:()=>renderer.update(controller.frame())});
   schedule();
   return {
     controller,
+    enableMotion:()=>bottle.enableMotion(),disableMotion:()=>bottle.disableMotion(),
+    fluidInput(command){controller.fluidInput(command);renderer.update(controller.frame());},
     dispatch(event,payload){controller.dispatch(event,payload);renderer.update(controller.frame());},
     setVariable(name,value){controller.setVariable(name,value);},
     pointer(command){controller.pointer(command);renderer.update(controller.frame());},
@@ -46,6 +50,6 @@ export function mountScene(element, document, { host = element, reducedMotion = 
     pause() { controller.pause(); cancelAnimationFrame(raf); raf = 0; },
     reset() { renderer.update(controller.reset()); resetClock(); },
     seek(time) { renderer.update(controller.seek(time)); resetClock(); },
-    dispose() { pointers.dispose(); disposed = true; cancelAnimationFrame(raf); size.disconnect(); observer.disconnect(); media.removeEventListener('change', policy); globalThis.document.removeEventListener('visibilitychange', visibility); globalThis.removeEventListener('scroll', scroll, true); unsubscribe(); controller.dispose(); renderer.dispose(); }
+    dispose() { bottle.dispose();pointers.dispose(); disposed = true; cancelAnimationFrame(raf); size.disconnect(); observer.disconnect(); media.removeEventListener('change', policy); globalThis.document.removeEventListener('visibilitychange', visibility); globalThis.removeEventListener('scroll', scroll, true); unsubscribe(); controller.dispose(); renderer.dispose(); }
   };
 }

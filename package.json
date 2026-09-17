@@ -101,6 +101,14 @@
     "./illustration": {
       "types": "./src/illustration.d.ts",
       "default": "./src/illustration.js"
+    },
+    "./bottle-fluid": {
+      "types": "./src/bottle-fluid.d.ts",
+      "default": "./src/bottle-fluid.js"
+    },
+    "./bottle-browser": {
+      "types": "./src/bottle-browser.d.ts",
+      "default": "./src/bottle-browser.js"
     }
   },
   "bin": {
@@ -129,7 +137,8 @@
     "docs/contacts.md",
     "tools/build-export-runtimes.mjs",
     "tools/compile-scene.mjs",
-    "docs/live-scenes.md"
+    "docs/live-scenes.md",
+    "docs/fluids.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -164,7 +173,8 @@
     "test:behaviors": "node test/behaviors-browser.mjs",
     "test:live-studio": "node test/live-studio-browser.mjs",
     "test:scene-export": "node test/scene-export-browser.mjs",
-    "test:live-pointer": "node test/live-pointer-browser.mjs"
+    "test:live-pointer": "node test/live-pointer-browser.mjs",
+    "test:bottle-fluid": "node test/bottle-fluid-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

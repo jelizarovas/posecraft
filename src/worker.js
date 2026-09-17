@@ -1,3 +1,4 @@
+import {validateFluidCommand} from './bottle-validation.js';
 import {validateBehaviorEvent,validateBehaviorVariable,behaviorEnsembleEvents} from './behaviors.js';
 import {SceneController} from './scene.js';
 import {behaviorConfig,behaviorModes} from './physics.js';
@@ -6,7 +7,7 @@ import {behaviorConfig,behaviorModes} from './physics.js';
 // ones; ordered interactions stay bounded. No timer runs while the page sleeps.
 export class WorkerSceneController {
  constructor(document,{reducedMotion=false,onError}={}){
-  this.document=document;this.reducedMotion=reducedMotion;this.playing=true;this.animationPlaying=true;this.motion={ax:0,ay:0};this.listeners=new Set();this.queue=[];this.pendingDt=0;this.sequence=0;this.inFlight=false;this.started=false;this.disposed=false;this.paths=new Map();this.pathId=0;this.onError=onError;this.previewKeys=new Map();
+  this.document=document;this.reducedMotion=reducedMotion;this.playing=true;this.animationPlaying=true;this.motion={ax:0,ay:0};this.listeners=new Set();this.queue=[];this.pendingDt=0;this.sequence=0;this.inFlight=false;this.started=false;this.disposed=false;this.paths=new Map();this.pathId=0;this.onError=onError;this.previewKeys=new Map();this.fluidEpoch=0;
   this.stats={execution:'worker',computeMs:0,roundTripMs:0,droppedSeconds:0,pendingBatches:0};
   const initial=new SceneController(document,{reducedMotion});this.latest=initial.frame();initial.dispose();this.mirror();
   this.worker=new Worker(new URL('./simulation-worker.js',import.meta.url),{type:'module'});
@@ -29,6 +30,7 @@ export class WorkerSceneController {
  }
  fail(error){if(this.disposed)return;this.playing=false;this.rejectReady(error);for(const p of this.paths.values()){p.cleanup();p.reject(error);}this.paths.clear();this.worker.terminate();this.disposed=true;this.stats.execution='failed';this.onError?.(error);for(const fn of this.listeners)fn({type:'error',message:error.message});}
  command(method,args=[],coalesce){
+  if(method!=='fluidInput')this.fluidEpoch++;
   if(this.disposed)throw new Error('Simulation worker is unavailable.');
   if(coalesce){const index=this.queue.findIndex(c=>c.key===coalesce);if(index>=0)this.queue.splice(index,1);}
   if(this.queue.length>=128)throw new Error('Simulation command queue is full.');
@@ -46,6 +48,7 @@ export class WorkerSceneController {
  subscribe(fn){this.listeners.add(fn);return()=>this.listeners.delete(fn);}
  setInput(actor,name,value){const a=this.document.actors.find(a=>a.id===actor),spec=this.document.packs[a?.pack]?.inputs[name];if(!spec||typeof value!==spec.type||(spec.options&&!spec.options.includes(value))||(spec.type==='number'&&(!Number.isFinite(value)||value<spec.min||value>spec.max)))throw new Error('Invalid actor input.');this.command('setInput',[actor,name,value],`input:${actor}:${name}`);}
  setBehavior(actor,patch){const a=this.document.actors.find(a=>a.id===actor),b=behaviorConfig(patch);if(!a||!behaviorModes.includes(b.mode)||!['auto','brace','protect','curl'].includes(b.strategy)||typeof b.autoFace!=='boolean'||typeof b.autoRecover!=='boolean'||!Number.isFinite(b.resistance)||b.resistance<0||b.resistance>1||!Number.isFinite(b.gravity)||b.gravity<0||b.gravity>2||!Number.isFinite(b.bounce)||b.bounce<0||b.bounce>1)throw new Error('Invalid behavior settings.');this.command('setBehavior',[actor,patch]);}
+ fluidInput(command){if(!this.document.fluid)throw new Error('This scene has no bottle fluid.');const safe=validateFluidCommand(command),continuous=['move','motion','wind'].includes(safe.type);if(!continuous)this.fluidEpoch++;this.command('fluidInput',[safe],continuous?'fluid:'+this.fluidEpoch+':'+safe.type:undefined);}
  pointer(command){const b=this.document.interactions?.find(b=>b.id===command?.binding),phase=command?.phase;if(!b||!['start','move','end','cancel','click','hover'].includes(phase)||![command.x,command.y].every(n=>Number.isFinite(n)&&Math.abs(n)<=10000)||(['click','hover'].includes(phase)?b.gesture!==(phase==='click'?'click':'hover-fast'):b.gesture!=='drag'))throw Error('Invalid pointer interaction.');this.command('pointer',[{...command}],phase==='move'?'pointer:'+b.id:undefined);}
  dispatch(event,payload={}){const safe=validateBehaviorEvent(this.document,event,payload);if(!this.document.behaviorGraph||this.document.presentation==='sequence')return false;this.command('dispatch',[event,safe]);return true;}
  setVariable(name,value){validateBehaviorVariable(this.document.behaviorGraph,name,value);if(this.document.presentation==='sequence')return;this.command('setVariable',[name,value],`variable:${name}`);}

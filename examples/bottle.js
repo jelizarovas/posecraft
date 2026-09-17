@@ -5,6 +5,12 @@ const pack=name=>({name,spatial:true,joints:[joint('root',null)],parts:[],clips:
 const actor=(id,name,group,layer='characters')=>({id,name,pack:id,group,layer,unlit:true,transform:{x:0,y:0,scale:1,rotation:0},behavior:{mode:'animated',autoFace:false}});
 const outer='M205 108C151 108 115 146 115 204V235C115 288 151 326 205 326H496C541 326 557 300 579 276C594 260 613 254 637 254H680V180H637C613 180 594 175 579 159C557 134 541 108 496 108Z';
 const inner='M205 118C156 118 125 152 125 204V235C125 282 158 316 205 316H495C535 316 551 294 572 270C590 250 611 245 638 245H670V189H638C611 189 591 184 572 165C551 143 535 118 495 118Z';
+// The same closed interior used by the glass clip, sampled for volume/contact queries.
+export function bottleBoundary(){
+ const points=[{x:205,y:118}],line=(x,y)=>points.push({x,y});
+ const curve=(a,b,c,d,x,y)=>{const p=points.at(-1);for(let i=1;i<=8;i++){const t=i/8,u=1-t;line(+(u*u*u*p.x+3*u*u*t*a+3*u*t*t*c+t*t*t*x).toFixed(3),+(u*u*u*p.y+3*u*u*t*b+3*u*t*t*d+t*t*t*y).toFixed(3));}};
+ curve(156,118,125,152,125,204);line(125,235);curve(125,282,158,316,205,316);line(495,316);curve(535,316,551,294,572,270);curve(590,250,611,245,638,245);line(670,245);line(670,189);line(638,189);curve(611,189,591,184,572,165);curve(551,143,535,118,495,118);return points;
+}
 const wave=(amplitude,cycles=1,phase=0,offset=0)=>Array.from({length:25},(_,i)=>[i*.5,+(offset+amplitude*Math.sin(i/24*Math.PI*2*cycles+phase)).toFixed(5)||0,'smooth']);
 function setting(){
  const p=pack('Lamplit chart room');
@@ -29,8 +35,8 @@ function world(){
  const cloud='M-47 4Q-51-6-35-9Q-37-22-20-22Q-11-34 5-23Q22-30 30-12Q55-10 49 5Z';
  add('cloud-left','cloud-left',cloud,'#dce0cb');add('cloud-right','cloud-right',cloud,'#dae0cf',{transform:'scale(.65 .55)'});
  add('distant-island','root','M118 248Q145 223 174 237L196 249Q225 232 249 249Z','#6b9290');add('gulls','root','M427 151q7-8 14 0q7-8 14 0M200 198q5-5 10 0q5-5 10 0','none',{stroke:'#557d7d',strokeWidth:1.2});
- add('deep-water','root','M100 259Q260 248 410 255T699 254V336H100Z','#3b808b');
- add('rear-wave','wave-back','M75 275Q108 261 139 273T202 273T266 273T329 273T392 273T455 273T518 273T581 273T644 273T710 273V339H75Z','#65a3a2');
+ add('deep-water','root','M100 259Q260 248 410 255T699 254V336H100Z','#2d8eaca8');
+ add('rear-wave','wave-back','M75 275Q108 261 139 273T202 273T266 273T329 273T392 273T455 273T518 273T581 273T644 273T710 273V339H75Z','#4fb5c751');
  add('rear-foam','wave-back','M129 272q14-6 28 0M177 274q20-8 38-1M480 272q22-8 45 0M548 271q17-7 35 0','none',{stroke:'#d0ddc0aa',strokeWidth:1.6});
  add('ship-shadow','ship-rock',ellipse(3,18,133,7),'#1a556477');
  // Running rigging sits behind the cream canvas; standing stays cross in front.
@@ -51,7 +57,7 @@ function world(){
  for(let i=0;i<5;i++){const x=-76+i*35;add('porthole-'+i,'ship-rock',ellipse(x,-1,3,3),'#d3b278');add('porthole-dark-'+i,'ship-rock',ellipse(x,-1,1.7,1.7),'#30484b');}
  for(let i=0;i<3;i++)add('cabin-window-'+i,'ship-rock',`M${-98+i*11}-32h6v8h-6Z`,'#ddc996');
  add('ratlines','ship-rock','M-10-118L-49-16M-3-118L25-16M-39-43H16M-31-65H10M-24-85H4','none',{stroke:'#72654faa',strokeWidth:.8});
- add('front-wave','wave-front','M78 293Q111 281 146 293T214 293T282 293T350 293T418 293T486 293T554 293T622 293T690 293V335H78Z','#2c7280');add('front-wave-edge','wave-front','M114 291q20-7 37 1M176 292q21-9 45 0M247 291q21-6 40 0M412 291q19-7 39 0M478 291q25-8 47 1M551 291q18-6 36 0','none',{stroke:'#a7ccc3aa',strokeWidth:1.4});add('water-glints','wave-front','M210 309h32M257 304h15M460 307h41M527 303h14','none',{stroke:'#c4d8be66',strokeWidth:1});
+ add('front-wave','wave-front','M78 293Q111 281 146 293T214 293T282 293T350 293T418 293T486 293T554 293T622 293T690 293V335H78Z','#9ce7de24');add('front-wave-edge','wave-front','M114 291q20-7 37 1M176 292q21-9 45 0M247 291q21-6 40 0M412 291q19-7 39 0M478 291q25-8 47 1M551 291q18-6 36 0','none',{stroke:'#dcfff0c7',strokeWidth:1.4});add('water-glints','wave-front','M210 309h32M257 304h15M460 307h41M527 303h14','none',{stroke:'#c4d8be66',strokeWidth:1});
  p.clips={};p.states={};p.inputs.action={type:'string',default:'breeze',options:['calm','breeze','gust']};p.initial='breeze';
  for(const [name,strength,cycles] of [['calm',.35,1],['breeze',1,2],['gust',1.7,3]]){
   p.clips[name]={duration:12,loop:true,tracks:{'ship-rock.rotation':wave(2.8*strength,cycles),'ship-rock.y':wave(2.1*strength,cycles,.5),'main-sail.rotation':wave(1.4*strength,cycles,.9),'main-sail.bend':wave(.15*strength,cycles,.9,.42),'fore-sail.rotation':wave(2*strength,cycles,1.2),'fore-sail.bend':wave(.15*strength,cycles,1.2,.42),'pennant.rotation':wave(3.5*strength,cycles*2),'pennant.bend':wave(.28,cycles*3,0,.5),'wave-back.x':wave(12*strength,cycles,.8),'wave-back.y':wave(1.7*strength,cycles,.2),'wave-front.x':wave(10*strength,cycles,2.3),'wave-front.y':wave(1.5*strength,cycles,1.5),'cloud-left.x':wave(16*strength,1,.7),'cloud-right.x':wave(12*strength,1,2.2)}};
@@ -67,5 +73,5 @@ function glass(){
  return p;
 }
 export function createBottle(){
- return {schemaVersion:1,kind:'scene',id:'ship-in-a-bottle',name:'Ship in a bottle',revision:0,bounds:{width:800,height:450},requiredFeatures:['spatial-rig','scene-groups'],groups:[{id:'scenery',name:'Chart room',parent:null},{id:'bottle',name:'Bottle and stand',parent:'scenery'},{id:'sailing',name:'Ship and sea',parent:null}],packs:{setting:setting(),stand:stand(),ship:world(),glass:glass()},actors:[actor('setting','Chart room','scenery','background'),actor('stand','Walnut stand','bottle','background'),{...actor('ship','Ship and miniature sea','sailing'),inputs:{action:'breeze'}},actor('glass','Bottle and cork','bottle','foreground')],lighting:{enabled:false}};
+ return {schemaVersion:1,kind:'scene',id:'ship-in-a-bottle',name:'Ship in a bottle',revision:0,presentation:'live',fluid:{type:'bottle',vessel:'glass',contents:'ship',pivot:{x:400,y:220},boundary:bottleBoundary(),fill:.28,damping:.8,wind:.6,ship:{joint:'ship-rock',scale:.65,mass:1}},bounds:{width:800,height:450},requiredFeatures:['spatial-rig','scene-groups','bottle-fluid'],groups:[{id:'scenery',name:'Chart room',parent:null},{id:'bottle',name:'Bottle and stand',parent:'scenery'},{id:'sailing',name:'Ship and sea',parent:null}],packs:{setting:setting(),stand:stand(),ship:world(),glass:glass()},actors:[actor('setting','Chart room','scenery','background'),actor('stand','Walnut stand','bottle','background'),{...actor('ship','Ship and miniature sea','sailing'),inputs:{action:'breeze'}},actor('glass','Bottle and cork','bottle','foreground')],lighting:{enabled:false}};
 }

@@ -101,3 +101,10 @@ void BehaviorRuntime;void ScenePointerInteraction;void mountScenePointers;void I
 inspectSceneFeatures(scene);createSceneExport(scene,{runtimeBase:"https://example.com/runtime/"});
 player.dispatch("scene-event",{actor:"ona",x:10,y:20});player.setVariable("enabled",true);
 player.pointer({binding:"head-tug",phase:"start",x:10,y:20});
+
+import {BottleFluid,waterSurface} from "posecraft/bottle-fluid";
+import {BottleMotionSignal,mountBottleControls} from "posecraft/bottle-browser";
+void BottleFluid;void waterSurface;void BottleMotionSignal;void mountBottleControls;
+player.fluidInput({type:"wind",value:.8});
+declare const website:import("posecraft/browser").Player;website.enableMotion();website.disableMotion();
+background.fluidInput({type:"motion",ax:10,ay:0,turn:15,gravityX:0,gravityY:1});
