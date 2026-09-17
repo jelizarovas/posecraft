@@ -10,7 +10,9 @@
   },
   "requiredFeatures": [
     "appearance-variants",
-    "expressions"
+    "expressions",
+    "rigid-body-physics",
+    "response-states"
   ],
   "packs": {
     "wwwzard": {
@@ -315,6 +317,24 @@
             },
             "surprised": {
               "transform": "scale(1.25 1.2)"
+            },
+            "scared": {
+              "transform": "scale(1.25 1.2)"
+            },
+            "hurt": {
+              "transform": "scale(1 .12)"
+            },
+            "dizzy": {
+              "transform": "rotate(15) scale(1 .55)"
+            },
+            "focused": {
+              "transform": "scale(1 .6)"
+            },
+            "relieved": {
+              "transform": "scale(1 .45)"
+            },
+            "wink": {
+              "transform": "scale(1 .15)"
             }
           }
         },
@@ -352,7 +372,23 @@
             },
             "surprised": {
               "transform": "scale(1.25 1.2)"
-            }
+            },
+            "scared": {
+              "transform": "scale(1.25 1.2)"
+            },
+            "hurt": {
+              "transform": "scale(1 .12)"
+            },
+            "dizzy": {
+              "transform": "rotate(15) scale(1 .55)"
+            },
+            "focused": {
+              "transform": "scale(1 .6)"
+            },
+            "relieved": {
+              "transform": "scale(1 .45)"
+            },
+            "wink": {}
           }
         },
         {
@@ -428,6 +464,73 @@
           "fill": "#f2cdaa",
           "channel": "skin",
           "transform": "translate(7 0) scale(1 1)"
+        },
+        {
+          "id": "response-mouth",
+          "joint": "head",
+          "d": "M-7 0Q0 3 7 0",
+          "fill": "none",
+          "stroke": "#42313a",
+          "strokeWidth": 1.8,
+          "transform": "translate(3 31) scale(1)",
+          "variantInput": "emotion",
+          "variants": {
+            "neutral": {
+              "visible": false
+            },
+            "happy": {
+              "d": "M-8 -1Q0 10 8 -1"
+            },
+            "excited": {
+              "d": "M-7 0Q0 14 7 0Z"
+            },
+            "sad": {
+              "d": "M-7 4Q0 -3 7 4"
+            },
+            "angry": {
+              "d": "M-7 2L7 0"
+            },
+            "surprised": {
+              "d": "M-3 0A3 5 0 1 0 3 0A3 5 0 1 0 -3 0"
+            },
+            "sleepy": {
+              "d": "M-4 1L4 1"
+            },
+            "curious": {
+              "d": "M-6 2Q0 -1 6 1"
+            },
+            "scared": {
+              "d": "M-4 0A4 6 0 1 0 4 0A4 6 0 1 0 -4 0"
+            },
+            "hurt": {
+              "d": "M-8 3L-4 0L0 3L4 0L8 3"
+            },
+            "dizzy": {
+              "d": "M-7 2Q-3 -2 0 2T7 2"
+            },
+            "focused": {
+              "d": "M-6 1L6 1"
+            },
+            "relieved": {
+              "d": "M-6 1Q0 7 6 1"
+            },
+            "wink": {
+              "d": "M-6 1Q0 6 6 1"
+            }
+          }
+        },
+        {
+          "id": "hurt-cheek",
+          "joint": "head",
+          "d": "M-28 0L-20 -4M-28 4L-20 0M20 -4L28 0M20 0L28 4",
+          "fill": "none",
+          "stroke": "#db666a",
+          "strokeWidth": 2,
+          "transform": "translate(3 23) scale(0.7)",
+          "showWhen": {
+            "input": "emotion",
+            "equals": "hurt"
+          }
         }
       ],
       "inputs": {
@@ -458,7 +561,13 @@
             "angry",
             "surprised",
             "sleepy",
-            "curious"
+            "curious",
+            "scared",
+            "hurt",
+            "dizzy",
+            "focused",
+            "relieved",
+            "wink"
           ]
         }
       },
@@ -38779,6 +38888,24 @@
         },
         "curious": {
           "head.rotation": -12
+        },
+        "scared": {
+          "head.rotation": -8
+        },
+        "hurt": {
+          "head.rotation": 14
+        },
+        "dizzy": {
+          "head.rotation": 10
+        },
+        "focused": {
+          "head.rotation": -5
+        },
+        "relieved": {
+          "head.rotation": 3
+        },
+        "wink": {
+          "head.rotation": -7
         }
       },
       "appearanceDefaults": {
@@ -39569,6 +39696,140 @@
         "strength": 1,
         "stiffness": 35,
         "damping": 8
+      },
+      "physics": {
+        "root": "root",
+        "head": "head",
+        "bodies": {
+          "root": {
+            "width": 104,
+            "height": 74,
+            "x": 0,
+            "y": 43,
+            "density": 2
+          },
+          "torso": {
+            "width": 103,
+            "height": 113,
+            "x": 0,
+            "y": -60,
+            "density": 1
+          },
+          "head": {
+            "width": 72,
+            "height": 67,
+            "x": 0,
+            "y": 8,
+            "density": 1
+          },
+          "leftUpper": {
+            "width": 60,
+            "height": 30,
+            "x": 30,
+            "y": 0,
+            "density": 0.5
+          },
+          "leftLower": {
+            "width": 59,
+            "height": 28,
+            "x": 30,
+            "y": 0,
+            "density": 0.5
+          },
+          "leftHand": {
+            "width": 23,
+            "height": 20,
+            "x": 12,
+            "y": 0,
+            "density": 0.4
+          },
+          "leftThigh": {
+            "width": 49,
+            "height": 20,
+            "x": 25,
+            "y": 0,
+            "density": 1
+          },
+          "leftCalf": {
+            "width": 47,
+            "height": 17,
+            "x": 24,
+            "y": 0,
+            "density": 1
+          },
+          "leftFoot": {
+            "width": 36,
+            "height": 18,
+            "x": 8,
+            "y": 2,
+            "density": 1
+          },
+          "rightUpper": {
+            "width": 60,
+            "height": 30,
+            "x": 30,
+            "y": 0,
+            "density": 0.5
+          },
+          "rightLower": {
+            "width": 59,
+            "height": 28,
+            "x": 30,
+            "y": 0,
+            "density": 0.5
+          },
+          "rightHand": {
+            "width": 23,
+            "height": 20,
+            "x": 12,
+            "y": 0,
+            "density": 0.4
+          },
+          "rightThigh": {
+            "width": 49,
+            "height": 20,
+            "x": 25,
+            "y": 0,
+            "density": 1
+          },
+          "rightCalf": {
+            "width": 47,
+            "height": 17,
+            "x": 24,
+            "y": 0,
+            "density": 1
+          },
+          "rightFoot": {
+            "width": 36,
+            "height": 18,
+            "x": 8,
+            "y": 2,
+            "density": 1
+          }
+        },
+        "responses": {
+          "brace": {
+            "leftUpper.rotation": 65,
+            "leftLower.rotation": -30,
+            "rightUpper.rotation": 115,
+            "rightLower.rotation": 30,
+            "head.rotation": -12
+          },
+          "protect": {
+            "leftUpper.rotation": 20,
+            "leftLower.rotation": -120,
+            "rightUpper.rotation": 160,
+            "rightLower.rotation": 120,
+            "head.rotation": 16
+          },
+          "curl": {
+            "leftUpper.rotation": 50,
+            "leftLower.rotation": -130,
+            "rightUpper.rotation": 130,
+            "rightLower.rotation": 130,
+            "head.rotation": 18
+          }
+        }
       }
     }
   },

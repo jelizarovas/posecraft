@@ -15,3 +15,10 @@ createElement(Posecraft,{scene,ref,inputs:{ona:{greeting:true}}});
 new AnimationController({joints:[]});
 // @ts-expect-error Input values cannot be objects.
 player.setInput('ona','greeting',{});
+import { SoundEffects } from 'posecraft/audio';
+player.setBehavior('ona',{mode:'protective',resistance:.7,strategy:'protect',autoFace:true});
+player.interact('ona','drop');
+new SoundEffects({volume:.2}).handle({type:'response',to:'hurt'});
+createElement(Posecraft,{scene,behavior:{ona:{mode:'floating'}}});
+// @ts-expect-error Unknown physical mode.
+player.setBehavior('ona',{mode:'superpowered'});

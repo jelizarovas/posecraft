@@ -5,6 +5,7 @@ import path from 'node:path';
 import { wwwzardDefinition } from '../examples/wwwzard/definition.js';
 import { AnimationController } from '../examples/wwwzard/engine.js';
 import { assertDocument } from '../src/schema.js';
+import { addResponseProfile } from '../examples/character-profiles.js';
 const source=process.argv[2];if(!source)throw new Error('Pass the trusted Ona source directory.');
 const c=vm.createContext({});for(const file of ['traces.js','hair.js'])vm.runInContext(fs.readFileSync(path.join(source,file),'utf8'),c);
 const trace=c.OnaTraces.parts;
@@ -103,5 +104,5 @@ wizard.appearanceDefaults={clothing:'#8e3faa',hem:'#653078',hat:'#8050d2',skin:'
 fs.mkdirSync('examples/characters',{recursive:true});
 for(const [id,pack] of Object.entries({ona,wwwzard:wizard,rusty})){
  const doc={schemaVersion:1,kind:'scene',id,name:pack.name,revision:0,bounds:{width:640,height:400},requiredFeatures:['appearance-variants','expressions'],packs:{[id]:pack},actors:[{id,name:pack.name,pack:id,transform:{x:320,y:id==='wwwzard'?270:240,scale:id==='wwwzard'?1:2,rotation:0},appearance:{},inputs:{}}]};
- assertDocument(doc);fs.writeFileSync(`examples/characters/${id}.json`,JSON.stringify(doc,null,2)+'\n');console.log(`${id}: ${pack.joints.length} joints, ${pack.parts.length} parts, ${Object.keys(pack.clips).length} actions.`);
+ addResponseProfile(doc);assertDocument(doc);fs.writeFileSync(`examples/characters/${id}.json`,JSON.stringify(doc,null,2)+'\n');console.log(`${id}: ${pack.joints.length} joints, ${pack.parts.length} parts, ${Object.keys(pack.clips).length} actions.`);
 }

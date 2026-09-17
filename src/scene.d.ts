@@ -1,5 +1,7 @@
-import { SceneDocument,CharacterPack } from './schema.js';
-export interface Frame {time:number;actors:{id:string;inputs:Record<string,string|number|boolean>;pose:Record<string,number>;world:Record<string,{x:number;y:number;rotation:number;endX:number;endY:number}>;state:string;spring:{x:number;y:number;vx:number;vy:number}}[]}
+import { SceneDocument,CharacterPack,BehaviorSettings } from './schema.js';
+export type Interaction='tap'|'pet'|'startle'|'drop'|'toss'|'hurt'|'catch';
+export interface PhysicsDiagnostics {state:string;mode:string;resistance:number;predictedImpact:boolean;timeToImpact:number|null;contacts:{x:number;y:number;part:string;normal:{x:number;y:number}}[];center:{x:number;y:number};velocity:{x:number;y:number};impact:{speed:number;part:string;strength:number}|null}
+export interface Frame {time:number;actors:{id:string;response:string;physics:PhysicsDiagnostics|null;inputs:Record<string,string|number|boolean>;pose:Record<string,number>;world:Record<string,{x:number;y:number;rotation:number;endX:number;endY:number}>;state:string;spring:{x:number;y:number;vx:number;vy:number}}[]}
 export interface SceneEvent {type:string;actor:string;time:number;[key:string]:unknown}
 export const STEP:number;
 export function compilePack(pack:CharacterPack):unknown;
@@ -7,6 +9,7 @@ export class SceneController {
  constructor(document:SceneDocument, options?:{reducedMotion?:boolean});
  document:SceneDocument;time:number;playing:boolean;animationPlaying:boolean;reducedMotion:boolean;log:unknown[];size?:{width:number;height:number};
  setInput(actor:string,name:string,value:string|number|boolean):void;
+ setBehavior(actor:string,settings:BehaviorSettings):void;interact(actor:string,type:Interaction,strength?:number):void;
  setAcceleration(ax:number,ay:number):void;
  sampleHost(sample:{x:number;y:number;time:number;teleport?:boolean}):void;
  step(dt:number):Frame;frame():Frame;seek(time:number):Frame;reset():Frame;play():void;pause():void;rebaseline():void;dispose():void;

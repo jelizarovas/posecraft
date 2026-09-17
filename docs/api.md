@@ -14,7 +14,7 @@ Angles use degrees. Positive X goes right and positive Y goes down. Joint transl
 
 ### Library inputs and appearance
 
-All three packs accept string `action` and `emotion` inputs. Read their allowed values from `pack.inputs`; Ona has 13 actions, wwwzard 10, and seated Rusty eight. Emotions are neutral, happy, excited, sad, angry, surprised, sleepy, and curious. Ona also accepts `hair`: none, short, swept, bob, curls, or ponytail. These values can be persisted in `actor.inputs` or changed through `setInput`.
+All three packs accept string `action` and `emotion` inputs. Read their allowed values from `pack.inputs`; Ona has 13 actions, wwwzard 10, and seated Rusty eight. Expressions are neutral, happy, excited, sad, angry, surprised, sleepy, curious, scared, hurt, dizzy, focused, relieved, and wink. Ona also accepts `hair`: none, short, swept, bob, curls, or ponytail. These values can be persisted in `actor.inputs` or changed through `setInput`.
 
 `actor.appearance` maps color channels to hex colors. `pack.appearanceDefaults` lists the library defaults. Parts can declare `variantInput` and a `variants` map containing allowlisted `d`, numeric `transform`, and boolean `visible` fields. `showWhen` supports input-based visibility. `pack.expressions` maps emotion names to additive joint-channel offsets; final rotation constraints still apply. These features require `appearance-variants` and `expressions` capabilities.
 
@@ -46,7 +46,7 @@ const svg = renderSVG(scene, frame);
 
 Clips contain strictly increasing keys `[seconds, value, easing?]`. Easing is `smooth`, `linear`, or `step`. Rotation keys obey joint limits. Supported channels are joint rotation and X/Y offsets. States select a clip and transition on a typed input equality condition. The first matching transition wins. Transitions start from the displayed blended pose, last 0..2 seconds, and emit an event through `subscribe`. Triggers, timed transitions, and editing arbitrary graphs remain future work.
 
-The existing skeletal engine samples clips and transitions. A bounded damped spring then adds to the designated joint's rotation and X/Y offsets, followed by joint limits and final forward kinematics. Animation owns the base pose and the spring owns this additive offset. There are no dynamic bodies or contact solver in 0.1. The spring is a stylized inertial response, not a balance or foot-friction model.
+The existing skeletal engine samples clips and transitions. A bounded damped spring then adds to the designated joint's rotation and X/Y offsets, followed by joint limits and final forward kinematics. Animation owns the base pose and the spring owns this additive offset. That spring remains the Animated mode. Physical modes use articulated Planck bodies, limited joints, contacts, and bounded motor assistance. See [reactions and sound](reactions.md) for profiles, behavior modes, interaction events, diagnostics, and supported limits.
 
 `step` uses fixed 1/120-second substeps and accepts at most 0.1 seconds per call. Excess elapsed time is dropped. `sampleHost({x,y,time,teleport})` smooths measured velocity over 60 ms before deriving acceleration from translation samples, ignores the first two derivative samples, clamps acceleration to ±6000 px/s², and rebaselines gaps over 0.1 seconds or jumps over 300px. Constant velocity produces no force. Use explicit `teleport` for discontinuities; pass `setAcceleration` for deterministic authored tests.
 
@@ -84,6 +84,6 @@ node tools/cli.mjs preview changed.json preview.svg 0.5
 node tools/cli.mjs simulate changed.json scenario.json
 ```
 
-Transactions require `expectedRevision` and `commands`. A scenario contains `duration` in seconds and sorted `events`. Events are either `{time,type:"input",actor,name,value}` or `{time,type:"acceleration",ax,ay}`. Simulation output includes engine/schema version, revision, fixed step, evaluated transforms, spring diagnostics, and emitted events. SVG preview samples authored initial-state animation; use SDK simulation plus `renderSVG` for a scenario frame.
+Transactions require `expectedRevision` and `commands`. A scenario contains `duration` in seconds and sorted `events`. Events support `{time,type:"input",actor,name,value}`, `{time,type:"acceleration",ax,ay}`, `{time,type:"behavior",actor,value}`, and `{time,type:"interaction",actor,interaction,strength?}`. Simulation output includes engine/schema version, revision, fixed step, evaluated transforms, spring diagnostics, and emitted events. SVG preview samples authored initial-state animation; use SDK simulation plus `renderSVG` for a scenario frame.
 
 The repo skill is `skills/posecraft/SKILL.md`. It is available alongside the runtime and can be copied into an agent's skill directory. No paid service or model call is used for playback.

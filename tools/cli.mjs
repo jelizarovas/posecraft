@@ -14,7 +14,7 @@ try {
     if(command === 'validate') { console.log(JSON.stringify(validation,null,2)); if(!validation.valid) process.exitCode=1; }
     else {
       const store = new DocumentStore(doc);
-      if(command === 'inspect') console.log(JSON.stringify({id:doc.id,revision:doc.revision,bounds:doc.bounds,actors:doc.actors,packs:Object.fromEntries(Object.entries(doc.packs).map(([id,p])=>[id,{joints:p.joints.map(j=>j.id),inputs:p.inputs,clips:Object.keys(p.clips),states:p.states,reaction:p.reaction}]))},null,2));
+      if(command === 'inspect') console.log(JSON.stringify({id:doc.id,revision:doc.revision,bounds:doc.bounds,actors:doc.actors,packs:Object.fromEntries(Object.entries(doc.packs).map(([id,p])=>[id,{joints:p.joints.map(j=>j.id),inputs:p.inputs,clips:Object.keys(p.clips),states:p.states,reaction:p.reaction,physics:p.physics?{bodies:Object.keys(p.physics.bodies),responses:Object.keys(p.physics.responses)}:null,appearanceDefaults:p.appearanceDefaults}]))},null,2));
       if(command === 'edit') {
         const request=read(args[0]); const result=store.transact(request.commands,request.expectedRevision);
         if(!Number.isSafeInteger(request.expectedRevision)) throw new Error('edit requires expectedRevision.');
@@ -29,9 +29,9 @@ try {
       if(command === 'simulate') {
         const scenario=read(args[0]);
         if(!Number.isFinite(scenario.duration)||scenario.duration<0||scenario.duration>60||!Array.isArray(scenario.events)||scenario.events.length>10000) throw new Error('Scenario needs duration 0..60 and events array.');
-        if(scenario.events.some((e,i)=>!Number.isFinite(e.time)||e.time<0||e.time>scenario.duration||(i&&e.time<scenario.events[i-1].time)||!['input','acceleration'].includes(e.type))) throw new Error('Events must be ordered and within the duration.');
+        if(scenario.events.some((e,i)=>!Number.isFinite(e.time)||e.time<0||e.time>scenario.duration||(i&&e.time<scenario.events[i-1].time)||!['input','acceleration','behavior','interaction'].includes(e.type))) throw new Error('Events must be ordered and within the duration.');
         const runtime=new SceneController(doc), events=[]; runtime.subscribe(e=>events.push(e)); let cursor=0;
-        while(runtime.time+STEP<=scenario.duration+1e-9){while(cursor<scenario.events.length&&scenario.events[cursor].time<=runtime.time+1e-9){const e=scenario.events[cursor++];if(e.type==='input')runtime.setInput(e.actor,e.name,e.value);else runtime.setAcceleration(e.ax,e.ay);} runtime.step(STEP);}
+        while(runtime.time+STEP<=scenario.duration+1e-9){while(cursor<scenario.events.length&&scenario.events[cursor].time<=runtime.time+1e-9){const e=scenario.events[cursor++];if(e.type==='input')runtime.setInput(e.actor,e.name,e.value);else if(e.type==='behavior')runtime.setBehavior(e.actor,e.value);else if(e.type==='interaction')runtime.interact(e.actor,e.interaction,e.strength);else runtime.setAcceleration(e.ax,e.ay);} runtime.step(STEP);}
         console.log(JSON.stringify({engineVersion:'0.1.0',schemaVersion:doc.schemaVersion,revision:doc.revision,seed:0,fixedStep:STEP,frame:runtime.frame(),events},null,2));
       }
     }

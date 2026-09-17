@@ -10,7 +10,9 @@
   },
   "requiredFeatures": [
     "appearance-variants",
-    "expressions"
+    "expressions",
+    "rigid-body-physics",
+    "response-states"
   ],
   "packs": {
     "rusty": {
@@ -252,6 +254,24 @@
             },
             "angry": {
               "transform": "scale(1 .6)"
+            },
+            "scared": {
+              "transform": "scale(1.15 1.15)"
+            },
+            "hurt": {
+              "transform": "scale(1 .12)"
+            },
+            "dizzy": {
+              "transform": "rotate(15) scale(1 .55)"
+            },
+            "focused": {
+              "transform": "scale(1 .6)"
+            },
+            "relieved": {
+              "transform": "scale(1 .5)"
+            },
+            "wink": {
+              "transform": "scale(1 .15)"
             }
           }
         },
@@ -278,7 +298,23 @@
             },
             "angry": {
               "transform": "scale(1 .6)"
-            }
+            },
+            "scared": {
+              "transform": "scale(1.15 1.15)"
+            },
+            "hurt": {
+              "transform": "scale(1 .12)"
+            },
+            "dizzy": {
+              "transform": "rotate(15) scale(1 .55)"
+            },
+            "focused": {
+              "transform": "scale(1 .6)"
+            },
+            "relieved": {
+              "transform": "scale(1 .5)"
+            },
+            "wink": {}
           }
         },
         {
@@ -304,6 +340,73 @@
           "fill": "#986B61",
           "channel": "nose",
           "transform": "translate(0 21) scale(.3) translate(-935 -900)"
+        },
+        {
+          "id": "response-mouth",
+          "joint": "head",
+          "d": "M-7 0Q0 3 7 0",
+          "fill": "none",
+          "stroke": "#42313a",
+          "strokeWidth": 1.8,
+          "transform": "translate(24 -12) scale(0.55)",
+          "variantInput": "emotion",
+          "variants": {
+            "neutral": {
+              "visible": false
+            },
+            "happy": {
+              "d": "M-8 -1Q0 10 8 -1"
+            },
+            "excited": {
+              "d": "M-7 0Q0 14 7 0Z"
+            },
+            "sad": {
+              "d": "M-7 4Q0 -3 7 4"
+            },
+            "angry": {
+              "d": "M-7 2L7 0"
+            },
+            "surprised": {
+              "d": "M-3 0A3 5 0 1 0 3 0A3 5 0 1 0 -3 0"
+            },
+            "sleepy": {
+              "d": "M-4 1L4 1"
+            },
+            "curious": {
+              "d": "M-6 2Q0 -1 6 1"
+            },
+            "scared": {
+              "d": "M-4 0A4 6 0 1 0 4 0A4 6 0 1 0 -4 0"
+            },
+            "hurt": {
+              "d": "M-8 3L-4 0L0 3L4 0L8 3"
+            },
+            "dizzy": {
+              "d": "M-7 2Q-3 -2 0 2T7 2"
+            },
+            "focused": {
+              "d": "M-6 1L6 1"
+            },
+            "relieved": {
+              "d": "M-6 1Q0 7 6 1"
+            },
+            "wink": {
+              "d": "M-6 1Q0 6 6 1"
+            }
+          }
+        },
+        {
+          "id": "hurt-cheek",
+          "joint": "head",
+          "d": "M-28 0L-20 -4M-28 4L-20 0M20 -4L28 0M20 0L28 4",
+          "fill": "none",
+          "stroke": "#db666a",
+          "strokeWidth": 2,
+          "transform": "translate(17 -13) scale(0.6)",
+          "showWhen": {
+            "input": "emotion",
+            "equals": "hurt"
+          }
         }
       ],
       "inputs": {
@@ -332,7 +435,13 @@
             "angry",
             "surprised",
             "sleepy",
-            "curious"
+            "curious",
+            "scared",
+            "hurt",
+            "dizzy",
+            "focused",
+            "relieved",
+            "wink"
           ]
         }
       },
@@ -705,6 +814,24 @@
         },
         "curious": {
           "head.rotation": -17
+        },
+        "scared": {
+          "head.rotation": -8
+        },
+        "hurt": {
+          "head.rotation": 14
+        },
+        "dizzy": {
+          "head.rotation": 10
+        },
+        "focused": {
+          "head.rotation": -5
+        },
+        "relieved": {
+          "head.rotation": 3
+        },
+        "wink": {
+          "head.rotation": -7
         }
       },
       "appearanceDefaults": {
@@ -1211,6 +1338,64 @@
         "strength": 1,
         "stiffness": 35,
         "damping": 8
+      },
+      "physics": {
+        "root": "root",
+        "head": "head",
+        "bodies": {
+          "root": {
+            "width": 29,
+            "height": 43,
+            "x": 9,
+            "y": 4,
+            "density": 2
+          },
+          "tail": {
+            "width": 30,
+            "height": 12,
+            "x": -6,
+            "y": 5,
+            "density": 0.3
+          },
+          "backPaw": {
+            "width": 15,
+            "height": 28,
+            "x": 0,
+            "y": 14,
+            "density": 0.6
+          },
+          "frontPaw": {
+            "width": 11,
+            "height": 31,
+            "x": 7,
+            "y": 16,
+            "density": 0.6
+          },
+          "head": {
+            "width": 56,
+            "height": 43,
+            "x": 13,
+            "y": -24,
+            "density": 1
+          }
+        },
+        "responses": {
+          "brace": {
+            "frontPaw.rotation": -22,
+            "backPaw.rotation": -12,
+            "head.rotation": -15
+          },
+          "protect": {
+            "head.rotation": 30,
+            "frontPaw.rotation": -25,
+            "tail.rotation": 30
+          },
+          "curl": {
+            "head.rotation": 35,
+            "frontPaw.rotation": 25,
+            "tail.rotation": 35
+          }
+        }
       }
     }
   },

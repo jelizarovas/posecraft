@@ -16,25 +16,26 @@ Open the localhost address printed by Vite. `npm run build` creates the static G
 ## What works in 0.1
 
 - One-screen Studio with Material icons, selectable body parts, draggable rotation handles, joint-limit arcs and editable limits, keyframes, transition blending, undo/redo, local recovery, and JSON open/save/export.
-- Ona (13 actions), wwwzard (10 actions), and Rusty (8 seated actions), each with eight emotions. Ona includes six hair options. Appearance and input settings are independent per character.
+- Ona (13 actions), wwwzard (10 actions), and Rusty (8 seated actions), each with 14 expressions. Ona includes six hair options. Appearance and input settings are independent per character.
 - Shared portable scene compiler, SVG renderer, and fixed-step inertial response to a moving container.
+- Floating and falling ragdolls, contact-driven protective poses, adjustable muscle strength, automatic facial responses, and opt-in synthesized sound effects. Read the [reaction guide](docs/reactions.md).
 - React and plain browser adapters with input/events, automatic sizing, reduced motion, offscreen/hidden suspension, and disposal.
 - Agent SDK, CLI, [repo skill](skills/posecraft/SKILL.md), [API docs](docs/api.md), and TypeScript declarations for the new scene APIs.
 - Preserved wwwzard example with its original artwork, action layers, keyboard targets, and robe simulation.
 
-This is the first MVP. Ona's arms rotate at the shoulder. Contact-aware planting, ragdolls, quadruped locomotion, fluids and the ship in a bottle remain required later milestones. See the [scope and requirements mapping](docs/mvp-status.md) and [full product brief](POSECRAFT_REQUIREMENTS.md). The portable wwwzard pack uses sampled actions, solid fills, and rigid sleeves; the original demo retains procedural cloth and typing. Ukis has not been migrated.
+This is the first MVP. Ona's arms rotate at the shoulder. Full foot planting, corrective steps, grip constraints, quadruped locomotion, fluids and the ship in a bottle remain later milestones. See the [scope and requirements mapping](docs/mvp-status.md) and [full product brief](POSECRAFT_REQUIREMENTS.md). The portable wwwzard pack uses sampled actions, solid fills, and rigid sleeves; the original demo retains procedural cloth and typing. Ukis has not been migrated.
 
 ## Studio controls
 
 Select a body part on the canvas or in the left list. Drag its purple handle or change Rotation, move the playhead, and press **+** to save keyframes for the parts you posed. The Pose tab exposes minimum/maximum angles and pivot coordinates. Tightening limits clamps existing rotation keys in the same undoable edit.
 
-Use **Look** for hair and colors, and **Motion** for spring settings. Use the hand tool or drag empty card space to test container reactions. The motion selector shows whether device preferences have disabled motion; choose **Motion on** for an explicit preview. The timeline can remain paused while the spring reacts. On narrow screens, the top scene and inspector buttons reveal each panel.
+Use **Look** for hair and colors, **Motion** for spring settings, and **Feel** for physical modes, protective poses, face responses, sound, and interaction tests. Use the hand tool or drag empty card space to test container reactions. The motion selector shows whether device preferences have disabled motion; choose **Motion on** for an explicit preview. The timeline can remain paused while the spring reacts. On narrow screens, the top scene and inspector buttons reveal each panel.
 
-Drafts use `posecraft.studio.v2`. The previous draft is preserved and can be opened from the **…** menu; a backup of the current project downloads first.
+Drafts use `posecraft.studio.v2`. The previous draft is preserved and can be opened from the **â€¦** menu; a backup of the current project downloads first.
 
 ## Embed a scene
 
-Install from a pinned Git commit or from a local archive made with `npm pack`. The package is not published to the npm registry; `private: true` prevents accidental registry publication. For example, after cloning this repository next to your app, use `npm install ../posecraft`. React is an optional peer dependency. The core runtime has no runtime dependencies.
+Install from a pinned Git commit or from a local archive made with `npm pack`. The package is not published to the npm registry; `private: true` prevents accidental registry publication. For example, after cloning this repository next to your app, use `npm install ../posecraft`. React is an optional peer dependency. The original skeletal entry has no runtime dependencies; the portable scene runtime uses Planck for physical modes.
 
 ```jsx
 import { Posecraft } from 'posecraft/react';
@@ -97,4 +98,4 @@ The Career OS portfolio consumes this folder as a sibling file dependency. Keep 
 
 ## License and attribution
 
-MIT, copyright 2026 Arnas. Ona's original MIT notice is retained in `examples/ONA-LICENSE`. wwwzard source was reused from the owner's portfolio. The bundled Studio uses React, Vite, Playwright and TypeScript under their package licenses. Roboto uses the SIL Open Font License. Material Symbols uses Apache 2.0. Both fonts are self-hosted with their license notices. Rusty's source artwork is retained from the same owner-provided character library as Ona. User-imported artwork retains its own license.
+MIT, copyright 2026 Arnas. Ona's original MIT notice is retained in `examples/ONA-LICENSE`. wwwzard source was reused from the owner's portfolio. The bundled Studio uses React, Vite, Playwright and TypeScript under their package licenses. Planck uses MIT and its notice ships with the site. Roboto uses the SIL Open Font License. Material Symbols uses Apache 2.0. Both fonts are self-hosted with their license notices. Rusty's source artwork is retained from the same owner-provided character library as Ona. User-imported artwork retains its own license.

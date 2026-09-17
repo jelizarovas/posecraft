@@ -14,7 +14,7 @@ async function dragCard(selector,root){const box=await page.locator(selector).bo
 try {
  await page.goto(base);await page.locator('#art [data-part]').first().waitFor();await page.locator('#reset').click();await noOverflow();
  await page.evaluate(()=>document.fonts.ready);assert.ok(await page.evaluate(()=>document.fonts.check('20px "Material Symbols Outlined"')),'self-hosted Material icons load');
- assert.equal(await page.locator('#demo-action option').count(),13);assert.equal(await page.locator('#emotion option').count(),8);
+ assert.equal(await page.locator('#demo-action option').count(),13);assert.equal(await page.locator('#emotion option').count(),14);
  await page.screenshot({path:'test-results/studio.png'});
  await page.locator('#motion-policy').selectOption('full');await page.locator('#drag-tool').click();
  const samples=await dragCard('#stage','#art [data-bone="root"]');

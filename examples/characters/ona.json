@@ -10,7 +10,9 @@
   },
   "requiredFeatures": [
     "appearance-variants",
-    "expressions"
+    "expressions",
+    "rigid-body-physics",
+    "response-states"
   ],
   "packs": {
     "ona": {
@@ -369,6 +371,24 @@
             },
             "angry": {
               "transform": "scale(1 .55)"
+            },
+            "scared": {
+              "transform": "scale(1.13 1.13)"
+            },
+            "hurt": {
+              "transform": "scale(1 .12)"
+            },
+            "dizzy": {
+              "transform": "rotate(15) scale(1 .55)"
+            },
+            "focused": {
+              "transform": "scale(1 .55)"
+            },
+            "relieved": {
+              "transform": "scale(1 .45)"
+            },
+            "wink": {
+              "transform": "scale(1 .15)"
             }
           }
         },
@@ -398,7 +418,23 @@
             },
             "angry": {
               "transform": "scale(1 .55)"
-            }
+            },
+            "scared": {
+              "transform": "scale(1.13 1.13)"
+            },
+            "hurt": {
+              "transform": "scale(1 .12)"
+            },
+            "dizzy": {
+              "transform": "rotate(15) scale(1 .55)"
+            },
+            "focused": {
+              "transform": "scale(1 .55)"
+            },
+            "relieved": {
+              "transform": "scale(1 .45)"
+            },
+            "wink": {}
           }
         },
         {
@@ -427,6 +463,24 @@
             },
             "angry": {
               "transform": "scale(1 .55)"
+            },
+            "scared": {
+              "transform": "scale(1.13 1.13)"
+            },
+            "hurt": {
+              "transform": "scale(1 .12)"
+            },
+            "dizzy": {
+              "transform": "rotate(15) scale(1 .55)"
+            },
+            "focused": {
+              "transform": "scale(1 .55)"
+            },
+            "relieved": {
+              "transform": "scale(1 .45)"
+            },
+            "wink": {
+              "transform": "scale(1 .15)"
             }
           }
         },
@@ -456,7 +510,23 @@
             },
             "angry": {
               "transform": "scale(1 .55)"
-            }
+            },
+            "scared": {
+              "transform": "scale(1.13 1.13)"
+            },
+            "hurt": {
+              "transform": "scale(1 .12)"
+            },
+            "dizzy": {
+              "transform": "rotate(15) scale(1 .55)"
+            },
+            "focused": {
+              "transform": "scale(1 .55)"
+            },
+            "relieved": {
+              "transform": "scale(1 .45)"
+            },
+            "wink": {}
           }
         },
         {
@@ -491,6 +561,24 @@
             },
             "curious": {
               "d": "M-4 1Q1 -1 6 1"
+            },
+            "scared": {
+              "d": "M-4 0A4 6 0 1 0 4 0A4 6 0 1 0 -4 0"
+            },
+            "hurt": {
+              "d": "M-8 3L-4 0L0 3L4 0L8 3"
+            },
+            "dizzy": {
+              "d": "M-7 2Q-3 -2 0 2T7 2"
+            },
+            "focused": {
+              "d": "M-6 2L6 2"
+            },
+            "relieved": {
+              "d": "M-6 1Q0 7 6 1"
+            },
+            "wink": {
+              "d": "M-6 1Q0 6 6 0"
             }
           }
         },
@@ -526,6 +614,24 @@
             },
             "curious": {
               "d": "M-23 -28Q-17 -31 -10 -28M10 -23L23 -23"
+            },
+            "scared": {
+              "d": "M-23 -23L-10 -29M10 -29L23 -23"
+            },
+            "hurt": {
+              "d": "M-23 -25L-10 -20M10 -20L23 -25"
+            },
+            "dizzy": {
+              "visible": false
+            },
+            "focused": {
+              "d": "M-23 -25L-10 -20M10 -20L23 -25"
+            },
+            "relieved": {
+              "visible": false
+            },
+            "wink": {
+              "visible": false
             }
           }
         },
@@ -558,6 +664,19 @@
             "ponytail": {
               "d": "M-44 -35Q-49 -53 -31 -61Q-4 -75 25 -61Q48 -55 46 -33L34 -44Q4 -39 -17 -51Q-26 -42 -44 -35Z"
             }
+          }
+        },
+        {
+          "id": "hurt-cheek",
+          "joint": "head",
+          "d": "M-28 0L-20 -4M-28 4L-20 0M20 -4L28 0M20 0L28 4",
+          "fill": "none",
+          "stroke": "#db666a",
+          "strokeWidth": 2,
+          "transform": "translate(0 -3) scale(1)",
+          "showWhen": {
+            "input": "emotion",
+            "equals": "hurt"
           }
         }
       ],
@@ -592,7 +711,13 @@
             "angry",
             "surprised",
             "sleepy",
-            "curious"
+            "curious",
+            "scared",
+            "hurt",
+            "dizzy",
+            "focused",
+            "relieved",
+            "wink"
           ]
         },
         "hair": {
@@ -2853,6 +2978,24 @@
         },
         "curious": {
           "head.rotation": -12
+        },
+        "scared": {
+          "head.rotation": -8
+        },
+        "hurt": {
+          "head.rotation": 14
+        },
+        "dizzy": {
+          "head.rotation": 10
+        },
+        "focused": {
+          "head.rotation": -5
+        },
+        "relieved": {
+          "head.rotation": 3
+        },
+        "wink": {
+          "head.rotation": -7
         }
       },
       "appearanceDefaults": {
@@ -2863,7 +3006,76 @@
         "glint": "#c6e4f9",
         "hair": "#453b36"
       },
-      "description": "Shoulder rig · 13 actions"
+      "description": "Shoulder rig · 13 actions",
+      "physics": {
+        "root": "root",
+        "head": "head",
+        "bodies": {
+          "root": {
+            "width": 48,
+            "height": 39,
+            "x": 0,
+            "y": 20,
+            "density": 2
+          },
+          "head": {
+            "width": 80,
+            "height": 53,
+            "x": 0,
+            "y": -27,
+            "density": 1
+          },
+          "leftArm": {
+            "width": 14,
+            "height": 30,
+            "x": -7,
+            "y": 14,
+            "density": 0.6
+          },
+          "rightArm": {
+            "width": 14,
+            "height": 30,
+            "x": 7,
+            "y": 14,
+            "density": 0.6
+          },
+          "leftFoot": {
+            "width": 19,
+            "height": 13,
+            "x": 0,
+            "y": 8,
+            "density": 1
+          },
+          "rightFoot": {
+            "width": 19,
+            "height": 13,
+            "x": 0,
+            "y": 8,
+            "density": 1
+          }
+        },
+        "responses": {
+          "brace": {
+            "leftArm.rotation": 65,
+            "rightArm.rotation": -65,
+            "head.rotation": -10,
+            "leftFoot.rotation": -20,
+            "rightFoot.rotation": 20
+          },
+          "protect": {
+            "leftArm.rotation": 115,
+            "rightArm.rotation": -115,
+            "head.rotation": 18
+          },
+          "curl": {
+            "leftArm.rotation": -75,
+            "rightArm.rotation": 75,
+            "head.rotation": 25,
+            "leftFoot.rotation": 35,
+            "rightFoot.rotation": -35
+          }
+        }
+      }
     }
   },
   "actors": [

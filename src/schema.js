@@ -1,4 +1,4 @@
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions'], unavailable: ['contacts', 'ragdoll', 'fluids', 'mesh-deformation', 'svg-import', 'attachments'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -101,6 +101,15 @@ function validateStructure(doc) {
       for (const [name, value] of Object.entries(pack.appearanceDefaults)) check(safeId.test(name) && colors.test(value), `${p}.appearanceDefaults`, 'Invalid color channel default.');
     }
     const channels = new Set(pack.joints.flatMap(j => ['x','y','rotation'].map(prop => `${j.id}.${prop}`)));
+    if(pack.physics){
+      const profile=pack.physics;check(record(profile.bodies)&&record(profile.responses)&&joints.has(profile.root)&&joints.has(profile.head),`${p}.physics`,'Invalid physical rig profile.');
+      check(profile.bodies[profile.root]&&profile.bodies[profile.head],`${p}.physics`,'Physical head and root bodies are required.');
+      for(const [id,body] of Object.entries(profile.bodies)){
+        const j=pack.joints.find(j=>j.id===id);check(j&&(!j.parent||profile.bodies[j.parent]),`${p}.physics.bodies.${id}`,'Physical parents must have bodies.');
+        check(record(body)&&finite(body.width,1,500)&&finite(body.height,1,500)&&finite(body.x,-500,500)&&finite(body.y,-500,500)&&finite(body.density,.1,20),`${p}.physics.bodies.${id}`,'Invalid collision box.');
+      }
+      for(const [name,pose] of Object.entries(profile.responses)){check(['brace','protect','curl'].includes(name)&&record(pose),`${p}.physics.responses`,'Unknown response pose.');for(const [key,value] of Object.entries(pose)){const j=pack.joints.find(j=>key===j.id+'.rotation');check(j&&finite(value,j.min,j.max),`${p}.physics.responses.${name}`,'Response rotations must obey joint limits.');}}
+    }
     for (const [emotion, pose] of Object.entries(pack.expressions || {})) {
       check(pack.inputs.emotion?.options?.includes(emotion) && record(pose), `${p}.expressions.${emotion}`, 'Expression needs an emotion input.');
       for (const [key, value] of Object.entries(pose)) check(channels.has(key) && finite(value,-180,180), `${p}.expressions.${emotion}.${key}`, 'Invalid expression channel.');
@@ -114,6 +123,13 @@ function validateStructure(doc) {
     check(Object.hasOwn(doc.packs, a.pack), `actors.${a.id}.pack`, 'Missing pack.');
     check(record(a.transform) && finite(a.transform.x) && finite(a.transform.y) && finite(a.transform.scale, .05, 10) && finite(a.transform.rotation, -180, 180), `actors.${a.id}.transform`, 'Invalid transform.');
     if (a.appearance) for (const value of Object.values(a.appearance)) check(colors.test(value), `actors.${a.id}.appearance`, 'Expected hex color.');
+    if(a.behavior){
+      const b=a.behavior;check(record(b),`actors.${a.id}.behavior`,'Expected behavior settings.');
+      if(b.mode!==undefined)check(['animated','floating','ragdoll','protective'].includes(b.mode)&&(b.mode==='animated'||doc.packs[a.pack]?.physics),`actors.${a.id}.behavior.mode`,'Mode requires a physical rig.');
+      for(const [key,max] of [['resistance',1],['gravity',2],['bounce',1]])if(b[key]!==undefined)check(finite(b[key],0,max),`actors.${a.id}.behavior.${key}`,'Invalid physical setting.');
+      if(b.strategy!==undefined)check(['auto','brace','protect','curl'].includes(b.strategy),`actors.${a.id}.behavior.strategy`,'Unknown protective strategy.');
+      if(b.autoFace!==undefined)check(typeof b.autoFace==='boolean',`actors.${a.id}.behavior.autoFace`,'Expected boolean.');
+    }
     for (const [name, value] of Object.entries(a.inputs || {})) {
       const spec = doc.packs[a.pack]?.inputs?.[name];
       check(spec && typeof value === spec.type && (!spec.options || spec.options.includes(value)) && (spec.type !== 'number' || finite(value, spec.min, spec.max)), `actors.${a.id}.inputs.${name}`, 'Invalid actor input.');

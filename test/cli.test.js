@@ -16,5 +16,6 @@ test('agent CLI edits, validates, renders, simulates and rejects a stale revisio
   const failed=spawnSync(process.execPath,['tools/cli.mjs','edit',out,request,out],{encoding:'utf8'});assert.equal(failed.status,1);assert.match(failed.stderr,/Revision conflict/);
   const scenario=path.join(dir,'scenario.json');fs.writeFileSync(scenario,JSON.stringify({duration:1,events:[{time:0,type:'input',actor:'ona',name:'greeting',value:true},{time:.2,type:'acceleration',ax:1500,ay:0}]}));
   const result=JSON.parse(run('simulate',out,scenario));assert.equal(result.frame.actors[0].state,'wave');assert.ok(result.frame.actors[0].spring.x<0);
+  fs.writeFileSync(scenario,JSON.stringify({duration:2,events:[{time:0,type:'behavior',actor:'ona',value:{mode:'protective',strategy:'protect'}},{time:0,type:'interaction',actor:'ona',interaction:'drop'}]}));const physical=JSON.parse(run('simulate','examples/characters/ona.json',scenario));assert.ok(physical.events.some(e=>e.type==='impact'));assert.ok(physical.events.find(e=>e.to==='protecting').time<physical.events.find(e=>e.type==='impact').time);
  } finally { fs.rmSync(dir,{recursive:true,force:true}); }
 });

@@ -1,8 +1,10 @@
 import './style.css';
-import { library, starter } from '../examples/library.js';
+import { library, starter, upgradeLibraryDocument } from '../examples/library.js';
 import { DocumentStore } from '../src/commands.js';
 import { SceneController } from '../src/scene.js';
 import { mountSVG, renderSVG } from '../src/svg.js';
+import { SoundEffects } from '../src/audio.js';
+import { behaviorConfig } from '../src/physics.js';
 import { sampleClip, clamp, wrapAngle } from '../src/index.js';
 
 const $ = id => document.getElementById(id);
@@ -10,10 +12,11 @@ const esc = v => String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const icon = name => `<span class="material-symbols-outlined" aria-hidden="true">${name}</span>`;
 const button = (id,name,label,extra='') => `<button id="${id}" title="${label}" aria-label="${label}" ${extra}>${icon(name)}</button>`;
 const key = 'posecraft.studio.v2';
+const sound=new SoundEffects();
 document.body.classList.add('studio-app');
 const media = matchMedia('(prefers-reduced-motion: reduce)');
 let store;
-try { store=new DocumentStore(JSON.parse(localStorage.getItem(key)) || starter); } catch { store=new DocumentStore(starter); }
+try {const raw=localStorage.getItem(key),old=JSON.parse(raw)||starter,upgrade=upgradeLibraryDocument(old);store=new DocumentStore(upgrade.document);if(upgrade.changed){localStorage.setItem(key+'.before-responses',raw);localStorage.setItem(key,JSON.stringify(store.document));}}catch{store=new DocumentStore(starter);}
 let selected=store.document.actors[0]?.id, joint='head', clip='idle', controller, renderer, playing=!media.matches;
 let inspector='pose', tab='timeline', previewTime=0, overrides={}, bones=true, limits=true, dragMode=false, motionMode='system';
 let last=null, scenario=null, drag=null, offset={x:0,y:0}, toastTimer, transitionIndex=0;
@@ -30,7 +33,7 @@ document.querySelector('#app').innerHTML=`
 <header class="topbar"><a class="brand" href="./"><span class="brand-mark">p</span>posecraft</a><div class="toolbar-group mobile-panels">${button('scene-panel','skeleton','Scene panel')}${button('inspector-panel','tune','Inspector panel')}</div><div class="toolbar-group">${button('undo','undo','Undo')}${button('redo','redo','Redo')}<span class="divider"></span>${button('import','folder_open','Open project')}${button('save','save','Save project')}${button('export','download','Export scene')}<input id="file" hidden type="file" accept=".json,application/json"></div><div class="toolbar-group end"><span id="saved" class="caption">Local draft</span><a class="icon-button" href="./react-demo.html" title="React playground" aria-label="React playground">${icon('open_in_new')}</a><a class="icon-button" href="https://github.com/jelizarovas/posecraft" title="Source and agent API" aria-label="Source and agent API">${icon('code')}</a><details class="more"><summary class="icon-button" aria-label="More options">${icon('more_horiz')}</summary><div><button id="new">New scene</button><button id="legacy">Open previous studio draft</button><button id="svg-export">Export current SVG</button><a href="./wwwzard.html">Original wwwzard demo</a></div></details></div></header>
 <main class="workspace"><aside class="sidebar left"><div class="section-label">Characters <span class="caption">Add to scene</span></div><div id="library" class="library"></div><label class="scene-label">Scene <select id="actors" aria-label="Selected character"></select></label><div class="hierarchy-head"><span>Body parts</span><span id="joint-count"></span></div><div id="hierarchy"></div><div class="actor-actions">${button('duplicate','content_copy','Duplicate character')}${button('delete','delete','Remove character')}<span id="pack-note" class="caption"></span></div></aside>
 <section class="viewport" aria-label="Scene viewport"><div class="viewport-bar"><div class="tool-palette">${button('select-tool','edit','Select and pose body parts','class="active"')}${button('drag-tool','pan_tool','Drag container')}${button('bones','skeleton','Show joints','class="active"')}${button('limits','tune','Show joint limits','class="active"')}</div><div class="tool-palette">${button('shake','gesture','Move and stop')}${button('reset','restart_alt','Reset preview')}<select id="motion-policy" aria-label="Motion preview"><option value="system">System motion</option><option value="full">Motion on</option><option value="reduced">Still preview</option></select></div></div><div id="stage" class="stage" tabindex="0" aria-label="Scene card. Drag empty card space to test motion; select a body part to pose it."><div id="art" class="art"></div></div><div class="viewport-bottom"><div class="demo-controls"><label>Action <select id="demo-action" aria-label="Demo action"></select></label><label>Emotion <select id="emotion" aria-label="Emotion"></select></label></div><span id="hint">Drag empty card space to test motion. Drag a body part to pose it.</span></div></section>
-<aside class="sidebar right"><nav class="inspector-tabs"><button data-panel="pose" class="active">${icon('edit')}Pose</button><button data-panel="look">${icon('palette')}Look</button><button data-panel="motion">${icon('animation')}Motion</button></nav><div id="inspector"></div></aside></main>
+<aside class="sidebar right"><nav class="inspector-tabs"><button data-panel="pose" class="active">${icon('edit')}Pose</button><button data-panel="look">${icon('palette')}Look</button><button data-panel="motion">${icon('animation')}Motion</button><button data-panel="feel">${icon('gesture')}Feel</button></nav><div id="inspector"></div></aside></main>
 <section class="timeline"><div class="timeline-toolbar"><div class="tabs"><button id="timeline-tab" class="active">Timeline</button><button id="states-tab">States</button></div><div class="playback">${button('start','skip_previous','Jump to start')}${button('play','play_arrow','Play animation')}<select id="clip" aria-label="Animation clip"></select><span id="time" class="time-label"></span></div><div class="key-tools">${button('add-key','add','Add keyframe','class="primary"')}${button('remove-key','delete','Remove keyframe')}<select id="easing" aria-label="Keyframe easing"><option value="smooth">Smooth</option><option value="linear">Linear</option><option value="step">Step</option></select></div></div><div id="timeline-content"></div></section>
 <footer class="footer"><span id="status"></span><span id="motion-status"></span><span class="desktop-only">Posecraft · MIT</span></footer><div id="toast" class="toast hidden" role="status"></div>`;
 function toast(message){$('toast').textContent=message;$('toast').classList.remove('hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.add('hidden'),5000);}
@@ -38,14 +41,14 @@ function persist(){try{localStorage.setItem(key,JSON.stringify(store.document));
 function transact(commands,message){try{store.transact(commands);persist();rebuild();if(message)toast(message);}catch(e){toast(e.message);}}
 function baseValue(){const j=rigJoint();return overrides[joint+'.rotation']??sampleClip({...pack().clips[clip],loop:false},previewTime)[joint+'.rotation']??j.rotation;}
 function frame(){if(actor()&&tab==='timeline')controller.previewClip(selected,clip,previewTime,overrides);return controller.frame();}
-function mount(){renderer=mountSVG($('art'),store.document,frame(),{bones,limits,selectedActor:selected,selectedJoint:joint});}
+function mount(){renderer=mountSVG($('art'),store.document,frame(),{bones,limits,selectedActor:selected,selectedJoint:joint,physicsDebug:inspector==='feel'});}
 function refresh(){renderer.update(frame());updateTime();if($('rotation')){$('rotation').value=baseValue();$('rotation-number').value=Math.round(baseValue()*10)/10;}}
 function rebuild(){
  controller?.dispose();if(!actor())selected=store.document.actors[0]?.id;
  if(pack()&&!pack().joints.some(j=>j.id===joint))joint=pack().joints[0].id;
  if(pack()&&!pack().clips[clip])clip=Object.keys(pack().clips)[0];
  if(pack())previewTime=Math.min(previewTime,pack().clips[clip].duration);
- controller=new SceneController(store.document,{reducedMotion:reduced()});
+ controller=new SceneController(store.document,{reducedMotion:reduced()});controller.subscribe(e=>{sound.handle(e);if(e.type==='error')toast(e.message);});
  $('stage').style.aspectRatio=`${store.document.bounds.width}/${store.document.bounds.height}`;
  $('undo').disabled=!store.past.length;$('redo').disabled=!store.future.length;
  $('delete').disabled=$('duplicate').disabled=!actor();
@@ -65,6 +68,7 @@ function drawHierarchy(){
 function selectJoint(actorId,jointId){if(selected!==actorId){controller.clearPreview(selected);overrides={};}selected=actorId;joint=jointId;if(!pack().clips[clip])clip=Object.keys(pack().clips)[0];previewTime=Math.min(previewTime,pack().clips[clip].duration);inspector='pose';drawHierarchy();drawInspector();drawTimeline();drawDemo();mount();}
 function field(label,id,value,attrs=''){return `<label class="field">${label}<input id="${id}" value="${esc(value)}" ${attrs}></label>`;}
 function drawInspector(){
+ $('inspector').classList.toggle('feel-panel',inspector==='feel');
  document.querySelectorAll('[data-panel]').forEach(b=>b.classList.toggle('active',b.dataset.panel===inspector));
  const a=actor(),p=pack(),j=rigJoint();if(!a){$('inspector').innerHTML='<p class="note">Add a character from the library.</p>';return;}
  const index=store.document.actors.indexOf(a);
@@ -81,19 +85,41 @@ function drawInspector(){
  if($('hair'))$('hair').onchange=e=>changeInput('hair',e.target.value);
  $('inspector').querySelectorAll('[data-color]').forEach(el=>el.onchange=()=>transact([set(['actors',index,'appearance'],{...a.appearance,[el.dataset.color]:el.value})]));
  $('reset-look').onclick=()=>transact([set(['actors',index,'appearance'],{}),set(['actors',index,'inputs'],{...a.inputs,...(p.inputs.hair?{hair:'none'}:{})})]);
- }else{
+ }else if(inspector==='motion'){
  const r=p.reaction;
  $('inspector').innerHTML=`<div class="inspector-heading">Motion response<small>${esc(a.name)}</small></div>${r?`<label class="field">Strength <output>${r.strength.toFixed(2)}</output><input id="strength" type="range" min="0" max="2" step=".05" value="${r.strength}"></label><label class="field">Stiffness <output>${r.stiffness}</output><input id="stiffness" type="range" min="10" max="200" step="1" value="${r.stiffness}"></label><label class="field">Damping <output>${r.damping}</output><input id="damping" type="range" min="2" max="40" step="1" value="${r.damping}"></label><p class="note">Acceleration adds visible lean and lag. Stopping reverses the response, then it settles. This is a spring response; feet are not physically planted.</p>`:'<p class="note">This character has no motion response configured.</p>'}<div class="section-label">Scene dimensions</div><div class="two-col">${field('Width','scene-width',store.document.bounds.width,'type="number" min="100" max="4096"')}${field('Height','scene-height',store.document.bounds.height,'type="number" min="100" max="4096"')}</div><button id="test-motion" class="text-button">${icon('gesture')}Move and stop</button><p id="motion-readout" class="note"></p>`;
  for(const prop of ['strength','stiffness','damping'])if($(prop))$(prop).onchange=e=>transact([set(['packs',a.pack,'reaction',prop],Number(e.target.value))]);
  for(const prop of ['width','height'])$('scene-'+prop).onchange=e=>transact([set(['bounds',prop],Number(e.target.value))]);
  $('test-motion').onclick=shake;
- }
+ }else drawFeel();
 }
-function pose(value){if(!Number.isFinite(value))return;playing=false;tab='timeline';overrides[joint+'.rotation']=clamp(value,rigJoint().min,rigJoint().max);refresh();}
+
+function changeBehavior(patch){
+ if(!actor())return;const index=store.document.actors.indexOf(actor()),next=behaviorConfig({...actor().behavior,...patch});
+ try{controller.setBehavior(selected,next);store.transact([set(['actors',index,'behavior'],next)]);persist();drawInspector();$('undo').disabled=!store.past.length;refresh();}catch(e){toast(e.message);}
+}
+function runInteraction(name){
+ if(!actor())return;
+ if(['drop','toss'].includes(name)&&behaviorConfig(actor().behavior).mode==='animated')changeBehavior({mode:name==='toss'?'floating':'protective'});
+ if(reduced()&&['drop','toss'].includes(name)){toast('Choose Motion on to test falls and floating.');return;}
+ controller.interact(selected,name);refresh();
+}
+function drawFeel(){
+ const a=actor(),b=behaviorConfig(a.behavior),hasPhysics=!!pack().physics;
+ $('inspector').innerHTML=`<div class="inspector-heading">Reactions<small id="face-live"></small></div><label class="field">Body mode<select id="body-mode" aria-label="Body mode"><option value="animated">Animated</option><option value="floating" ${!hasPhysics?'disabled':''}>Floating ragdoll</option><option value="ragdoll" ${!hasPhysics?'disabled':''}>Falling ragdoll</option><option value="protective" ${!hasPhysics?'disabled':''}>Protective</option></select></label><label class="field">Resistance / muscle strength<input id="resistance" aria-label="Muscle strength" type="range" min="0" max="1" step=".05" value="${b.resistance}"></label><label class="field">Protective response<select id="strategy" aria-label="Protective response"><option value="auto">Automatic</option><option value="protect">Cover head</option><option value="curl">Curl / hold self</option><option value="brace">Break fall</option></select></label><div class="two-col">${field('Gravity','gravity',b.gravity,'type="number" min="0" max="2" step=".1"')}${field('Bounce','bounce',b.bounce,'type="number" min="0" max="1" step=".05"')}</div><label class="face-auto"><input id="auto-face" type="checkbox" ${b.autoFace?'checked':''}> Automatic facial responses</label><div class="sound-controls"><button id="sound-toggle" aria-label="${sound.enabled?'Mute sound':'Enable sound'}">${icon('play_arrow')}${sound.enabled?'Sound on':'Sound off'}</button><input id="sound-volume" aria-label="Sound volume" type="range" min="0" max="1" step=".05" value="${sound.volume}"></div><div class="section-label">Try an interaction</div><div class="interaction-grid">${[['pet','Pet'],['tap','Poke'],['startle','Startle'],['drop','Drop'],['toss','Toss'],['hurt','Hurt'],['catch','Catch']].map(([id,label])=>`<button data-interact="${id}">${label}</button>`).join('')}</div><div id="response-status" class="response-status" role="status">Calm</div><p class="note">Floating has no gravity. Protective uses limited muscle torque. Collision shapes approximate the artwork; self-holding is an authored pose.</p>`;
+ $('body-mode').value=b.mode;$('strategy').value=b.strategy;$('gravity').disabled=b.mode==='floating';
+ for(const prop of ['mode','strategy','resistance','gravity','bounce'])$(prop==='mode'?'body-mode':prop).onchange=e=>changeBehavior({[prop]:['mode','strategy'].includes(prop)?e.target.value:+e.target.value});
+ $('auto-face').onchange=e=>changeBehavior({autoFace:e.target.checked});
+ $('sound-toggle').onclick=async()=>{if(sound.enabled)sound.mute();else if(await sound.unlock())sound.handle({type:'interaction',interaction:'pet'});else toast('Sound could not start in this browser.');drawFeel();};
+ $('sound-volume').oninput=e=>sound.setVolume(+e.target.value);
+ $('inspector').querySelectorAll('[data-interact]').forEach(b=>b.onclick=()=>runInteraction(b.dataset.interact));
+}
+
+function pose(value){if(behaviorConfig(actor().behavior).mode!=='animated'){toast('Choose Animated in Feel to edit keyframes.');return;}if(!Number.isFinite(value))return;playing=false;tab='timeline';overrides[joint+'.rotation']=clamp(value,rigJoint().min,rigJoint().max);refresh();}
 function changeLimits(){const p=pack(),j=rigJoint(),min=Number($('limit-min').value),max=Number($('limit-max').value);if(!Number.isFinite(min)||!Number.isFinite(max)||min>max||min<-180||max>180){toast('Limits must be ordered between -180° and 180°.');drawInspector();return;}
  const joints=structuredClone(p.joints),clips=structuredClone(p.clips);Object.assign(joints[p.joints.indexOf(j)],{min,max,rotation:clamp(j.rotation,min,max)});
  let count=0;for(const c of Object.values(clips))for(const pair of c.tracks[joint+'.rotation']||[]){const v=clamp(pair[1],min,max);if(v!==pair[1])count++;pair[1]=v;}
- overrides={};transact([set(['packs',actor().pack,'joints'],joints),set(['packs',actor().pack,'clips'],clips)],count?`Updated limits and clamped ${count} keys. Undo restores both.`:'Joint limits updated.');
+ const commands=[set(['packs',actor().pack,'joints'],joints),set(['packs',actor().pack,'clips'],clips)];if(p.physics){const responses=structuredClone(p.physics.responses);for(const pose of Object.values(responses))if(pose[joint+'.rotation']!==undefined)pose[joint+'.rotation']=clamp(pose[joint+'.rotation'],min,max);commands.push(set(['packs',actor().pack,'physics','responses'],responses));}overrides={};transact(commands,count?`Updated limits and clamped ${count} keys. Undo restores both.`:'Joint limits updated.');
 }
 function drawDemo(){const p=pack();$('demo-action').innerHTML=Object.keys(p?.clips||{}).map(id=>`<option value="${id}" ${id===clip?'selected':''}>${title(id)}</option>`).join('');$('emotion').innerHTML=(p?.inputs.emotion?.options||['neutral']).map(id=>`<option value="${esc(id)}" ${id===inputValue('emotion')?'selected':''}>${esc(title(id))}</option>`).join('');$('emotion').disabled=!p?.inputs.emotion;}
 function changeInput(name,value){if(!actor())return;const index=store.document.actors.indexOf(actor());transact([set(['actors',index,'inputs'],{...actor().inputs,[name]:value})]);}
@@ -133,7 +159,7 @@ function reset(){offset={x:0,y:0};scenario=null;drag=null;$('stage').style.trans
 function shake(){if(reduced()){toast('Still preview is active. Choose Motion on to preview reactions.');return;}scenario={start:performance.now(),origin:{...offset}};}
 function load(doc){const next=new DocumentStore(doc);store=next;selected=next.document.actors[0]?.id;joint='head';clip='idle';previewTime=0;overrides={};offset={x:0,y:0};$('stage').style.transform='';persist();rebuild();}
 $('actors').onchange=e=>{selected=e.target.value;clip=inputValue('action')||'idle';overrides={};previewTime=0;rebuild();};
-$('clip').onchange=$('demo-action').onchange=e=>chooseAction(e.target.value);$('emotion').onchange=e=>changeInput('emotion',e.target.value);
+$('clip').onchange=$('demo-action').onchange=e=>chooseAction(e.target.value);$('emotion').onchange=e=>{changeBehavior({autoFace:false});changeInput('emotion',e.target.value);};
 $('play').onclick=()=>{playing=!playing;overrides={};last=null;updateTime();};$('start').onclick=()=>seek(0);$('add-key').onclick=addKey;$('remove-key').onclick=removeKey;
 $('undo').onclick=()=>{store.undo();overrides={};persist();rebuild();};$('redo').onclick=()=>{store.redo();overrides={};persist();rebuild();};
 $('duplicate').onclick=()=>addActor(actor().pack,true);$('delete').onclick=()=>transact([set(['actors'],store.document.actors.filter(a=>a.id!==selected))]);
@@ -146,13 +172,14 @@ $('reset').onclick=reset;$('shake').onclick=shake;
 $('bones').onclick=()=>{bones=!bones;$('bones').classList.toggle('active',bones);mount();};$('limits').onclick=()=>{limits=!limits;bones=true;$('limits').classList.toggle('active',limits);$('bones').classList.add('active');mount();};
 $('select-tool').onclick=()=>{dragMode=false;$('select-tool').classList.add('active');$('drag-tool').classList.remove('active');};$('drag-tool').onclick=()=>{dragMode=true;$('select-tool').classList.remove('active');$('drag-tool').classList.add('active');};
 $('motion-policy').onchange=e=>{motionMode=e.target.value;controller.reducedMotion=reduced();controller.rebaseline();if(reduced())playing=false;refresh();};
-for(const b of document.querySelectorAll('[data-panel]'))b.onclick=()=>{inspector=b.dataset.panel;drawInspector();};
+for(const b of document.querySelectorAll('[data-panel]'))b.onclick=()=>{inspector=b.dataset.panel;drawInspector();mount();};
 for(const t of ['timeline','states'])$(t+'-tab').onclick=()=>{tab=t;overrides={};if(t==='states')controller.clearPreview(selected);drawTimeline();};
 $('scene-panel').onclick=()=>{document.querySelector('.workspace').classList.toggle('show-scene');document.querySelector('.workspace').classList.remove('show-inspector');};$('inspector-panel').onclick=()=>{document.querySelector('.workspace').classList.toggle('show-inspector');document.querySelector('.workspace').classList.remove('show-scene');};
 function localPoint(actorId,x,y){const g=$('art').querySelector(`[data-actor="${actorId}"]`);return new DOMPoint(x,y).matrixTransform(g.getScreenCTM().inverse());}
 $('stage').onpointerdown=e=>{
  if(e.button!==0)return;scenario=null;
  const hit=e.target.closest('[data-joint],[data-bone]'),a=e.target.closest('[data-actor]');
+ if(!dragMode&&hit&&a&&behaviorConfig(store.document.actors.find(v=>v.id===a.dataset.actor)?.behavior).mode!=='animated'){selected=a.dataset.actor;runInteraction('tap');drag=null;return;}
  if(!dragMode&&hit&&a){const id=hit.dataset.joint||hit.dataset.bone;selectJoint(a.dataset.actor,id);playing=false;const w=frame().actors.find(a=>a.id===selected).world[id],p=localPoint(selected,e.clientX,e.clientY);drag={type:'pose',x:e.clientX,y:e.clientY,pivot:w,angle:Math.atan2(p.y-w.y,p.x-w.x),rotation:baseValue()};}
  else drag={type:'card',x:e.clientX,y:e.clientY,origin:{...offset}};
  $('stage').setPointerCapture(e.pointerId);
@@ -162,6 +189,7 @@ $('stage').onpointerup=$('stage').onpointercancel=()=>{drag=null;};
 $('stage').onkeydown=e=>{if(!e.key.startsWith('Arrow'))return;e.preventDefault();if(e.shiftKey||dragMode){offset.x=clamp(offset.x+(e.key==='ArrowLeft'?-16:e.key==='ArrowRight'?16:0),-170,170);offset.y=clamp(offset.y+(e.key==='ArrowUp'?-16:e.key==='ArrowDown'?16:0),-100,100);$('stage').style.transform=`translate(${offset.x}px,${offset.y}px)`;}else if(actor())pose(baseValue()+(e.key==='ArrowLeft'||e.key==='ArrowDown'?-2:2));};
 window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){e.preventDefault();(e.shiftKey?$('redo'):$('undo')).click();}});
 window.addEventListener('blur',()=>{drag=null;last=null;controller.rebaseline();});
+window.addEventListener('pagehide',()=>sound.dispose());
 document.addEventListener('visibilitychange',()=>{last=null;controller.rebaseline();});media.addEventListener('change',()=>{controller.reducedMotion=reduced();controller.rebaseline();});
 rebuild();
 function tick(now){const dt=last===null||document.hidden?0:Math.min((now-last)/1000,.05);last=now;
@@ -171,10 +199,12 @@ function tick(now){const dt=last===null||document.hidden?0:Math.min((now-last)/1
  if(playing&&!reduced()&&pack()){if(tab==='timeline')previewTime=(previewTime+dt)%pack().clips[clip].duration;else{const r=selectedRuntime();previewTime=r.runtime.layers[0].time%pack().clips[pack().states[r.runtime.layers[0].state].clip].duration;}}
  renderer.update(frame());updateTime();if(playing&&$('rotation')&&document.activeElement!==$('rotation-number')){$('rotation').value=baseValue();$('rotation-number').value=Math.round(baseValue()*10)/10;}
  const s=selectedRuntime()?.spring;
- $('status').textContent=`${store.document.actors.length} character${store.document.actors.length===1?'':'s'} · ${title(joint)}${Object.keys(overrides).length?' · Unsaved pose, add a key':''}`;
+ $('status').textContent=`${store.document.actors.length} character${store.document.actors.length===1?'':'s'} · ${title(joint)} · ${title(selectedRuntime()?.response.state||'calm')}${Object.keys(overrides).length?' · Unsaved pose, add a key':''}`;
  $('motion-status').textContent=reduced()?'Still preview · motion disabled':`Lean ${Math.abs(s?.x||0).toFixed(1)}° · ${drag?.type==='card'?'Dragging':'Motion on'}`;
  $('hint').textContent=reduced()?'Still preview is active. Choose Motion on to test reactions.':dragMode?'Drag anywhere on the card. Watch the character lean and settle.':'Drag empty card space to test motion. Drag a body part to pose it.';
- if($('active-state'))$('active-state').textContent='Active: '+(selectedRuntime()?.runtime.layers[0].state||'');
+ if($('active-state'))$('active-state').textContent='Action: '+(selectedRuntime()?.runtime.layers[0].state||'')+' · Response: '+(selectedRuntime()?.response.state||'calm');
+ if($('response-status')){const a=selectedRuntime(),d=a?.physics?.diagnostics;$('response-status').textContent=`${title(a?.response.state||'calm')} · ${d?.contacts?.length||0} contacts${d?.predictedImpact?' · impact predicted':''}`;}
+ if($('face-live'))$('face-live').textContent='Face: '+title(frame().actors.find(a=>a.id===selected)?.inputs.emotion||'neutral');
  if($('motion-readout'))$('motion-readout').textContent=`Horizontal acceleration ${Math.round(controller.motion.ax)} px/s² · lean ${(s?.x||0).toFixed(1)}°`;
  }
  requestAnimationFrame(tick);

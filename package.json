@@ -33,6 +33,10 @@
     "./react": {
       "types": "./src/react.d.ts",
       "default": "./src/react.js"
+    },
+    "./audio": {
+      "types": "./src/audio.d.ts",
+      "default": "./src/audio.js"
     }
   },
   "bin": {
@@ -45,7 +49,8 @@
     "skills",
     "docs/api.md",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/reactions.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -54,7 +59,8 @@
     "test": "node --test test/*.test.js",
     "test:browser": "node test/browser.mjs",
     "check:package": "npm pack --dry-run",
-    "test:types": "tsc --noEmit --strict --module nodenext --target es2022 test/types.ts"
+    "test:types": "tsc --noEmit --strict --module nodenext --target es2022 test/types.ts",
+    "test:responses": "node test/responses-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"
@@ -66,14 +72,17 @@
   },
   "devDependencies": {
     "@fontsource/roboto": "5.3.0",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "vite": "8.2.2",
     "@playwright/test": "1.58.2",
     "@types/react": "19.2.14",
-    "typescript": "5.9.3"
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "5.9.3",
+    "vite": "8.2.2"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "planck": "1.4.2"
   }
 }

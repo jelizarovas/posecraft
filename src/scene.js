@@ -1,5 +1,6 @@
 import { AnimationController, clamp, forwardKinematics, constrainPose, sampleClip } from './index.js';
 import { assertDocument } from './schema.js';
+import { PhysicalCharacter, behaviorConfig, behaviorModes } from './physics.js';
 export const STEP = 1 / 120;
 
 export function compilePack(pack) {
@@ -19,12 +20,38 @@ export class SceneController {
       const pack = this.document.packs[actor.pack], runtime = new AnimationController(compilePack(pack));
       for (const [name, value] of Object.entries(actor.inputs || {})) runtime.setInput(name, value);
       runtime.subscribe(event => { if (!this.replaying) for (const fn of this.listeners) fn({ ...event, actor: actor.id }); });
-      return { actor, pack, runtime, spring: { x: 0, y: 0, vx: 0, vy: 0 } };
+      return { actor, pack, runtime, behavior:behaviorConfig(actor.behavior), response:{state:'calm',until:0}, physics:null, spring: { x: 0, y: 0, vx: 0, vy: 0 } };
     });
     this.time = 0; this.accumulator = 0; this.motion = { ax: 0, ay: 0 }; this.baseline = null;
     return this.frame();
   }
   subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
+  emit(event){if(!this.replaying)for(const fn of this.listeners)fn({...event,time:this.time});}
+  respond(a,state,duration=.2,strength=1){
+    if(a.response.state!==state)this.emit({type:'response',actor:a.actor.id,from:a.response.state,to:state,strength});
+    a.response={state,until:this.time+duration,strength};
+  }
+  setBehavior(actorId,patch){
+    const a=this.actors.find(a=>a.actor.id===actorId);if(!a)throw new Error('Missing actor.');
+    const next=behaviorConfig({...a.behavior,...patch});
+    if(!behaviorModes.includes(next.mode)||!['auto','brace','protect','curl'].includes(next.strategy)||typeof next.autoFace!=='boolean'||!Number.isFinite(next.resistance)||next.resistance<0||next.resistance>1||!Number.isFinite(next.gravity)||next.gravity<0||next.gravity>2||!Number.isFinite(next.bounce)||next.bounce<0||next.bounce>1)throw new Error('Invalid behavior settings.');
+    if(next.mode!=='animated'&&!a.pack.physics)throw new Error('This pack has no physics profile.');
+    if(JSON.stringify(next)===JSON.stringify(a.behavior)&&(next.mode==='animated'||a.physics))return;
+    if(next.mode==='animated'&&a.behavior.mode!=='animated'){a.physics=null;a.spring={x:0,y:0,vx:0,vy:0};this.respond(a,'calm',0);}
+    if(next.mode!=='animated'&&!a.physics)a.physics=new PhysicalCharacter(this.document,a.actor,a.pack,this.frame().actors.find(v=>v.id===actorId),next);
+    a.behavior=next;a.physics?.configure(next);
+    if(!this.replaying)this.record({type:'behavior',actor:actorId,value:next});
+  }
+  interact(actorId,interaction,strength=1){
+    const a=this.actors.find(a=>a.actor.id===actorId);
+    if(!a||!['tap','pet','startle','drop','toss','hurt','catch'].includes(interaction)||!Number.isFinite(strength)||strength<0||strength>2)throw new Error('Invalid character interaction.');
+    if(!this.replaying)this.record({type:'interaction',actor:actorId,interaction,strength});
+    if(a.behavior.mode!=='animated'&&!a.physics)this.setBehavior(actorId,{});
+    a.physics?.command(interaction,strength);
+    const state={tap:'startled',pet:'happy',startle:'scared',drop:'falling',toss:'falling',hurt:'hurt',catch:'relieved'}[interaction];
+    this.respond(a,state,['drop','toss'].includes(interaction)?0:interaction==='hurt'?1.25:.7,strength);
+    this.emit({type:'interaction',actor:actorId,interaction,strength});
+  }
   previewClip(actorId, clip, time, overrides = {}) {
     const a = this.actors.find(a => a.actor.id === actorId);
     if (!a || !a.pack.clips[clip] || !Number.isFinite(time) || time < 0 || time > a.pack.clips[clip].duration) throw new Error('Invalid clip preview.');
@@ -82,6 +109,15 @@ export class SceneController {
       a.runtime.step(this.reducedMotion || !this.animationPlaying ? 0 : STEP);
       if (this.reducedMotion) { a.runtime.layers.forEach(layer => layer.transition = null); a.runtime.frame = a.runtime.evaluate(); }
       const r = a.pack.reaction, s = a.spring;
+      if(a.behavior.mode!=='animated'&&!this.reducedMotion){
+        if(!a.physics){try{a.physics=new PhysicalCharacter(this.document,a.actor,a.pack,this.frame().actors.find(v=>v.id===a.actor.id),a.behavior);}catch(error){a.behavior.mode='animated';this.respond(a,'unsupported',Number.MAX_VALUE);this.emit({type:'error',actor:a.actor.id,message:error.message});continue;}}
+        const diagnostics=a.physics.tick(STEP,this.motion,a.runtime.frame.pose);
+        if(diagnostics.impact){this.respond(a,'hurt',1.1,diagnostics.impact.strength);this.emit({type:'impact',actor:a.actor.id,...diagnostics.impact});}
+        else if(this.time>=a.response.until){if(a.response.state==='hurt'&&a.behavior.mode==='protective')this.respond(a,'recovering',.7);else this.respond(a,diagnostics.state,0);}
+      }else if(this.time>=a.response.until){
+        const moving=Math.hypot(this.motion.ax,this.motion.ay)>1800;
+        this.respond(a,moving?'startled':'calm',moving?.25:0);
+      }
       if (r && !this.reducedMotion) {
         for (const axis of ['x', 'y']) {
           const v = 'v' + axis;
@@ -93,17 +129,22 @@ export class SceneController {
     }
   }
   frame() {
-    return { time: this.time, actors: this.actors.map(({ actor, pack, runtime, spring, preview }) => {
+    return { time: this.time, actors: this.actors.map(({ actor, pack, runtime, spring, preview,behavior,response,physics }) => {
       let pose = preview ? { ...runtime.definition.defaults, ...sampleClip({ ...pack.clips[preview.clip], loop: false }, preview.time), ...preview.overrides } : { ...runtime.frame.pose };
-      for (const [key, value] of Object.entries(pack.expressions?.[runtime.inputs.emotion] || {})) pose[key] += value;
-      if (pack.reaction && !this.reducedMotion) {
+      const inputs={...runtime.inputs};
+      const emotion={startled:'surprised',scared:'scared',falling:'scared',bracing:'focused',protecting:'scared',curling:'scared',hurt:'hurt',recovering:'dizzy',relieved:'relieved',happy:'happy'}[response.state];
+      if(behavior.autoFace&&emotion&&pack.inputs.emotion?.options.includes(emotion))inputs.emotion=emotion;
+      for (const [key, value] of Object.entries(pack.expressions?.[inputs.emotion] || {})) pose[key] += value;
+      if (pack.reaction && !this.reducedMotion && behavior.mode==='animated') {
         const key = pack.reaction.joint;
         pose[`${key}.rotation`] += spring.x;
         pose[`${key}.x`] += spring.x * 1.2;
         pose[`${key}.y`] += spring.y;
       }
       pose = constrainPose(runtime.joints, pose);
-      return { id: actor.id, pose, inputs: { ...runtime.inputs }, world: forwardKinematics(runtime.joints, pose), state: preview?.clip || runtime.layers[0].state, spring: { ...spring } };
+      let world=forwardKinematics(runtime.joints,pose);
+      if(physics&&behavior.mode!=='animated')({pose,world}=physics.apply(pose));
+      return { id: actor.id, pose, inputs, world, response:response.state, physics:behavior.mode==='animated'?null:physics?.diagnostics||null, state: preview?.clip || runtime.layers[0].state, spring: { ...spring } };
     }) };
   }
   seek(time) {
@@ -111,7 +152,7 @@ export class SceneController {
     const log = this.log.map(e => ({ ...e })), wasPlaying = this.playing;
     this.replaying = true; this.reset(); let cursor = 0;
     try {
-      const apply = () => { while (cursor < log.length && log[cursor].time <= this.time + 1e-9) { const e = log[cursor++]; if (e.type === 'input') this.setInput(e.actor, e.name, e.value); else this.setAcceleration(e.ax, e.ay); } };
+      const apply = () => { while (cursor < log.length && log[cursor].time <= this.time + 1e-9) { const e = log[cursor++]; if (e.type === 'input') this.setInput(e.actor, e.name, e.value); else if(e.type==='behavior')this.setBehavior(e.actor,e.value);else if(e.type==='interaction')this.interact(e.actor,e.interaction,e.strength);else this.setAcceleration(e.ax, e.ay); } };
       while (this.time + STEP <= time + 1e-9) { apply(); this.tick(); } apply();
     } finally { this.log = log; this.replaying = false; this.playing = wasPlaying; }
     return this.frame();

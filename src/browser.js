@@ -30,6 +30,8 @@ export function mountScene(element, document, { host = element, reducedMotion = 
   schedule();
   return {
     controller,
+    setBehavior(actor,settings){controller.setBehavior(actor,settings);renderer.update(controller.frame());},
+    interact(actor,type,strength){controller.interact(actor,type,strength);renderer.update(controller.frame());},
     setInput(actor, name, value) { controller.setInput(actor, name, value); if (controller.reducedMotion) controller.tick(); renderer.update(controller.frame()); },
     play() { controller.play(); resetClock(); schedule(); },
     pause() { controller.pause(); cancelAnimationFrame(raf); raf = 0; },
