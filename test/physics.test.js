@@ -36,6 +36,7 @@ test('sound is opt-in, finite, bounded, and safe to import without browser globa
  const s=new SoundEffects();assert.equal(s.enabled,false);assert.equal(s.handle({type:'interaction',interaction:'pet'}),false);assert.equal(await s.unlock(),false);assert.throws(()=>s.setVolume(NaN));s.setVolume(10);assert.equal(s.volume,1);s.dispose();
  for(const to of ['hurt','bracing','protecting','recovering','relieved']){const [from,end,duration]=soundPattern({type:'response',to});assert.ok(from>0&&end>0&&duration>0&&duration<.5);}
  assert.equal(soundPattern({type:'response',to:'calm'}),null);
+ for(const type of ['burn-startle','help','share-failed','handoff'])assert.ok(soundPattern({type})[2]<.5);
 });
 
 test('oversized collision rigs report a recoverable error without breaking frame evaluation',()=>{

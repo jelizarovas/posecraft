@@ -8,7 +8,7 @@ export class WorkerSceneController {
  readonly ready:Promise<WorkerSceneController>;readonly stats:WorkerStats;readonly time:number;document:SceneDocument;playing:boolean;animationPlaying:boolean;reducedMotion:boolean;motion:{ax:number;ay:number};size?:{width:number;height:number};
  onFrame?:(frame:Frame)=>void;
  frame():Frame;step(dt:number):Frame;reset():Frame;seek(time:number):Frame;
- triggerEnsemble(type:'conversation'|'doze'|'meteor'|'share'):void;
+ triggerEnsemble(type:'conversation'|'doze'|'meteor'|'share'|'share-missed'|'share-help'|'burn'):void;
  walkTo(actor:string,x:number):void;
  setInput(actor:string,name:string,value:string|number|boolean):void;setBehavior(actor:string,settings:BehaviorSettings):void;interact(actor:string,type:Interaction,strength?:number):void;
  previewClip(actor:string,clip:string,time:number,overrides?:Record<string,number>):Frame;clearPreview(actor:string):void;

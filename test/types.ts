@@ -82,3 +82,6 @@ removeGroup(scene,'effects');
 scene.lighting={emitter:'smoke',enabled:true};
 // @ts-expect-error Emitter type is a supported effect, not arbitrary executable code.
 createEmitter('script','unsafe');
+
+player.triggerEnsemble('share-help');
+background.triggerEnsemble('burn');

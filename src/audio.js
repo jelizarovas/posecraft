@@ -1,6 +1,6 @@
 export function soundPattern(event){
  const key=event.type==='response'?event.to:event.type==='interaction'?event.interaction:event.type==='impact'?'impact':event.type==='transition'?'action':event.type;
- const patterns={tap:[540,330,.1,'sine'],pet:[440,880,.22,'sine'],happy:[520,1040,.22,'sine'],startle:[880,260,.18,'triangle'],scared:[740,320,.18,'triangle'],startled:[660,330,.14,'triangle'],bracing:[260,390,.12,'triangle'],protecting:[320,180,.16,'triangle'],curling:[300,160,.16,'triangle'],hurt:[230,95,.26,'triangle'],impact:[110,45,.13,'triangle'],relieved:[400,650,.24,'sine'],recovering:[290,490,.18,'sine'],drop:[520,170,.18,'sine'],toss:[260,700,.17,'sine'],catch:[320,640,.12,'sine'],action:[410,550,.09,'sine']};
+ const patterns={'burn-startle':[930,300,.21,'triangle'],help:[680,960,.23,'triangle'],'share-failed':[360,160,.3,'sine'],handoff:[480,720,.15,'sine'],tap:[540,330,.1,'sine'],pet:[440,880,.22,'sine'],happy:[520,1040,.22,'sine'],startle:[880,260,.18,'triangle'],scared:[740,320,.18,'triangle'],startled:[660,330,.14,'triangle'],bracing:[260,390,.12,'triangle'],protecting:[320,180,.16,'triangle'],curling:[300,160,.16,'triangle'],hurt:[230,95,.26,'triangle'],impact:[110,45,.13,'triangle'],relieved:[400,650,.24,'sine'],recovering:[290,490,.18,'sine'],drop:[520,170,.18,'sine'],toss:[260,700,.17,'sine'],catch:[320,640,.12,'sine'],action:[410,550,.09,'sine']};
  return patterns[key]||null;
 }
 export class SoundEffects {

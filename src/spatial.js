@@ -20,13 +20,41 @@ export function morphPath(part,value){
  if(!compiled){compiled={a:part.d.match(numbers).map(Number),b:part.spatial.morph.target.match(numbers).map(Number)};morphCache.set(part,compiled);}
  let i=0;const t=clamp(value||0,0,1);return part.d.replace(numbers,()=>String(+(compiled.a[i]+(compiled.b[i]-compiled.a[i++])*t).toFixed(4)));
 }
-// A continuous skin around a two-bone chain. The hand remains at the IK endpoint.
-export function softLimbPath(pack,part,pose,world=spatialKinematics(pack,pose)){
- const skin=part.spatial.softLimb,origin=world[part.joint],elbow=world[skin.elbow],hand=world[skin.hand],e={x:elbow.x-origin.x,y:elbow.y-origin.y},h={x:hand.x-origin.x,y:hand.y-origin.y},tip={x:h.x+hand.m[0]*7,y:h.y+hand.m[3]*7},twist=.35+.65*Math.hypot(hand.m[1],hand.m[4]),left=[],right=[];
- for(let i=0;i<=16;i++){const t=Math.min(1,i/12),u=1-t,palm=Math.max(0,(i-12)/4),x=i<=12?2*u*t*e.x+t*t*h.x:h.x+(tip.x-h.x)*palm,y=i<=12?2*u*t*e.y+t*t*h.y:h.y+(tip.y-h.y)*palm,dx=i<=12?2*u*e.x+2*t*(h.x-e.x):tip.x-h.x,dy=i<=12?2*u*e.y+2*t*(h.y-e.y):tip.y-h.y,n=Math.hypot(dx,dy),nx=n>.001?-dy/n:1,ny=n>.001?dx/n:0,r=i<=12?skin.radius*(1-.36*t)*(1+(twist-1)*t*t)+Math.sin(Math.PI*t)*1.2:skin.radius*.64*twist*Math.sqrt(Math.max(.01,1-palm*palm));left.push([x+nx*r,y+ny*r]);right.push([x-nx*r,y-ny*r]);}
- const f=p=>p.map(v=>+v.toFixed(4)).join(' ');right.reverse();
- return 'M'+f(left[0])+' '+left.slice(1).map(p=>'L'+f(p)).join(' ')+' Q'+f([tip.x,tip.y])+' '+f(right[0])+' '+right.slice(1).map(p=>'L'+f(p)).join(' ')+' Q'+f([-e.x/(Math.hypot(e.x,e.y)||1)*skin.radius,-e.y/(Math.hypot(e.x,e.y)||1)*skin.radius])+' '+f(left[0])+'Z';
+// The outline of overlapping round volumes has no ribbon normals to reverse at
+// a folded elbow or wrist. Only the external silhouette is stroked: no internal bones.
+const skinCircle=Array.from({length:12},(_,i)=>({x:Math.cos(i*Math.PI/6),y:Math.sin(i*Math.PI/6)})),skinCache=new WeakMap();
+function skinEnvelope(volumes){
+ const cross=(a,b)=>a.x*b.y-a.y*b.x,sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}),at=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});
+ const hull=circles=>{const points=circles.flatMap(c=>skinCircle.map(v=>({x:c.x+v.x*c.r,y:c.y+v.y*c.r}))).sort((a,b)=>a.x-b.x||a.y-b.y),half=list=>{const out=[];for(const p of list){while(out.length>1&&cross(sub(out.at(-1),out.at(-2)),sub(p,out.at(-1)))<=1e-9)out.pop();out.push(p);}return out;};return [...half(points).slice(0,-1),...half(points.reverse()).slice(0,-1)];};
+ const shapes=volumes.map(hull),segments=[];
+ const inside=(point,shape)=>{let edge=false;for(let k=0;k<shape.length;k++){const a=shape[k],b=shape[(k+1)%shape.length],side=cross(sub(b,a),sub(point,a));if(side< -1e-7)return 0;if(Math.abs(side)<1e-7)edge=true;}return edge?1:2;};
+ // Split polygon edges at overlaps, then keep only the external boundary of
+ // the three volumes. Folding one volume over another cannot twist that edge.
+ shapes.forEach((shape,index)=>{for(let k=0;k<shape.length;k++){
+  const a=shape[k],b=shape[(k+1)%shape.length],direction=sub(b,a),cuts=[0,1];
+  shapes.forEach((other,j)=>{if(j===index)return;for(let n=0;n<other.length;n++){const c=other[n],d=other[(n+1)%other.length],edge=sub(d,c),denominator=cross(direction,edge);if(Math.abs(denominator)<1e-9)continue;const t=cross(sub(c,a),edge)/denominator,u=cross(sub(c,a),direction)/denominator;if(t>1e-8&&t<1-1e-8&&u>=-1e-8&&u<=1+1e-8)cuts.push(t);}});
+  cuts.sort((a,b)=>a-b);for(let n=1;n<cuts.length;n++){const t=cuts[n-1],u=cuts[n];if(u-t<1e-8)continue;const middle=at(a,b,(t+u)/2);if(shapes.some((other,j)=>{if(j===index)return false;const overlap=inside(middle,other);return overlap===2||j<index&&overlap===1;}))continue;segments.push({start:at(a,b,t),end:at(a,b,u)});}
+ }});
+ const f=p=>Number(p.x.toFixed(4))+' '+Number(p.y.toFixed(4));let path='';
+ while(segments.length){let segment=segments.shift();const contour=[segment.start];
+  for(;;){contour.push(segment.end);if(Math.hypot(segment.end.x-contour[0].x,segment.end.y-contour[0].y)<1e-5){contour.pop();break;}let next=-1,distance=Infinity;for(let i=0;i<segments.length;i++){const d=Math.hypot(segments[i].start.x-segment.end.x,segments[i].start.y-segment.end.y);if(d<distance){distance=d;next=i;}}if(next<0||distance>1e-4)break;segment=segments.splice(next,1)[0];}
+  if(contour.length<3)continue;path+='M'+f(at(contour.at(-1),contour[0],.5));for(let i=0;i<contour.length;i++)path+='Q'+f(contour[i])+' '+f(at(contour[i],contour[(i+1)%contour.length],.5));path+='Z';
+ }return path;
 }
+
+export function softLimbPath(pack,part,pose,world=spatialKinematics(pack,pose)){
+ const skin=part.spatial.softLimb,origin=world[part.joint],elbow=world[skin.elbow],hand=world[skin.hand],e={x:elbow.x-origin.x,y:elbow.y-origin.y},h={x:hand.x-origin.x,y:hand.y-origin.y},width=m=>.6+.4*Math.min(1,Math.hypot(m[1],m[4])),upper=width(origin.m),fore=width(elbow.m),wrist=width(hand.m),r=skin.radius,volumes=[[],[],[]];
+ const key=[e.x,e.y,h.x,h.y,upper,fore,wrist,hand.m[0],hand.m[3],r],cached=skinCache.get(part);if(cached&&key.every((v,i)=>v===cached.key[i]))return cached.path;
+ // Taper each actual bone independently. A rounded elbow replaces the old
+ // shoulder-to-wrist quadratic, which cut across tightly folded poses.
+ for(let i=0;i<=2;i++){const t=i/2;volumes[0].push({x:e.x*t,y:e.y*t,r:r*(.96-.22*t+.08*Math.sin(Math.PI*t))*upper});}
+ for(let i=0;i<=2;i++){const t=i/2,twist=fore+(wrist-fore)*t*t*t;volumes[1].push({x:e.x+(h.x-e.x)*t,y:e.y+(h.y-e.y)*t,r:r*(.74-.16*t+.14*Math.sin(Math.PI*t))*twist});}
+ // The wrist center stays exactly at the IK/contact point. Its projected axis
+ // shapes a short rounded palm; a reversed axis simply overlaps the forearm.
+ for(let i=0;i<=2;i++){const t=i/2;volumes[2].push({x:h.x+hand.m[0]*r*.72*t,y:h.y+hand.m[3]*r*.72*t,r:r*.58*wrist*(1-.55*t)});}
+ const path=skinEnvelope(volumes);skinCache.set(part,{key,path});return path;
+}
+
 export function spatialParts(pack,frame){
  if(!pack.spatial)return null;let pose=frame.pose;if(frame.physics){const root=pack.joints.find(j=>j.parent===null),w=frame.world[root.id];pose={...pose,[root.id+'.x']:w.x-root.x,[root.id+'.y']:w.y-root.y};}const world=spatialKinematics(pack,pose),result=new Map();
  pack.parts.forEach((part,index)=>{const j=world[part.joint],s=part.spatial||{},m=j.m,offset=apply(m,0,0,s.depth||0),v=[m[0],m[3],m[1],m[4],j.x+offset.x,j.y+offset.y];

@@ -117,6 +117,7 @@
     "test:spatial": "node test/spatial-browser.mjs",
     "test:lighting": "node test/lighting-browser.mjs",
     "test:lighting-turn": "node test/lighting-turn-browser.mjs",
+    "test:campfire-story": "node test/campfire-story-browser.mjs",
     "test:campfire": "node test/campfire-browser.mjs",
     "test:timeline": "node test/timeline-browser.mjs",
     "test:draw": "node test/draw-browser.mjs",

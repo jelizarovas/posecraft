@@ -79,3 +79,12 @@ test('explicit legacy campfire conversion keeps authored characters and custom f
  const before=structuredClone(legacy),converted=assertDocument(convertCampfireEffects(legacy));assert.deepEqual(legacy,before,'conversion never mutates the open draft');assert.deepEqual(converted.packs['camper-0'],legacy.packs['camper-0']);assert.ok(converted.packs.fire.parts.some(p=>p.id==='custom-fire-sign'));assert.ok(converted.packs.fire.joints.some(j=>j.id==='smoke-0'));assert.ok(converted.packs.fire.clips.loop.tracks['smoke-0.y']);assert.ok(!converted.packs.fire.joints.some(j=>j.id==='flame-0'));assert.ok(!converted.packs.fire.clips.loop.tracks['flame-0.y']);assert.ok(!converted.packs.fire.parts.some(p=>p.id==='smoke-0'));assert.equal(converted.groups.find(g=>g.id==='campfire').name,'My custom folder');assert.ok(converted.groups.some(g=>g.id==='campfire-2'));
  assert.deepEqual(convertCampfireEffects(converted),converted,'conversion is idempotent even with retained custom dependencies');
 });
+
+
+test('reaction artwork stays hidden in authored cooking clips until explicitly directed',()=>{
+ const d=assertDocument(createCampfire()),channels=['camp-startle','camp-sweat','camp-disappointed','camp-shout','camp-notice'],controller=new SceneController(d);
+ for(const actor of d.actors.filter(a=>a.id.startsWith('camper-'))){const p=d.packs[actor.pack];for(const id of channels){assert.ok(p.parts.some(part=>part.id===id&&part.opacityChannel===id+'.opacity'));assert.ok(p.clips.campfire.tracks[id+'.opacity'].every(key=>key[1]===0));}
+  controller.previewClip(actor.id,'campfire',12.4,{});const frame=controller.frame().actors.find(a=>a.id===actor.id);for(const id of channels)assert.equal(frame.pose[id+'.opacity'],0);
+ }
+ controller.previewClip('camper-0','campfire',12.4,{'camp-startle.opacity':1});const svg=renderSVG(d,controller.frame());assert.match(svg,/opacity="1" data-part="camp-startle"/);assert.match(svg,/opacity="1" data-part="camp-startle-eyes"/);assert.doesNotMatch(svg,/data-part="camp-point"/);controller.dispose();
+});

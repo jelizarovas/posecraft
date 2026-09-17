@@ -9,6 +9,7 @@ import {PhoneMotion} from '../src/device-motion.js';
 import {SoundEffects} from '../src/audio.js';
 const $=id=>document.getElementById(id),icon=name=>`<span class="material-symbols-outlined" aria-hidden="true">${name}</span>`;
 const media=matchMedia('(prefers-reduced-motion: reduce)'),sound=new SoundEffects();
+let ensembleSoundTime=-Infinity,ensembleSoundEvents=new Set();
 let scrubPending=null,selected,documentData,controller,worker,renderer,frame,renderedScene,token=0,ready=false,inFlight=false,pending=null,time=0,last=null,playing=!media.matches,offset={x:0,y:0},drag=null,debug=false,shakeStart=null,wander=false,nextWalk=0;
 const phone=new PhoneMotion({onStatus:message=>{if(selected?.id==='shake-and-settle'){$('demo-status').textContent=message;phoneButton();}}});
 function phoneButton(){const b=$('phone-motion');if(b){b.innerHTML=icon('gesture')+(phone.enabled?'Motion off':'Enable phone');b.setAttribute('aria-pressed',String(phone.enabled));}}
@@ -19,7 +20,7 @@ for(const d of demoCatalog){
  const doc=createDemo(d.id),episode=doc.kind==='episode',engine=episode?new EpisodeController(doc):new SceneController(doc),f=engine.frame(0),scene=episode?doc.scenes[f.scene]:doc;
  const button=document.createElement('button');button.className='demo-card';button.dataset.demo=d.id;button.style.setProperty('--demo-color',d.color);button.innerHTML=`<span class="demo-thumb">${renderSVG(scene,f)}</span><span class="demo-card-copy"><strong>${d.title}</strong><small>${d.category}</small></span>`;button.onclick=()=>select(d.id);$('demo-list').append(button);engine.dispose?.();
 }
-function cleanup(){scrubPending=null;stopMotion();wander=false;nextWalk=0;token++;worker?.terminate();worker=null;controller?.dispose();controller=null;renderer?.dispose();renderer=null;renderedScene=null;ready=false;inFlight=false;pending=null;offset={x:0,y:0};drag=null;$('demo-stage').style.transform='';}
+function cleanup(){ensembleSoundTime=-Infinity;ensembleSoundEvents.clear();scrubPending=null;stopMotion();wander=false;nextWalk=0;token++;worker?.terminate();worker=null;controller?.dispose();controller=null;renderer?.dispose();renderer=null;renderedScene=null;ready=false;inFlight=false;pending=null;offset={x:0,y:0};drag=null;$('demo-stage').style.transform='';}
 function select(id,seed){
  cleanup();selected=findDemo(id)||demoCatalog[0];documentData=createDemo(selected.id);if(seed!==undefined&&documentData.ensemble)documentData.ensemble.seed=seed;frame=null;time=0;last=null;debug=selected.id==='drop-lab';playing=!media.matches;const mine=token;
  history.replaceState(null,'','#'+selected.id);document.title=selected.title+' · Posecraft demos';
@@ -39,6 +40,8 @@ function fail(message){playing=false;$('demo-status').textContent='Could not pla
 function show(f){
  frame=f;if(scrubPending!==null&&Math.abs(f.time-scrubPending)<.03)scrubPending=null;const episode=documentData.kind==='episode',scene=episode?documentData.scenes[f.scene]:documentData;
  if(!renderer||renderedScene!==scene.id){renderer?.dispose();renderer=mountSVG($('demo-art'),scene,f,{physicsDebug:debug,colliders:debug});renderedScene=scene.id;}else renderer.update(f);
+ const svg=$('demo-art').querySelector('svg');if(svg&&f.ensemble){svg.dataset.sharePhase=f.ensemble.share?.phase||'';svg.dataset.shareGiver=f.ensemble.share?.giver||'';svg.dataset.shareReceiver=f.ensemble.share?.receiver||'';svg.dataset.shareOwner=f.ensemble.share?.owner||'';svg.dataset.shareContact=String(f.ensemble.share?.contact??'');}
+ if(f.ensemble){const key=e=>JSON.stringify([e.type,e.time,e.actors]);if(playing&&f.time>=ensembleSoundTime)for(const event of f.ensemble.events)if(!ensembleSoundEvents.has(key(event)))sound.handle(event);ensembleSoundEvents=new Set(f.ensemble.events.map(key));ensembleSoundTime=f.time;}
  $('demo-caption').textContent=episode?documentData.shots[f.shotIndex].name: selected.id==='campfire-night'?f.actors.filter(a=>a.activity).map(a=>documentData.actors.find(v=>v.id===a.id).name+': '+a.activity).join(' / '):selected.id==='light-and-shade'?'One connected corner / point lights react to position': selected.id==='turn-and-pose'?'Ona · Dummy / projected faces, depth order and authored shapes':selected.id==='shake-and-settle'?f.actors.map(a=>documentData.actors.find(v=>v.id===a.id).name+': '+(a.recovery?.phase||a.response).replaceAll('-',' ')).join(' · '):selected.id==='drop-lab'?'Loose · Protect head · Brace':selected.id==='zero-gravity'?'Drag to move the container':'One cast, four different performances';
  if(episode){document.querySelectorAll('[data-shot]').forEach(b=>b.classList.toggle('active',b.dataset.shot===f.shot));$('demo-status').textContent=scene.name+' · '+scene.actors.length+' characters';}transport();
 }
@@ -55,6 +58,9 @@ function drawControls(){
   $('demo-target').parentElement.remove();
   for(const [id,label] of [['conversation','Conversation'],['doze','Daydream'],['meteor','Meteor'],['share','Share a treat']])action('camp-'+id,label,()=>controller.triggerEnsemble(id));
   action('camp-new','New evening',()=>select(selected.id,crypto.getRandomValues(new Uint32Array(1))[0]));
+  const beat=document.createElement('select');beat.id='camp-reaction';beat.setAttribute('aria-label','Campfire reaction demo');
+  for(const [value,label] of [['','More reactions…'],['share-missed','Missed offer'],['share-help','Friend calls out'],['burn','Burned treat']])beat.add(new Option(label,value));
+  beat.onchange=()=>{const event=beat.value;if(event){resume();controller.triggerEnsemble(event);beat.value='';}};$('demo-actions').append(beat);
  }else if(selected.id==='light-and-shade'){
   documentData.lighting=lightingConfig(documentData);
   const relight=patch=>{Object.assign(documentData.lighting,patch);document.querySelectorAll('[data-light-control]').forEach(input=>input.value=documentData.lighting[input.dataset.lightControl]);renderer?.dispose();renderer=null;show(frame||controller.frame());};

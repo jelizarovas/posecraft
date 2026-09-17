@@ -102,7 +102,7 @@ function camper(index,x,scale,colors,hair,groundY=365,yaw=0){
  }
  p.joints.push(joint('camp-point','take-hand')); // Kept for older editable clips; no extra finger artwork.
  p.joints.push(joint('skewer','root'),joint('food','root'),joint('toast','food'),joint('snack-flame','food'));
- addPart('roasting-stick','skewer',`M0 0H${length}`,'none',{stroke:'#b99567',strokeWidth:2,spatial:{order:80,morph:{channel:'skewer.bend',target:'M0 0H0'}}});
+ addPart('roasting-stick','skewer',`M0 0H${length}`,'none',{stroke:'#b99567',strokeWidth:2,opacityChannel:'skewer.opacity',spatial:{order:80,morph:{channel:'skewer.bend',target:'M0 0H0'}}});
  addPart('marshmallow','food',snack,'#fff1d9',{stroke:'#b79876',strokeWidth:.6,opacityChannel:'food.opacity',spatial:{order:90,morph:{channel:'food.bend',target:'M-8 0Q0 6 8 0L8 10Q0 14 -8 10Z'}}});
  addPart('toast','toast',snack,'#563523',{opacityChannel:'toast.opacity',spatial:{order:91,morph:{channel:'food.bend',target:'M-8 0Q0 6 8 0L8 10Q0 14 -8 10Z'}}});
  addPart('snack-flame','snack-flame',flame,'#ffad46',{transform:'scale(.23 .3)',opacityChannel:'snack-flame.opacity',spatial:{order:92}});
@@ -118,9 +118,20 @@ function camper(index,x,scale,colors,hair,groundY=365,yaw=0){
  face('camp-chew-open','M-5 3Q0 1 5 3Q4 10 0 10Q-4 10 -5 3Z','#513d35');
  face('camp-chew-closed','M-5 5Q0 8 5 5','none',{stroke:'#383936',strokeWidth:1.8});
  face('camp-cheeks',ellipse(-23,2,5,2.5)+ellipse(23,2,5,2.5),'#d98978');
+ // Short directed reactions sit outside the silhouette; no extra fingers or props.
+ const mark=(id,d,color,filled=false)=>{p.joints.push(joint(id,'head'));addPart(id,id,d,filled?color:'none',{stroke:filled?'#465568':color,strokeWidth:filled?1.3:2.8,opacityChannel:id+'.opacity',spatial:{depth:32,order:125}});};
+ mark('camp-startle','M-48 -48L-59 -61M-34 -60L-37 -75M49 -68L49 -54M49 -47L49 -45','#ffe697');
+ mark('camp-sweat','M48 -46C47 -41 42 -37 42 -33C42 -25 53 -24 55 -32C57 -37 51 -42 48 -46Z','#acdce5',true);
+ mark('camp-disappointed','M29 -47V-33M36 -45V-29M43 -42V-27','#899bbd');
+ mark('camp-shout','M47 -8L60 -14M49 1L65 1M47 10L60 16','#ffe697');
+ mark('camp-notice','M-48 -67L-44 -58L-35 -54L-44 -50L-48 -41L-52 -50L-61 -54L-52 -58Z','#fff0b5',true);
+ face('camp-startle-eyes',ellipse(-15,-10,5.5,8)+ellipse(17,-10,5.5,8),colors.eyes,{channel:'eyes',opacityChannel:'camp-startle.opacity'});
+ face('camp-startle-mouth',ellipse(0,6,4.8,8),'#513d35',{opacityChannel:'camp-startle.opacity'});
+
  // Separate curved placements keep the near eye visible as the far eye turns away.
  for(const [id,left,right,x1,x2] of [
   ['camp-eyes',ellipse(-15,-10,4.2,6),ellipse(17,-10,4.2,6),-15,17],
+  ['camp-startle-eyes',ellipse(-15,-10,5.5,8),ellipse(17,-10,5.5,8),-15,17],
   ['camp-eye-shine',ellipse(-16,-12,1.2,1.5),ellipse(16,-12,1.2,1.5),-15,17],
   ['camp-blink','M-20 -9Q-15 -5 -10 -9','M12 -9Q17 -5 22 -9',-15,17],
   ['camp-brows','M-21 -21L-10 -22','M11 -22L22 -21',-15,17],
@@ -134,11 +145,12 @@ function camper(index,x,scale,colors,hair,groundY=365,yaw=0){
   const time=n/24,t=(time+index*5)%24,c=cookingPose(t,index,x,scale,groundY,yaw),burn=t>=12&&t<15,blow=t>=15&&t<16.4,chew=t>=17.8&&t<19,blink=[2.2,6.6,10.4,15.4,19.6,22.8].some(at=>Math.abs(t-at)<.09),bite=(Math.sin(t*22)+1)/2;
   add('camp-original.opacity',time,0);add('camp-point.opacity',time,0);add('root.yaw',time,yaw);
   for(const [name,side,hand,bend] of [['hold',sign,c.holding,-sign],['take',-sign,c.hand,sign]]){const pose=armPose({x:side*27,y:0},hand,bend);add(name+'-upper.rotation',time,pose.upper);add(name+'-elbow.rotation',time,pose.lower);add(name+'-hand.rotation',time,pose.hand);add(name+'-upper.z',time,42);}
-  add('skewer.x',time,c.base.x);add('skewer.y',time,c.base.y);add('skewer.rotation',time,c.stickRotation);add('skewer.bend',time,Math.max(0,1-c.projected/c.length));add('skewer.z',time,43);
+  add('skewer.opacity',time,1);add('skewer.x',time,c.base.x);add('skewer.y',time,c.base.y);add('skewer.rotation',time,c.stickRotation);add('skewer.bend',time,Math.max(0,1-c.projected/c.length));add('skewer.z',time,43);
   add('food.x',time,c.food.x);add('food.y',time,c.food.y);add('food.z',time,44);add('food.rotation',time,0);add('food.bend',time,t>=17.8&&t<19?ramp(t,17.8,18.9):0);add('food.opacity',time,t>=19&&t<20.7?0:1,'step');add('toast.opacity',time,t<9||t>=19?0:Math.min(.9,(t-9)/3));add('snack-flame.opacity',time,burn?.65+.3*Math.sin(t*14):0,'step');add('snack-flame.rotation',time,Math.sin(t*12)*12);
   add('head.rotation',time,burn?Math.sin(t*9)*3:chew?Math.sin(t*22)*.6:Math.sin(t*.7)*1.5);add('head.yaw',time,0);
   for(const [id,value] of [['camp-eyes',blink?0:1],['camp-eye-shine',blink?0:1],['camp-blink',blink?1:0],['camp-brows',burn?0:1],['camp-worried',burn?1:0],['camp-smile',!burn&&!blow&&!chew?1:0],['camp-oh',burn?1:0],['camp-blow',blow?1:0],['camp-chew-open',chew?bite:0],['camp-chew-closed',chew?1-bite:0],['camp-cheeks',chew?.45:burn?.3:.12]])add(id+'.opacity',time,value,'step');
  }
+ for(const id of ['camp-startle','camp-sweat','camp-disappointed','camp-shout','camp-notice','camp-startle-eyes','camp-startle-mouth'])tracks[id+'.opacity']=[[0,0],[24,0]];
  // Drop only redundant held samples; retain transition endpoints and contact samples.
  for(const [key,keys] of Object.entries(tracks))tracks[key]=keys.filter((v,i)=>i===0||i===keys.length-1||v[1]!==keys[i-1][1]||v[1]!==keys[i+1][1]);
  p.clips.campfire={duration:24,loop:true,tracks};p.states.campfire={clip:'campfire',transitions:[]};p.inputs.action.options.push('campfire');p.inputs.action.default='campfire';p.initial='campfire';

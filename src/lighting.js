@@ -53,7 +53,7 @@ export function partLighting(light,actor,evaluated,part,spatial){
  if(actor.groundY===undefined||!spatial)return local;
  // Ground placement supplies scene depth. Use the visible side's rotated normal,
  // so a fire behind a near-side camper cannot paint a highlight on their back.
- const m=j.m,side=m[8]<0?-1:1,nx=side*(m[2]*Math.cos(r)-m[5]*Math.sin(r)),ny=side*(m[2]*Math.sin(r)+m[5]*Math.cos(r)),nz=side*m[8],dx=light.pointX-x,dy=light.pointY-y,dz=(light.pointY-actor.groundY)*2-j.z*t.scale,distance=Math.hypot(dx,dy,dz)||1,exposure=Math.round(Math.max(0,Math.min(1,(nx*dx+ny*dy+nz*dz)/distance*1.8))*50)/50;
+ const m=j.m,side=m[8]<0?-1:1,nx=side*(m[2]*Math.cos(r)-m[5]*Math.sin(r)),ny=side*(m[2]*Math.sin(r)+m[5]*Math.cos(r)),nz=side*m[8],dx=light.pointX-x,dy=light.pointY-y,dz=(light.pointY-(evaluated.groundY??actor.groundY))*2-j.z*t.scale,distance=Math.hypot(dx,dy,dz)||1,exposure=Math.round(Math.max(0,Math.min(1,(nx*dx+ny*dy+nz*dz)/distance*1.8))*50)/50;
  return {...local,intensity:local.intensity*exposure,surfaceExposure:exposure};
 }
 
