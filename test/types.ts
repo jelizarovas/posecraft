@@ -47,3 +47,5 @@ new MotionSignal().update({acceleration:{x:1,y:0}},0);
 
 scene.packs[scene.actors[0].pack].spatial=true;
 scene.packs[scene.actors[0].pack].parts[0].spatial={thickness:.7,axis:"x",facing:"front",surface:{x:-10,width:30,depth:20}};
+
+scene.lighting={enabled:true,angle:-135,elevation:45,color:"#fff1d6",floorShadow:.24,reflection:.2,gloss:.35};

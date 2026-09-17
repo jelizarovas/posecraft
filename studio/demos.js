@@ -38,7 +38,7 @@ function fail(message){playing=false;$('demo-status').textContent='Could not pla
 function show(f){
  frame=f;const episode=documentData.kind==='episode',scene=episode?documentData.scenes[f.scene]:documentData;
  if(!renderer||renderedScene!==scene.id){renderer?.dispose();renderer=mountSVG($('demo-art'),scene,f,{physicsDebug:debug,colliders:debug});renderedScene=scene.id;}else renderer.update(f);
- $('demo-caption').textContent=episode?documentData.shots[f.shotIndex].name: selected.id==='turn-and-pose'?'Ona · Dummy / projected faces, depth order and authored shapes':selected.id==='shake-and-settle'?f.actors.map(a=>documentData.actors.find(v=>v.id===a.id).name+': '+(a.recovery?.phase||a.response).replaceAll('-',' ')).join(' · '):selected.id==='drop-lab'?'Loose · Protect head · Brace':selected.id==='zero-gravity'?'Drag to move the container':'One cast, four different performances';
+ $('demo-caption').textContent=episode?documentData.shots[f.shotIndex].name: selected.id==='light-and-shade'?'Warm studio / moving silhouettes, soft contact and a mirrored floor': selected.id==='turn-and-pose'?'Ona · Dummy / projected faces, depth order and authored shapes':selected.id==='shake-and-settle'?f.actors.map(a=>documentData.actors.find(v=>v.id===a.id).name+': '+(a.recovery?.phase||a.response).replaceAll('-',' ')).join(' · '):selected.id==='drop-lab'?'Loose · Protect head · Brace':selected.id==='zero-gravity'?'Drag to move the container':'One cast, four different performances';
  if(episode){document.querySelectorAll('[data-shot]').forEach(b=>b.classList.toggle('active',b.dataset.shot===f.shot));$('demo-status').textContent=scene.name+' · '+scene.actors.length+' characters';}transport();
 }
 function send(){if(!ready||inFlight||pending===null)return;inFlight=true;worker.postMessage({type:'frame',time:pending});pending=null;}
@@ -50,7 +50,16 @@ function drawControls(){
  $('demo-controls').innerHTML=`<label>Cast<select id="demo-target"><option value="all">Everyone</option></select></label><div id="demo-actions" class="demo-actions"></div>`;
  for(const a of documentData.actors){const option=document.createElement('option');option.value=a.id;option.textContent=a.name;$('demo-target').append(option);}
  const action=(id,label,fn)=>{const b=document.createElement('button');b.id=id;b.textContent=label;b.onclick=()=>{resume();fn();};$('demo-actions').append(b);};
- if(selected.id==='turn-and-pose'){
+ if(selected.id==='light-and-shade'){
+  const relight=patch=>{Object.assign(documentData.lighting,patch);document.querySelectorAll('[data-light-control]').forEach(input=>input.value=documentData.lighting[input.dataset.lightControl]);renderer?.dispose();renderer=null;show(frame||controller.frame());};
+  action('light-warm','Warm',()=>{relight({enabled:true,color:'#fff1d6',ambient:.6,intensity:.8,gloss:.35});});
+  action('light-cool','Moonlight',()=>{relight({enabled:true,color:'#a8caff',ambient:.35,intensity:1.1,gloss:.5});});
+  action('light-flat','Flat',()=>relight({enabled:false}));
+  action('light-jump','Jump',()=>{for(const a of targets()){controller.clearPreview(a.id);controller.setInput(a.id,'action','tuck-jump');}});
+  action('light-turn','Turn',()=>{for(const a of targets()){controller.clearPreview(a.id);controller.setInput(a.id,'action','turnaround');}});
+  const controls=document.createElement('div');controls.className='lighting-controls';controls.innerHTML=[['angle','Direction',-180,180,1],['softness','Softness',0,16,1],['gloss','Highlights',0,1,.05],['reflection','Reflection',0,.8,.05]].map(([id,label,min,max,step])=>`<label>${label}<input data-light-control="${id}" aria-label="${label}" type="range" min="${min}" max="${max}" step="${step}" value="${documentData.lighting[id]}"></label>`).join('');$('demo-controls').append(controls);
+  controls.querySelectorAll('input').forEach(input=>input.oninput=()=>relight({enabled:true,[input.dataset.lightControl]:+input.value}));
+ }else if(selected.id==='turn-and-pose'){
   const play=clip=>{for(const a of targets()){controller.clearPreview(a.id);controller.setInput(a.id,'action',clip);}for(const input of document.querySelectorAll('[data-spatial-control]')){input.value=0;input.nextElementSibling.value='0';}};
   action('study-turn','Turnaround',()=>play('turnaround'));action('study-glance','Look around',()=>play('glance'));action('study-reach','Reach & hide',()=>play('reach-depth'));action('study-jump','Tuck jump',()=>play('tuck-jump'));
   const controls=document.createElement('div');controls.className='spatial-controls';controls.innerHTML=[['body','Body turn',-180,180],['head','Head turn',-90,90],['depth','Arm depth',-40,40],['shape','Shape / tuck',0,100]].map(([id,label,min,max])=>`<label>${label}<input data-spatial-control="${id}" aria-label="${label}" type="range" min="${min}" max="${max}" value="0"><output>0</output></label>`).join('');$('demo-controls').append(controls);

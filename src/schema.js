@@ -1,5 +1,6 @@
+import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -31,6 +32,11 @@ function validateStructure(doc) {
   check(typeof doc.name === 'string' && doc.name.length <= 100, 'name', 'Expected a name up to 100 characters.');
   check(Number.isSafeInteger(doc.revision) && doc.revision >= 0, 'revision', 'Expected a nonnegative revision.');
   check(record(doc.bounds) && finite(doc.bounds.width, 1, 4096) && finite(doc.bounds.height, 1, 4096), 'bounds', 'Width and height must be 1..4096.');
+  if(doc.lighting!==undefined){const l=doc.lighting;check(record(l),'lighting','Expected scene lighting.');if(record(l)){
+    if(l.enabled!==undefined)check(typeof l.enabled==='boolean','lighting.enabled','Expected boolean.');
+    for(const [key,[min,max]] of Object.entries(lightRanges))if(l[key]!==undefined)check(finite(l[key],min,max),'lighting.'+key,`Expected ${min}..${max}.`);
+    for(const key of ['color','shadowColor'])if(l[key]!==undefined)check(typeof l[key]==='string'&&/^#[a-fA-F0-9]{6}$/.test(l[key]),'lighting.'+key,'Expected a six-digit hex color.');
+  }}
   check(doc.requiredFeatures === undefined || Array.isArray(doc.requiredFeatures), 'requiredFeatures', 'Expected capability array.');
   for (const feature of Array.isArray(doc.requiredFeatures) ? doc.requiredFeatures : []) check(capabilities.features.includes(feature), 'requiredFeatures', `Unsupported capability: ${feature}`);
   if (!record(doc.packs) || !Array.isArray(doc.actors)) return { valid: false, errors: [...errors, { path: '$', message: 'Expected packs and actors.' }] };

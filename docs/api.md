@@ -111,3 +111,5 @@ For webcam acting and saved animation takes, see [capture](capture.md) and `pose
 For opt-in get-up, return-to-mark walking, `walkTo(actorId, sceneX)`, recovery diagnostics and the phone-motion adapter, see [assisted recovery](reactions.md#assisted-get-up-and-walking).
 
 Opt-in `pack.spatial: true` enables keyable yaw/pitch, layer depth and shape controls. Part metadata defines curved facial surfaces, visibility, clipping and compatible vector morphs. See [spatial rigs](spatial.md). Original packs retain their existing 2D behavior.
+
+Optional `scene.lighting` adds surface shading, highlights, cast/contact shadows and planar reflections to the SVG renderer. See [lighting](lighting.md) for fields, Studio controls, rendering costs and receiver limits.

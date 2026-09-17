@@ -15,9 +15,11 @@ Open the localhost address printed by Vite. `npm run build` creates the static G
 
 ## What works in 0.1
 
+- [Light & shade](https://jelizarovas.github.io/posecraft/demos.html#light-and-shade): scene lighting, character gradients/highlights, floor and wall shadows, contact shadows and planar reflections. Edit in Studio’s Light panel. [Lighting guide and limits](docs/lighting.md).
+
 - [Turn & pose](https://jelizarovas.github.io/posecraft/demos.html#turn-and-pose), an Ona/Dummy depth-rig study with curved facial projection, front/back visibility, depth ordering, arm-shape morphing and keyable yaw/pitch. [Rig guide and limits](docs/spatial.md).
 
-- [Eight live demos](https://jelizarovas.github.io/posecraft/demos.html), including [Shake & settle](https://jelizarovas.github.io/posecraft/demos.html#shake-and-settle) with opt-in phone motion, assisted get-up, return to marks and click-to-walk. [Demo guide](docs/demos.md).
+- [Nine live demos](https://jelizarovas.github.io/posecraft/demos.html), including [Shake & settle](https://jelizarovas.github.io/posecraft/demos.html#shake-and-settle) with opt-in phone motion, assisted get-up, return to marks and click-to-walk. [Demo guide](docs/demos.md).
 
 - [Director](https://jelizarovas.github.io/posecraft/director.html) for reusable scenes, timed shots, camera/actor keys, seeded motion with baking, and local video-frame references. Read the [Director guide](docs/director.md).
 - One-screen Studio with Material icons, selectable body parts, draggable rotation handles, joint-limit arcs and editable limits, keyframes, transition blending, undo/redo, local recovery, and JSON open/save/export.

@@ -6,6 +6,7 @@ import rusty from './characters/rusty.json' with {type:'json'};
 import dummy from './characters/dummy.json' with {type:'json'};
 const library={ona,wwwzard,rusty,dummy};
 export const demoCatalog=[
+ {id:'light-and-shade',title:'Light & shade',category:'Lighting study',description:'A warm key light, soft shadows and a polished floor. Watch the light follow moving silhouettes.',features:['Surface gradients','Cast shadows','Floor reflections'],instruction:'Move the light, compare warm and cool presets, or jump to see the contact shadow soften. Open in Studio for receiver and shadow controls.',color:'#e2d3c4',kind:'scene'},
  {id:'turn-and-pose',title:'Turn & pose',category:'2.5D character study',description:'Turn the head and body, reach in front or behind, and bring a knee toward the camera.',features:['Depth & overlap','Shape morphs','Keyable turns'],instruction:'Play an acting study, or pause with the sliders. Open in Studio to key Yaw, Pitch, Depth and Shape on a selected joint.',color:'#e5ddd2',kind:'scene'},
  {id:'shake-and-settle',title:'Shake & settle',category:'Phone motion & recovery',description:'Shake or turn your phone to tumble the cast. They get up and walk back to their marks.',features:['Phone sensors','Assisted get-up','Walk & return'],instruction:'Enable phone motion, or use Shake scene. Stop moving to let the cast recover. Select a character and tap the stage to walk somewhere.',color:'#d4e4df',kind:'scene'},
  {id:'www-after-hours',title:'WWW after hours',category:'Short cartoon',description:'A late night at the studio. wwwzard takes a break, Ona has an idea, and Rusty wants attention.',features:['3 characters','3 camera shots','Expression timing'],instruction:'Play the scene, or scrub through the camera cuts. Open it in Director to change the performance.',color:'#dce6ee',kind:'episode'},
@@ -25,6 +26,11 @@ const shot=(id,name,set,actors,duration=4,view=camera())=>({id,name,scene:set,du
 const episode=(id,name,scenes,shots)=>({schemaVersion:1,kind:'episode',id,name,revision:0,fps:24,size:{width:1280,height:720},scenes,shots});
 const parkProps=()=>[rect('sky',400,200,800,500,'#d8e9e5'),rect('grass',400,425,800,110,'#a8c38c'),rect('path',400,415,800,32,'#ded1ac'),rect('tree-trunk',110,230,26,280,'#9b795f'),rect('tree-crown',100,104,165,155,'#89ae83',false,8),rect('tree-leaves',137,114,112,108,'#a1be90',false,30),rect('bench-seat',605,331,225,15,'#ac8c68'),rect('bench-back',605,287,225,60,'#bf9e76'),rect('bench-leg-a',520,368,14,60,'#897662'),rect('bench-leg-b',690,368,14,60,'#897662')];
 export function createDemo(id){
+ if(id==='light-and-shade'){
+  const doc=createDemo('turn-and-pose');doc.id=id;doc.name='Light & shade';doc.props=[rect('wall',400,150,800,300,'#d8d0c9'),rect('floor',400,375,800,150,'#beb4aa')];
+  for(const a of doc.actors){a.transform.y=365-standingTarget(doc,a,doc.packs[a.pack],a.transform.x).box.bottom;a.inputs.action='glance';}
+  doc.lighting={enabled:true,angle:-135,elevation:45,intensity:.8,ambient:.6,color:'#fff1d6',shadowColor:'#292438',softness:3,floorY:365,wallY:300,floorShadow:.24,wallShadow:.14,reflection:.22,gloss:.35};doc.requiredFeatures.push('scene-lighting');return doc;
+ }
  if(id==='turn-and-pose'){
   const doc=scene(id,'Turn & pose',[actor('ona','ona',250,285,1.8),actor('dummy','dummy',565,235,1.6)],[rect('backdrop',400,225,800,450,'#f1ece3'),rect('ground',400,395,800,110,'#dfd6c7')]);
   for(const a of doc.actors){addSpatialRig(doc.packs[a.pack],a.pack);a.inputs={...a.inputs,action:'turnaround'};a.behavior={mode:'animated',autoFace:false};}doc.requiredFeatures=['spatial-rig'];return doc;
