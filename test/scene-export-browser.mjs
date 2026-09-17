@@ -9,6 +9,7 @@ import {createSceneExport} from '../src/scene-export.js';
 import {compileScene} from '../tools/compile-scene.mjs';
 import {buildExportRuntimes} from '../tools/build-export-runtimes.mjs';
 
+await fs.mkdir(path.resolve('test-results'),{recursive:true});
 const root=await fs.mkdtemp(path.resolve('test-results/website-export-'));
 const pointerScene=structuredClone(ona);pointerScene.interactions=[{id:'head-tug',actor:'ona',joint:'head',gesture:'drag',response:'resist',event:'tug',resistance:.5}];
 const campfire=createCampfire(),physical=structuredClone(ona);physical.actors[0].behavior={mode:'ragdoll'};

@@ -38,7 +38,8 @@ test('live graph actions, emitter overrides and pointer settling match full-runt
  const sequence={...d,presentation:'sequence'},c=new IllustrationController(sequence,{pointerFactory:ScenePointerInteraction});assert.equal(c.dispatch('stop'),false);assert.equal(c.frame().behavior,undefined);c.dispose();
 });
 test('compiler emits only required feature modules, no Planck in authored or campfire websites',async()=>{
- const root=await fs.mkdtemp(path.resolve('test-results/scene-compile-'));
+ await fs.mkdir(path.resolve('test-results'),{recursive:true});
+const root=await fs.mkdtemp(path.resolve('test-results/scene-compile-'));
  for(const [name,document] of [['clip',ona],['campfire',createCampfire()]]){const manifest=await compileScene(document,path.join(root,name));assert.equal(manifest.runtime,'illustration');assert.ok(manifest.files.length);const modules=manifest.files.flatMap(file=>file.modules);assert.ok(!modules.some(id=>/planck|\/physics\.js|\/recovery\.js|\/scene\.js/.test(id)),`${name} has no physical simulation dependency`);if(name==='clip')assert.ok(!modules.some(id=>id.endsWith('/ensemble.js')||id==='src/ensemble.js'),'plain clips omit ensemble code');assert.ok((await fs.readFile(path.join(root,name,'index.html'),'utf8')).includes('./runtime/illustration.js'));await assert.rejects(()=>compileScene(document,path.join(root,name)),/empty output directory/);}
  const physical=structuredClone(ona);physical.actors[0].behavior={mode:'ragdoll'};const full=await compileScene(physical,path.join(root,'physical'));assert.equal(full.runtime,'physics');assert.ok(full.files.some(file=>file.modules.some(id=>id.includes('planck'))),'physical scenes retain Planck');
 });
