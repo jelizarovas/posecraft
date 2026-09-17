@@ -1,0 +1,16 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { AnimationController } from './engine.js';
+import { wwwzardDefinition } from './definition.js';
+import RigSvg from './RigSvg.jsx';
+import { keyTarget, heldHandTargets } from './keyboard.js';
+import '../../studio/style.css';
+function Demo() {
+ const [controller]=useState(()=>new AnimationController(wwwzardDefinition)),[frame,setFrame]=useState(controller.frame),[bones,setBones]=useState(false);const pressed=useRef(new Set()),releasePoint=useRef(null);
+ const reduced=useRef(matchMedia('(prefers-reduced-motion: reduce)').matches);
+ useEffect(()=>{let raf,last;const media=matchMedia('(prefers-reduced-motion: reduce)');const change=()=>{reduced.current=media.matches;};media.addEventListener('change',change);const tick=now=>{if(!document.hidden){setFrame(controller.step(last&&!reduced.current?Math.min((now-last)/1000,.033):0));}last=now;raf=requestAnimationFrame(tick);};raf=requestAnimationFrame(tick);return()=>{cancelAnimationFrame(raf);media.removeEventListener('change',change);};},[controller]);
+ const sync=()=>{const hands=heldHandTargets(pressed.current);for(const side of ['left','right']){controller.setInput(`key${side[0].toUpperCase()+side.slice(1)}X`,hands[side].x);controller.setInput(`key${side[0].toUpperCase()+side.slice(1)}Y`,hands[side].y);}controller.setInput('typing',pressed.current.size>0);};
+ const release=()=>{pressed.current.clear();controller.setInput('keyboardDriven',false);controller.setInput('typing',false);controller.setLayerWeight('Keyboard',0);};
+ return <main className="react-page"><a href="./">← Posecraft Studio</a><h1>wwwzard, where this started.</h1><p>The original SVG character, action layers, robe simulation, and physical keyboard targets run on Posecraft's reusable skeletal engine. This example uses its existing code-based character definition.</p><div className="demo-toolbar">{['REST','WORK','READ','WALK','POUR','SEND'].map(action=><button key={action} onClick={()=>{release();controller.send(action);}}>{action.toLowerCase()}</button>)}<button onClick={()=>setBones(v=>!v)}>{bones?'Hide joints':'Show joints'}</button></div><div style={{height:500,maxWidth:700,margin:'20px auto',background:'#f1ecf7',borderRadius:16}}><RigSvg frame={frame} controller={controller} showBones={bones} showLimits={false} handsInFront={false} releasePoint={releasePoint} selectedJoint="rightUpper" onSelectJoint={()=>{}} onPropAction={action=>{release();controller.send(action);}} onChange={()=>setFrame(controller.step(0))}/></div><label className="field">Try typing<input placeholder="Type here and watch his hands..." onKeyDown={e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||!keyTarget(e.code))return;if(!controller.inputs.keyboardDriven){controller.send('WORK');controller.setInput('keyboardDriven',true);controller.setLayerWeight('Keyboard',1);}pressed.current.add(e.code);sync();}} onKeyUp={e=>{pressed.current.delete(e.code);sync();}} onBlur={release}/></label><p className="demo-caption">Press, hold, and release physical QWERTY keys. Nothing is submitted. Artwork and character policy live in this example, outside the core runtime. Portable scene conversion and the full original editor remain follow-up work.</p></main>;
+}
+createRoot(document.getElementById('app')).render(<Demo/>);

@@ -1,0 +1,33 @@
+# Milestone 1 scope and decisions
+
+The full product brief remains in `POSECRAFT_REQUIREMENTS.md`. This milestone implements the initial editor-to-runtime path. It does not complete the physical-character or fluid milestones.
+
+## Assessment and decisions
+
+The starting repository had a dependency-free JavaScript skeletal engine with layers, callback-based states, constrained two-bone IK, and rotation takes. Six tests passed. The portfolio consumed it through a character adapter. The new scene compiler preserves that API and adds a declarative, validated subset.
+
+Keep one package with separate subpath exports. Use JavaScript plus TypeScript declarations to avoid replacing the working engine tonight. Use native SVG because both supplied characters already have vector artwork and the first scene is small. Reuse the existing controller for pose evaluation. Add a simple bounded spring for Milestone 1's inertial response. Evaluate Planck/Box2D and fluid libraries at their own milestone before implementing body/contact or fluid solvers. The spring is not a replacement for those solvers.
+
+Use GitHub Pages for the static Studio with relative build paths. There is no backend, account, or required hosted API. Keep the agent SDK, CLI, skill, schema types, and examples in the same public repository. The user selected MIT. Npm publication and a registry package name are not required to use the Git repository or a local package archive.
+
+## Requirements mapping
+
+| Area | Working slice | Remaining scope |
+| --- | --- | --- |
+| ARC, DOC | Shared runtime, commands, versioned data, finite/reference validation, independent actors, JSON round trip | Reusable scene instances, external assets, migrations for future versions |
+| REN | Live SVG paths on hierarchical joints, separate draw order, source Ona geometry | Picking individual artwork, clips/masks/images, mesh deformation |
+| ANM | Numeric keyframes/easing, scrubbing, looping, typed input states, blend durations, fixed steps, recorded replay | Trigger/timed state editor, general graph editor, scene-level choreography |
+| REA | React adapter, inputs/events, sizing, translation/acceleration response, hidden/offscreen suspension, disposal, reduced motion, SSR import | Angular motion, Ukis ownership handoff, robust contact model |
+| STU | Hierarchy, inspector, duplicate/remove actors, recolor, pose/key editing, transition blend editor, input preview, undo/redo, open/save/export/local recovery | Grouping, arbitrary rig creation, drawing tools, full state-graph editing |
+| AGT | Inspect, capabilities, validate, transactional edits, scenario simulation, SVG preview, repo skill | MCP transport, preview sequences, richer physics diagnostics |
+| Characters | Ona's original 31 paths with shoulder motion; preserved code-based wwwzard example | Ona elbow/palm separation, hair customization, scene fallbacks in packs, wwwzard JSON conversion, pets |
+| PHY / CHR / BEH | Bounded spring response only | Milestones 2 and 3: contact, friction, balance, corrective steps, protection, ragdoll, recovery, gait families |
+| FLU | No fluid module included | Milestone 4: contained water and physically coupled ship, declared operating range |
+
+The detailed character contract in `contract-proposal.md` remains a future design proposal. The implemented API is documented in `api.md`. No consumer changes were made in Ukis or the portfolio. Their original files and modal behavior remain intact.
+
+## Acceptance evidence
+
+Runtime tests verify imports, atomic edits and rollback, stale revisions, round trips, two independent actors, transition plus inertia, constant-velocity behavior, settling, fixed-step equivalence, replay with no duplicate events, and reduced motion. Browser tests cover the actual editor and React consumer. Run `npm test`, `npm run test:browser`, and `npm run build`.
+
+Performance is not certified against the full QLT-01/02 targets yet. SVG frame updates reuse DOM nodes, but Studio's preview loop is still active while visible and paused to support dragging. The runtime adapter suspends its loop for reduced motion, offscreen content, and hidden documents. Mobile layout and desktop browser testing do not replace physical iPhone testing.

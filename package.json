@@ -1,0 +1,79 @@
+{
+  "name": "posecraft",
+  "version": "0.1.0",
+  "description": "Open 2D character animation runtime, studio and agent authoring tools",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./schema": {
+      "types": "./src/schema.d.ts",
+      "default": "./src/schema.js"
+    },
+    "./commands": {
+      "types": "./src/commands.d.ts",
+      "default": "./src/commands.js"
+    },
+    "./scene": {
+      "types": "./src/scene.d.ts",
+      "default": "./src/scene.js"
+    },
+    "./svg": {
+      "types": "./src/svg.d.ts",
+      "default": "./src/svg.js"
+    },
+    "./browser": {
+      "types": "./src/browser.d.ts",
+      "default": "./src/browser.js"
+    },
+    "./react": {
+      "types": "./src/react.d.ts",
+      "default": "./src/react.js"
+    }
+  },
+  "bin": {
+    "posecraft": "./tools/cli.mjs"
+  },
+  "files": [
+    "src",
+    "tools/cli.mjs",
+    "examples",
+    "skills",
+    "docs/api.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test test/*.test.js",
+    "test:browser": "node test/browser.mjs",
+    "check:package": "npm pack --dry-run",
+    "test:types": "tsc --noEmit --strict --module nodenext --target es2022 test/types.ts"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@fontsource/roboto": "5.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "vite": "8.2.2",
+    "@playwright/test": "1.58.2",
+    "@types/react": "19.2.14",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

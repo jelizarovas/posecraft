@@ -1,0 +1,8 @@
+node_modules/
+*.tgz
+coverage/
+dist/
+test-results/
+playwright-report/
+*.log
+.tmp/

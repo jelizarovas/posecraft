@@ -1,0 +1,39 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import { validateDocument, capabilities } from '../src/schema.js';
+import { DocumentStore } from '../src/commands.js';
+import { SceneController, STEP } from '../src/scene.js';
+import { renderSVG } from '../src/svg.js';
+const [command, filename, ...args] = process.argv.slice(2);
+const read = file => { if (!file || fs.statSync(file).size > 5000000) throw new Error('Expected a JSON file under 5 MB.'); return JSON.parse(fs.readFileSync(file, 'utf8')); };
+try {
+  if (command === 'capabilities') console.log(JSON.stringify(capabilities, null, 2));
+  else if (['inspect','validate','edit','preview','simulate'].includes(command)) {
+    const doc = read(filename);
+    const validation = validateDocument(doc);
+    if(command === 'validate') { console.log(JSON.stringify(validation,null,2)); if(!validation.valid) process.exitCode=1; }
+    else {
+      const store = new DocumentStore(doc);
+      if(command === 'inspect') console.log(JSON.stringify({id:doc.id,revision:doc.revision,bounds:doc.bounds,actors:doc.actors,packs:Object.fromEntries(Object.entries(doc.packs).map(([id,p])=>[id,{joints:p.joints.map(j=>j.id),inputs:p.inputs,clips:Object.keys(p.clips),states:p.states,reaction:p.reaction}]))},null,2));
+      if(command === 'edit') {
+        const request=read(args[0]); const result=store.transact(request.commands,request.expectedRevision);
+        if(!Number.isSafeInteger(request.expectedRevision)) throw new Error('edit requires expectedRevision.');
+        if(!args[1]) throw new Error('Supply a separate output JSON path.');
+        fs.writeFileSync(args[1],JSON.stringify(result,null,2)+'\n'); console.log(JSON.stringify({revision:result.revision,output:args[1]}));
+      }
+      if(command === 'preview') {
+        const runtime = new SceneController(doc); const time=Number(args[1] || 0); runtime.seek(time);
+        if(!args[0]) throw new Error('Supply an output SVG path.');
+        fs.writeFileSync(args[0],renderSVG(doc,runtime.frame())); console.log(JSON.stringify({output:args[0],time:runtime.time}));
+      }
+      if(command === 'simulate') {
+        const scenario=read(args[0]);
+        if(!Number.isFinite(scenario.duration)||scenario.duration<0||scenario.duration>60||!Array.isArray(scenario.events)||scenario.events.length>10000) throw new Error('Scenario needs duration 0..60 and events array.');
+        if(scenario.events.some((e,i)=>!Number.isFinite(e.time)||e.time<0||e.time>scenario.duration||(i&&e.time<scenario.events[i-1].time)||!['input','acceleration'].includes(e.type))) throw new Error('Events must be ordered and within the duration.');
+        const runtime=new SceneController(doc), events=[]; runtime.subscribe(e=>events.push(e)); let cursor=0;
+        while(runtime.time+STEP<=scenario.duration+1e-9){while(cursor<scenario.events.length&&scenario.events[cursor].time<=runtime.time+1e-9){const e=scenario.events[cursor++];if(e.type==='input')runtime.setInput(e.actor,e.name,e.value);else runtime.setAcceleration(e.ax,e.ay);} runtime.step(STEP);}
+        console.log(JSON.stringify({engineVersion:'0.1.0',schemaVersion:doc.schemaVersion,revision:doc.revision,seed:0,fixedStep:STEP,frame:runtime.frame(),events},null,2));
+      }
+    }
+  } else console.log('Posecraft CLI\n  capabilities\n  inspect scene.json\n  validate scene.json\n  edit scene.json transaction.json output.json\n  preview scene.json output.svg [seconds]\n  simulate scene.json scenario.json');
+} catch(error) { console.error(JSON.stringify({error:error.message,diagnostics:error.diagnostics})); process.exitCode=1; }
