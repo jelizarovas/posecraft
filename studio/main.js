@@ -2,6 +2,7 @@ import './style.css';
 import { library, starter, upgradeLibraryDocument } from '../examples/library.js';
 import { DocumentStore } from '../src/commands.js';
 import { SceneController } from '../src/scene.js';
+import { WorkerSceneController } from '../src/worker.js';
 import { mountSVG, renderSVG } from '../src/svg.js';
 import { SoundEffects } from '../src/audio.js';
 import { behaviorConfig } from '../src/physics.js';
@@ -50,7 +51,7 @@ function rebuild(){
  if(pack()&&!pack().joints.some(j=>j.id===joint))joint=pack().joints[0].id;
  if(pack()&&!pack().clips[clip])clip=Object.keys(pack().clips)[0];
  if(pack())previewTime=Math.min(previewTime,pack().clips[clip].duration);
- controller=new SceneController(store.document,{reducedMotion:reduced()});controller.subscribe(e=>{sound.handle(e);if(e.type==='error')toast(e.message);});
+ controller=new (typeof Worker==='undefined'?SceneController:WorkerSceneController)(store.document,{reducedMotion:reduced()});controller.subscribe(e=>{sound.handle(e);if(e.type==='error')toast(e.message);});
  $('stage').style.aspectRatio=`${store.document.bounds.width}/${store.document.bounds.height}`;
  $('undo').disabled=!store.past.length;$('redo').disabled=!store.future.length;
  $('delete').disabled=$('duplicate').disabled=!actor();
@@ -216,13 +217,13 @@ window.addEventListener('pagehide',()=>sound.dispose());
 document.addEventListener('visibilitychange',()=>{last=null;controller.rebaseline();});media.addEventListener('change',()=>{controller.reducedMotion=reduced();controller.rebaseline();});
 rebuild();
 function tick(now){const dt=last===null||document.hidden?0:Math.min((now-last)/1000,.05);last=now;
- if(!document.hidden){
+ if(!document.hidden&&controller.stats?.execution!=='failed'){
  if(scenario){const t=(now-scenario.start)/1000;offset={x:scenario.origin.x+Math.sin(Math.min(t/.9,1)*Math.PI*2)*95,y:scenario.origin.y-Math.sin(Math.min(t/.9,1)*Math.PI)*25};$('stage').style.transform=`translate(${offset.x}px,${offset.y}px)`;if(t>.9)scenario=null;}
  controller.animationPlaying=tab==='timeline'||playing;controller.sampleHost({...offset,time:now/1000});controller.step(drag?.type==='prop'?0:dt);
  if(playing&&!reduced()&&pack()){if(tab==='timeline')previewTime=(previewTime+dt)%pack().clips[clip].duration;else{const r=selectedRuntime();previewTime=r.runtime.layers[0].time%pack().clips[pack().states[r.runtime.layers[0].state].clip].duration;}}
  renderer.update(frame());updateTime();if(playing&&$('rotation')&&document.activeElement!==$('rotation-number')){$('rotation').value=baseValue();$('rotation-number').value=Math.round(baseValue()*10)/10;}
  const s=selectedRuntime()?.spring;
- $('status').textContent=`${store.document.actors.length} character${store.document.actors.length===1?'':'s'} · ${title(joint)} · ${title(selectedRuntime()?.response.state||'calm')}${Object.keys(overrides).length?' · Unsaved pose, add a key':''}`;
+ $('status').textContent=`${store.document.actors.length} character${store.document.actors.length===1?'':'s'} · ${controller.stats?'Worker '+controller.stats.computeMs.toFixed(1)+' ms':'Main thread'} · ${title(joint)} · ${title(selectedRuntime()?.response.state||'calm')}${Object.keys(overrides).length?' · Unsaved pose, add a key':''}`;
  $('motion-status').textContent=reduced()?'Still preview · motion disabled':`Lean ${Math.abs(s?.x||0).toFixed(1)}° · ${drag?.type==='card'?'Dragging':'Motion on'}`;
  $('hint').textContent=reduced()?'Still preview is active. Choose Motion on to test reactions.':dragMode?'Drag anywhere on the card. Watch the character lean and settle.':selectedProp?'Drag this prop to place it. Orange outline = collision box.':'Drag empty card space to test motion. Drag a body part to pose it.';
  if($('active-state'))$('active-state').textContent='Action: '+(selectedRuntime()?.runtime.layers[0].state||'')+' · Response: '+(selectedRuntime()?.response.state||'calm');

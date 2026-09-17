@@ -1,10 +1,13 @@
 import { SceneController } from './scene.js';
 import { mountSVG } from './svg.js';
+import { WorkerSceneController } from './worker.js';
 
-export function mountScene(element, document, { host = element, reducedMotion = 'system', onEvent, motion, label, autoplay = true } = {}) {
+export function mountScene(element, document, { host = element, reducedMotion = 'system', onEvent, onError, motion, label, autoplay = true, execution = 'worker' } = {}) {
   const media = matchMedia('(prefers-reduced-motion: reduce)');
-  const controller = new SceneController(document, { reducedMotion: reducedMotion === 'system' ? media.matches : !!reducedMotion });
+  const Controller=execution==='main'||typeof Worker==='undefined'?SceneController:WorkerSceneController;
+  const controller = new Controller(document, { reducedMotion: reducedMotion === 'system' ? media.matches : !!reducedMotion,onError });
   const renderer = mountSVG(element, document, controller.frame(), { label });
+  if(controller instanceof WorkerSceneController)controller.onFrame=frame=>renderer.update(frame);
   const unsubscribe = onEvent ? controller.subscribe(onEvent) : () => {};
   let disposed = false, raf = 0, last = null, visible = true;
   const resetClock = () => { last = null; controller.rebaseline(); };
@@ -32,10 +35,10 @@ export function mountScene(element, document, { host = element, reducedMotion = 
     controller,
     setBehavior(actor,settings){controller.setBehavior(actor,settings);renderer.update(controller.frame());},
     interact(actor,type,strength){controller.interact(actor,type,strength);renderer.update(controller.frame());},
-    setInput(actor, name, value) { controller.setInput(actor, name, value); if (controller.reducedMotion) controller.tick(); renderer.update(controller.frame()); },
+    setInput(actor, name, value) { controller.setInput(actor, name, value); if (controller.reducedMotion&&controller.tick) controller.tick(); renderer.update(controller.frame()); },
     play() { controller.play(); resetClock(); schedule(); },
     pause() { controller.pause(); cancelAnimationFrame(raf); raf = 0; },
-    reset() { controller.log = []; renderer.update(controller.reset()); resetClock(); },
+    reset() { renderer.update(controller.reset()); resetClock(); },
     seek(time) { renderer.update(controller.seek(time)); resetClock(); },
     dispose() { disposed = true; cancelAnimationFrame(raf); size.disconnect(); observer.disconnect(); media.removeEventListener('change', policy); globalThis.document.removeEventListener('visibilitychange', visibility); globalThis.removeEventListener('scroll', scroll, true); unsubscribe(); controller.dispose(); renderer.dispose(); }
   };

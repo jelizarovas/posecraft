@@ -22,3 +22,8 @@ new SoundEffects({volume:.2}).handle({type:'response',to:'hurt'});
 createElement(Posecraft,{scene,behavior:{ona:{mode:'floating'}}});
 // @ts-expect-error Unknown physical mode.
 player.setBehavior('ona',{mode:'superpowered'});
+
+import {WorkerSceneController} from "posecraft/worker";
+const background=new WorkerSceneController(scene);
+background.findPath({start:{x:20,y:20},end:{x:300,y:200}},{signal:new AbortController().signal});
+createElement(Posecraft,{scene,execution:"worker"});

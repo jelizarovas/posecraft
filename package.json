@@ -37,6 +37,10 @@
     "./audio": {
       "types": "./src/audio.d.ts",
       "default": "./src/audio.js"
+    },
+    "./worker": {
+      "types": "./src/worker.d.ts",
+      "default": "./src/worker.js"
     }
   },
   "bin": {
@@ -50,7 +54,8 @@
     "docs/api.md",
     "README.md",
     "LICENSE",
-    "docs/reactions.md"
+    "docs/reactions.md",
+    "docs/performance.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -60,7 +65,8 @@
     "test:browser": "node test/browser.mjs",
     "check:package": "npm pack --dry-run",
     "test:types": "tsc --noEmit --strict --module nodenext --target es2022 test/types.ts",
-    "test:responses": "node test/responses-browser.mjs"
+    "test:responses": "node test/responses-browser.mjs",
+    "test:performance": "node test/performance-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

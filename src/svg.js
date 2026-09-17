@@ -30,17 +30,21 @@ export function renderSVG(document, frame, { label = document.name, bones = fals
 }
 export function mountSVG(element, document, frame, options) {
   element.innerHTML = renderSVG(document, frame, options);
+  let previous;
+  const attribute=(node,key,value)=>{if(node.getAttribute(key)!==String(value))node.setAttribute(key,value);};
   const bindings = document.actors.map(actor => {
     const root = element.querySelector(`[data-actor="${actor.id}"]`);
     return { actor, root, joints: [...root.querySelectorAll('[data-joint], [data-bone]')], paths: document.packs[actor.pack].parts.map(part => ({ part, node:root.querySelector(`[data-part="${part.id}"]`) })), limits:[...root.querySelectorAll('[data-limit]')] };
   });
   return {
     update(next) {
+      if(next===previous)return;previous=next;
       for (const b of bindings) {
         const evaluated = next.actors.find(a => a.id === b.actor.id);
-        b.root.dataset.response=evaluated.response||'calm';b.root.dataset.emotion=evaluated.inputs?.emotion||'neutral';b.root.dataset.motionMode=evaluated.physics?.mode||'animated';
-        for (const node of b.joints) node.setAttribute('transform', transform(evaluated.world[node.dataset.joint || node.dataset.bone]));
-        for (const {part,node} of b.paths) if (part.variants || part.showWhen) { const paint=appearance(part,b.actor,evaluated);node.setAttribute('d',paint.d);node.setAttribute('transform',paint.transform);node.setAttribute('visibility',paint.visible?'visible':'hidden'); }
+        attribute(b.root,'data-response',evaluated.response||'calm');attribute(b.root,'data-emotion',evaluated.inputs?.emotion||'neutral');attribute(b.root,'data-motion-mode',evaluated.physics?.mode||'animated');
+        for (const node of b.joints) attribute(node,'transform', transform(evaluated.world[node.dataset.joint || node.dataset.bone]));
+        const inputKey=JSON.stringify(evaluated.inputs);
+        if(inputKey!==b.inputKey){b.inputKey=inputKey;for (const {part,node} of b.paths) if (part.variants || part.showWhen) { const paint=appearance(part,b.actor,evaluated);attribute(node,'d',paint.d);attribute(node,'transform',paint.transform);attribute(node,'visibility',paint.visible?'visible':'hidden'); }}
         for (const node of b.limits) { const j=document.packs[b.actor.pack].joints.find(j=>j.id===node.dataset.limit);node.setAttribute('d',limitArc(j,evaluated.pose[j.id+'.rotation'])); }
       }
       const overlay=element.querySelector('[data-physics-debug]');if(overlay)overlay.innerHTML=physicsOverlay(next);

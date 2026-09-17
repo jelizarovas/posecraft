@@ -1,4 +1,4 @@
-import { World, Vec2, Box, RevoluteJoint } from 'planck';
+import { World, Vec2, Box, RevoluteJoint, AABB } from 'planck';
 import { clamp, wrapAngle } from './index.js';
 const UNIT=50, RAD=Math.PI/180;
 export const behaviorDefaults={mode:'animated',resistance:.65,gravity:1,bounce:.15,strategy:'auto',autoFace:true};
@@ -27,6 +27,7 @@ export class PhysicalCharacter {
   if(!pack.physics)throw new Error(`${pack.name} has no collision profile.`);
   this.actor=actor;this.pack=pack;this.config=behaviorConfig(config);this.bounds=document.bounds;this.time=0;this.lastImpact=-1;this.contacts=[];this.pendingImpact=null;this.stable=0;this.recoveryTime=0;
   this.world=new World(Vec2(0,0));this.world.setAutoClearForces(false);this.world.setContinuousPhysics(false);this.bodies=new Map();this.joints=new Map();
+  this.jointSpecs=new Map(pack.joints.map(j=>[j.id,j]));
   const wall=this.world.createBody();const w=document.bounds.width/UNIT,h=document.bounds.height/UNIT;
   for(const [x,y,hx,hy] of [[w/2,h+.2,w/2+.4,.2],[w/2,-.2,w/2+.4,.2],[-.2,h/2,.2,h/2],[w+.2,h/2,.2,h/2]])wall.createFixture(Box(hx,hy,Vec2(x,y)),{friction:.75,restitution:0,userData:{wall:true}});
   this.propFixtures=[];
@@ -97,7 +98,11 @@ export class PhysicalCharacter {
   const floorTime=vy>20?Math.max(0,(this.bounds.height-bottom)/vy):Infinity;
   const wallTime=Math.abs(vx)>30?Math.max(0,(vx>0?this.bounds.width-right:left)/Math.abs(vx)):Infinity;
   let arrival=Math.min(floorTime,wallTime),predictedSurface=Number.isFinite(arrival)?'bounds':null;
-  for(const b of this.bodies.values())for(const f of this.propFixtures){const time=boxArrival(b,b.getFixtureList(),f);if(time<arrival){arrival=time;predictedSurface=f.getUserData().prop;}}
+  if(this.propFixtures.length)for(const b of this.bodies.values()){
+   const f=b.getFixtureList(),box=f.getAABB(0),v=b.getLinearVelocity(),dx=v.x*.38,dy=v.y*.38;
+   const swept=new AABB(Vec2(box.lowerBound.x+Math.min(0,dx),box.lowerBound.y+Math.min(0,dy)),Vec2(box.upperBound.x+Math.max(0,dx),box.upperBound.y+Math.max(0,dy)));
+   this.world.queryAABB(swept,obstacle=>{if(obstacle.getUserData()?.prop){const time=boxArrival(b,f,obstacle);if(time<arrival){arrival=time;predictedSurface=obstacle.getUserData().prop;}}return true;});
+  }
   const predicted=arrival<.38;
   let state=floating?'floating':'falling',response=null;
   if(active){
@@ -105,7 +110,7 @@ export class PhysicalCharacter {
    else if(vy>45||tilt>35)state='falling';else state='calm';
   }
   const responsePose=this.pack.physics.responses[response]||{};
-  for(const [id,j] of this.joints){const spec=this.pack.joints.find(j=>j.id===id),goal=clamp(responsePose[id+'.rotation']??target[id+'.rotation']??spec.rotation,spec.min,spec.max);
+  for(const [id,j] of this.joints){const spec=this.jointSpecs.get(id),goal=clamp(responsePose[id+'.rotation']??target[id+'.rotation']??spec.rotation,spec.min,spec.max);
    j.enableMotor(active&&c.resistance>0);
    j.setMaxMotorTorque((this.bodies.get(id).getMass()+.1)*35*c.resistance);
    j.setMotorSpeed(clamp(((goal-spec.rotation)*RAD-j.getJointAngle())*12,-12,12));

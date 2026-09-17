@@ -65,6 +65,8 @@ import { Posecraft } from 'posecraft/react';
   onEvent={event => console.log(event)} />
 ```
 
+Browser and React players now default to a dedicated simulation worker. Their controller uses asynchronous commands and cached frames; use `execution: "main"` for the synchronous adapter. The Node `SceneController` is unchanged. Read [performance and routing](performance.md) for queue limits, lifecycle, failure handling, and cancellable paths.
+
 Give the wrapper a nonzero width and height. React renders the wrapper; the runtime updates SVG attributes without React frame renders. Its ref exposes play, pause, reset, seek, and controller. Use immutable scene objects; changing the scene reference replaces the runtime. Input changes preserve playback. Errors invoke `onError` and initial load failure shows a textual fallback.
 
 `mountScene(element, scene, options)` offers the same behavior without React. `host` is the moving parent. Prefer `motion(seconds) => ({x,y,teleport})` from application animation state; otherwise the adapter reads the parent's viewport-relative bounding box. Only translation is supported. Scroll, resize, visibility changes, and resume establish a new baseline. DOM measurements cannot reliably distinguish all layout changes from intentional animation; use explicit motion for those cases. The observer never measures animated internal parts.

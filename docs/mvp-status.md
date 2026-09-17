@@ -33,3 +33,5 @@ Runtime tests verify imports, atomic edits and rollback, stale revisions, round 
 Performance is not certified against the full QLT-01/02 targets yet. SVG frame updates reuse DOM nodes, but Studio's preview loop is still active while visible and paused to support dragging. The runtime adapter suspends its loop for reduced motion, offscreen content, and hidden documents. Mobile layout and desktop browser testing do not replace physical iPhone testing.
 
 Static rectangular props now have editable collision boxes, offsets, rotation, friction, and bounce. Rotated-prop prediction/contact tests and `node test/props-browser.mjs` cover the dummy, drag placement, collision edits, undo, JSON round trips, compact layouts, and React platforms. Dynamic props remain deferred.
+
+Browser and Studio simulation now runs in a dedicated worker with one in-flight batch, bounded commands, capped catch-up, and lifecycle cleanup. Static-obstacle routing uses cancellable incremental A*; locomotion and moving-avatar avoidance remain deferred. See `performance.md` and `npm run test:performance` for measured limits.

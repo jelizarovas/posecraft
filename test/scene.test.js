@@ -7,6 +7,11 @@ import { SceneController, STEP } from '../src/scene.js';
 import { renderSVG } from '../src/svg.js';
 const scene = JSON.parse(fs.readFileSync(new URL('../examples/ona.posecraft.json',import.meta.url)));
 
+test('repeated identical consumer inputs do not exhaust replay storage',()=>{
+ const c=new SceneController(scene);for(let i=0;i<25000;i++)c.setInput('ona','greeting',true);
+ assert.equal(c.log.length,1);c.setInput('ona','greeting',false);assert.equal(c.log.length,2);
+});
+
 test('Ona source artwork remains 31 independent vector paths and exports escaped labels',()=>{
  const c=new SceneController(scene);const svg=renderSVG(scene,c.frame(),{label:'<script>alert(1)</script>'});
  assert.equal((svg.match(/data-part=/g)||[]).length,31);assert.ok(!svg.includes('<script>'));assert.ok(svg.includes('&lt;script&gt;'));

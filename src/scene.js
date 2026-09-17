@@ -62,8 +62,9 @@ export class SceneController {
   clearPreview(actorId) { const a = this.actors.find(a => a.actor.id === actorId); if (a) a.preview = null; }
   setInput(actorId, name, value) {
     const actor = this.actors.find(a => a.actor.id === actorId); if (!actor) throw new Error(`Missing actor ${actorId}`);
+    const previous=actor.runtime.inputs[name];
     actor.runtime.setInput(name, value);
-    if (!this.replaying) this.record({ type: 'input', actor: actorId, name, value });
+    if (!this.replaying&&previous!==value) this.record({ type: 'input', actor: actorId, name, value });
   }
   setAcceleration(ax, ay) {
     if (![ax, ay].every(Number.isFinite)) throw new Error('Acceleration must be finite CSS pixels/s².');
