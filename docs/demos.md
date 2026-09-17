@@ -6,7 +6,7 @@ Open [Posecraft demos](https://jelizarovas.github.io/posecraft/demos.html), or c
 | --- | --- | --- |
 | [Ship in a bottle](https://jelizarovas.github.io/posecraft/demos.html#ship-in-a-bottle) | Calm, breeze and gust; rocking hull, articulated canvas, waves and layered glass | Studio scene |
 | [One more flight](https://jelizarovas.github.io/posecraft/demos.html#loveseat-stairs) | Two dummies carrying a loveseat up endless stairs; alternating arm rests and partner compensation | Studio scene |
-| [One more rep](https://jelizarovas.github.io/posecraft/demos.html#gym-routine) | Eight pull-ups, failed sets after six/seven, walking between stations and bench presses | Studio scene |
+| [One more rep](https://jelizarovas.github.io/posecraft/demos.html#gym-routine) | Live fatigue/thirst, variable reps, one-hand jump catches, release/celebration variations and water breaks | Studio scene |
 | [Campfire night](https://jelizarovas.github.io/posecraft/demos.html#campfire-night) | Four friends around a flickering fire, attention-driven cooking, conversations, shared meteor reactions and occasional food handoffs | Studio scene |
 | [Light & shade](https://jelizarovas.github.io/posecraft/demos.html#light-and-shade) | Move the light, adjust highlights and reflections, compare warm/cool/flat treatments, and jump to see contact shadows fade | Studio scene |
 | [Turn & pose](https://jelizarovas.github.io/posecraft/demos.html#turn-and-pose) | Turn heads/bodies, send limbs behind the torso, blend Ona's arm shape and lift Dummy's knees in depth | Studio scene |
@@ -81,3 +81,7 @@ The three new demos export their chosen action variant in project JSON. They use
 `npm run test:new-demos` checks the actual gallery, supporting hand contacts, rest and failure controls, whole-scene Studio scrubbing, position-key editing, portable downloads, and desktop/phone layouts. Unit tests measure grip and foot contacts between authored keys, repetition counts, and loop continuity.
 
 Use **Review**, **Speed**, **Loop action**, and the frame-step button on the gym and staircase to inspect transitions. Studio provides **Scene → actor → Contacts & grips** for saved hand and foot targets. Read [contact authoring](contacts.md) for timing, limits and the runtime API.
+
+### Gym grip variations
+
+In One more rep, choose **Grip variations** to preview the left- or right-hand jump catch, one-hand release, or small celebration before dropping. Each preview has slow playback, frame stepping and a loop control. In the live workout, weighted prepare/recovery recipes choose these clips. Only failed pull-ups can select the celebration recovery. Holding-hand contacts use clip-local time, so changes to playback speed keep the grip attached. All four clips and their contact windows are editable in Studio and included in scene downloads and website exports.

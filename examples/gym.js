@@ -103,7 +103,45 @@ function drinkPose(t,atBench){
  pose['water-bottle.x']=34+40*Math.cos(upper)+40*Math.cos(lower);pose['water-bottle.y']=-68+40*Math.sin(upper)+40*Math.sin(lower);pose['water-bottle.rotation']=-65*sip;pose['water-bottle.opacity']=between(t,0,.2)*(1-between(t,4.6,5));pose['water-bottle.z']=35;
  return pose;
 }
-function liveClips(){return {'drink-at-bar':authoredClip(5,t=>drinkPose(t,false)),'drink-at-bench':authoredClip(5,t=>drinkPose(t,true)),'bench-failed':authoredClip(4.4,t=>{const phase=t<.85?lerp(0,.5,between(t,0,.85)):t<1.8?lerp(.5,.73,between(t,.85,1.8)):t<3.1?lerp(.73,.57,between(t,1.8,3.1)):lerp(.57,1,between(t,3.1,4.4)),pose={...gymPose(41+2.05*phase,'full-set')},strain=between(t,.6,1.1)*(1-between(t,3.3,4.4));pose['head.pitch']=8*strain;pose['head.rotation']=Math.sin(t*22)*1.3*strain;pose['face-effort.opacity']=strain>.2?1:0;pose['face-neutral.opacity']=strain>.2?0:1;pose['face-blink.opacity']=0;pose['effort-lines.opacity']=.85*strain;pose['sweat.opacity']=.9*strain;pose['water-bottle.opacity']=0;return pose;})};}
+export const gymGripReviews=[
+ {id:'jump-grab-left',label:'Jump / left hand first',clip:'jump-grab-left',duration:5.6,hold:1.8},
+ {id:'jump-grab-right',label:'Jump / right hand first',clip:'jump-grab-right',duration:5.6,hold:1.8},
+ {id:'release-one-hand',label:'One-hand release',clip:'release-one-hand',duration:5.6,hold:1.5},
+ {id:'release-cheer',label:'One-hand hang / small cheer',clip:'release-cheer',duration:5.6,hold:1.5}
+];
+function jointEndpoint(pose,side,leg=false){const name=side<0?'left':'right',upper=name+(leg?'Thigh':'Upper'),lower=name+(leg?'Calf':'Lower'),a=pose[upper+'.rotation']*rad,b=a+pose[lower+'.rotation']*rad,length=leg?36:40;return {x:side*(leg?16:34)+(pose[upper+'.x']||0)+length*(Math.cos(a)+Math.cos(b)),y:(leg?12:-68)+(pose[upper+'.y']||0)+length*(Math.sin(a)+Math.sin(b))};}
+function gripPose(t,first=-1,releasing=false,cheer=false){
+ const duration=5.6,start=gymPose(releasing?24:0,'full-set'),end=gymPose(releasing?29:6,'full-set'),progress=between(t,0,duration),pose=Object.fromEntries(Object.keys(start).map(key=>[key,lerp(start[key],end[key],progress)]));
+ let x=180,y,flight,reach,drop=0;
+ if(!releasing){
+  y=t<.5?lerp(300,316,between(t,0,.5)):t<1.15?lerp(316,275,between(t,.5,1.15)):t<1.55?lerp(275,288,between(t,1.15,1.55)):lerp(288,296,between(t,3.25,duration));
+  const sway=between(t,1.2,1.55)*(1-between(t,3.1,4));x+=first*(5+2*Math.sin((t-1.2)*3))*sway;y+=Math.sin((t-1.55)*3)*1.8*sway;
+  flight=between(t,.55,.8);reach=between(t,.5,1.2);
+ }else{
+  drop=between(t,2.4,3);y=t<2.4?296-7*Math.sin(Math.PI*clamp(t/2.4,0,1))**2:t<3?lerp(296,310,drop):lerp(310,300,between(t,3,3.6));
+  x-=5*Math.sin(Math.PI*clamp(t/2.4,0,1))**2;flight=1-between(t,2.4,3);reach=1-between(t,2.4,2.95);
+ }
+ pose['root.x']=x;pose['root.y']=y;pose['torso.rotation']=(releasing?5:-9)*Math.sin(Math.PI*clamp(t/(releasing?3.6:1.2),0,1))**2;pose['head.pitch']=(releasing?5:-7)*Math.sin(Math.PI*progress);pose['head.rotation']=cheer?-6*between(t,.5,1)*(1-between(t,2,2.5)):0;
+ pose['barbell.x']=585-x;pose['barbell.y']=270-y;pose['pullbar.x']=180-x;pose['pullbar.y']=150-y;pose['water-bottle.opacity']=0;
+ for(const [name,side]of [['left',-1],['right',1]]){
+  const shoulder={x:side*34,y:-68},initial=jointEndpoint(start,side),final=jointEndpoint(end,side),grip={x:180+43*side-x,y:150-y};let hand;
+  if(!releasing){const join=side===first?reach:between(t,2.35,3.1);hand=mix(initial,grip,join);hand.x+=side*42*Math.sin(Math.PI*join);}
+  else if(side<0){hand=mix(grip,final,1-reach);hand.x+=side*42*Math.sin(Math.PI*reach);}
+  else{
+   const release=between(t,.2,.65),celebrate=cheer?between(t,.6,1)*(1-between(t,2,2.4)):0,free=mix({x:48,y:5},{x:54,y:-69-7*Math.sin((t-.7)*Math.PI*3)},celebrate);
+   hand=mix(grip,free,release);hand.x+=side*36*Math.sin(Math.PI*release);hand=mix(hand,final,between(t,2.4,3.5));
+  }
+  const arm=solve(shoulder,hand,40,side<0?-1:1);pose[name+'Upper.x']=0;pose[name+'Upper.y']=0;pose[name+'Upper.rotation']=arm.upper;pose[name+'Lower.rotation']=arm.lower;pose[name+'Hand.rotation']=arm.wrist;
+  const initialFoot=jointEndpoint(start,side,true),finalFoot=jointEndpoint(end,side,true),ground={x:180+initialFoot.x-x,y:383-y};let foot;
+  if(!releasing){const air=mix({x:side*18,y:69},finalFoot,between(t,3.25,duration));foot=mix(ground,air,flight);}
+  else{const air={x:initialFoot.x,y:initialFoot.y};foot=mix(ground,air,flight);foot=mix(foot,finalFoot,between(t,3.6,duration));}
+  const leg=solve({x:side*16,y:12},foot,36,side<0?1:-1);pose[name+'Thigh.x']=0;pose[name+'Thigh.y']=0;pose[name+'Thigh.rotation']=leg.upper;pose[name+'Calf.rotation']=leg.lower;pose[name+'Foot.rotation']=leg.wrist;pose[name+'Foot.yaw']=0;
+ }
+ pose['face-neutral.opacity']=1;pose['face-effort.opacity']=0;pose['face-blink.opacity']=0;pose['sweat.opacity']=releasing?.3*(1-between(t,3.5,duration)):0;pose['effort-lines.opacity']=0;
+ return pose;
+}
+function gripClips(){return Object.fromEntries(gymGripReviews.map(review=>[review.clip,authoredClip(review.duration,t=>gripPose(t,review.id==='jump-grab-right'?1:-1,review.id.startsWith('release'),review.id==='release-cheer'))]));}
+function liveClips(){return {...gripClips(),'drink-at-bar':authoredClip(5,t=>drinkPose(t,false)),'drink-at-bench':authoredClip(5,t=>drinkPose(t,true)),'bench-failed':authoredClip(4.4,t=>{const phase=t<.85?lerp(0,.5,between(t,0,.85)):t<1.8?lerp(.5,.73,between(t,.85,1.8)):t<3.1?lerp(.73,.57,between(t,1.8,3.1)):lerp(.57,1,between(t,3.1,4.4)),pose={...gymPose(41+2.05*phase,'full-set')},strain=between(t,.6,1.1)*(1-between(t,3.3,4.4));pose['head.pitch']=8*strain;pose['head.rotation']=Math.sin(t*22)*1.3*strain;pose['face-effort.opacity']=strain>.2?1:0;pose['face-neutral.opacity']=strain>.2?0:1;pose['face-blink.opacity']=0;pose['effort-lines.opacity']=.85*strain;pose['sweat.opacity']=.9*strain;pose['water-bottle.opacity']=0;return pose;})};}
 export const gymLiveVariables={fatigue:'Fatigue',dehydration:'Thirst',reps:'Set reps',sets:'Completed sets',successes:'Successful reps',failures:'Failed attempts',drinks:'Water breaks'};
 export function gymLiveStatus(frame){const v=frame.behavior?.variables||{};return {state:frame.behavior?.state||'review',fatigue:Number(v.fatigue||0),dehydration:Number(v.dehydration||0),reps:Number(v.reps||0),sets:Number(v.sets||0),successes:Number(v.successes||0),failures:Number(v.failures||0),drinks:Number(v.drinks||0),station:v.atBench?'bench':'pull-ups'};}
 function addLiveGym(scene){
@@ -111,9 +149,10 @@ function addLiveGym(scene){
  const variant=(id,clip,start,end,min=.95,max=1.05,weight=1,offsets)=>({id,clip,start,end,weight,speed:{min,max},...(offsets?{offsets}:{})}),steady={base:1,modifiers:[]},head={'head.pitch':{min:-1.5,max:1.5},'head.rotation':{min:-1,max:1}};
  const recipe=(variants,done,effects=[])=>({actor:'atlas',variants,success:steady,onStart:[],onSuccess:[...effects,event(done)],onFailure:[event(done)]});
  const activities={
-  prepare:recipe([variant('reach-bar','full-set',0,6,.92,1.06)],'ready'),
+  prepare:recipe([variant('reach-bar','full-set',0,6,.92,1.06,2),variant('jump-left','jump-grab-left',0,5.6,.95,1.04),variant('jump-right','jump-grab-right',0,5.6,.95,1.04)],'ready'),
   pull:{actor:'atlas',variants:[variant('fresh','full-set',6,7.65,.9,1.08,3,head),variant('measured','full-set',13.5,15.8,.86,1.02,1,head)],failureVariants:[variant('stalled-six','fail-six',18.3,24,.96,1.04)],success:{base:1,modifiers:[{variable:'fatigue',weight:-.0035},{variable:'dehydration',weight:-.0015}]},onStart:[add('fatigue',8),add('dehydration',3)],onSuccess:[add('reps',1),add('successes',1),event('pull-complete')],onFailure:[add('failures',1),add('fatigue',6),event('pull-failed')]},
-  recover:recipe([variant('catch-breath','full-set',24,29,.85,1),variant('long-breath','fail-six',24,29,.9,1)],'recovered',[add('fatigue',-22),add('sets',1)]),
+  recover:recipe([variant('catch-breath','full-set',24,29,.85,1),variant('one-hand','release-one-hand',0,5.6,.94,1.03)],'recovered',[add('fatigue',-22),add('sets',1)]),
+  'recover-failed':recipe([variant('catch-breath','fail-six',24,29,.9,1,2),variant('one-hand','release-one-hand',0,5.6,.94,1.03,2),variant('small-cheer','release-cheer',0,5.6,.94,1.03)],'recovered',[add('fatigue',-22),add('sets',1)]),
   'walk-bench':recipe([variant('walk','full-set',29,36,.92,1.04)],'at-bench'),
   'bench-setup':recipe([variant('sit-and-grip','full-set',36,41,.92,1.04)],'bench-ready'),
   bench:{actor:'atlas',variants:[variant('steady','full-set',41,43.05,.9,1.06,3,head),variant('measured','full-set',43.05,45.35,.86,1,1,head)],failureVariants:[variant('stalled-press','bench-failed',0,4.4,.96,1.02)],success:{base:1,modifiers:[{variable:'fatigue',weight:-.0032},{variable:'dehydration',weight:-.0015}]},onStart:[add('fatigue',7),add('dehydration',3)],onSuccess:[add('reps',1),add('successes',1),event('bench-complete')],onFailure:[add('failures',1),add('fatigue',5),event('bench-failed')]},
@@ -122,10 +161,14 @@ function addLiveGym(scene){
   'drink-bar':recipe([variant('drink','drink-at-bar',0,5,.92,1.06)],'drank-bar',[add('dehydration',-45),add('fatigue',-7),add('drinks',1)]),
   'drink-bench':recipe([variant('drink','drink-at-bench',0,5,.92,1.06)],'drank-bench',[add('dehydration',-45),add('fatigue',-7),add('drinks',1)])
  };
- const states={prepare:{actions:[set('reps',0),set('atBench',false),perform('prepare')]},pull:{actions:[perform('pull')]},'pull-check':{actions:[]},recover:{actions:[perform('recover')]},'bar-water-check':{actions:[]},'drink-bar':{actions:[perform('drink-bar')]},'walk-bench':{actions:[perform('walk-bench')]},'bench-setup':{actions:[set('reps',0),set('atBench',true),perform('bench-setup')]},bench:{actions:[perform('bench')]},'bench-check':{actions:[]},'rack-and-rise':{actions:[perform('rack-and-rise')]},'bench-water-check':{actions:[]},'drink-bench':{actions:[perform('drink-bench')]},'walk-home':{actions:[perform('walk-home')]}};
+ const states={prepare:{actions:[set('reps',0),set('atBench',false),perform('prepare')]},pull:{actions:[perform('pull')]},'pull-check':{actions:[]},recover:{actions:[perform('recover')]},'recover-failed':{actions:[perform('recover-failed')]},'bar-water-check':{actions:[]},'drink-bar':{actions:[perform('drink-bar')]},'walk-bench':{actions:[perform('walk-bench')]},'bench-setup':{actions:[set('reps',0),set('atBench',true),perform('bench-setup')]},bench:{actions:[perform('bench')]},'bench-check':{actions:[]},'rack-and-rise':{actions:[perform('rack-and-rise')]},'bench-water-check':{actions:[]},'drink-bench':{actions:[perform('drink-bench')]},'walk-home':{actions:[perform('walk-home')]}};
  const edges=[],on=(id,from,to,name)=>edges.push({id,from,to,event:name,weight:1}),when=(id,from,to,variable,op,value)=>edges.push({id,from,to,after:{min:.1,max:.25},when:{variable,op,value},weight:1});
- on('prepared','prepare','pull','ready');on('pull-success','pull','pull-check','pull-complete');on('pull-failure','pull','recover','pull-failed');when('another-pull','pull-check','pull','reps','lt',8);when('pull-set-done','pull-check','recover','reps','gte',8);on('caught-breath','recover','bar-water-check','recovered');when('thirst-at-bar','bar-water-check','drink-bar','dehydration','gte',40);when('leave-bar','bar-water-check','walk-bench','dehydration','lt',40);on('water-at-bar','drink-bar','walk-bench','drank-bar');on('arrived-bench','walk-bench','bench-setup','at-bench');on('bench-prepared','bench-setup','bench','bench-ready');on('bench-success','bench','bench-check','bench-complete');on('bench-failure','bench','rack-and-rise','bench-failed');when('another-press','bench-check','bench','reps','lt',8);when('bench-set-done','bench-check','rack-and-rise','reps','gte',8);on('racked','rack-and-rise','bench-water-check','bench-recovered');when('thirst-at-bench','bench-water-check','drink-bench','dehydration','gte',40);when('leave-bench','bench-water-check','walk-home','dehydration','lt',40);on('water-at-bench','drink-bench','walk-home','drank-bench');on('back-home','walk-home','prepare','at-home');
+ on('prepared','prepare','pull','ready');on('pull-success','pull','pull-check','pull-complete');on('pull-failure','pull','recover-failed','pull-failed');when('another-pull','pull-check','pull','reps','lt',8);when('pull-set-done','pull-check','recover','reps','gte',8);on('caught-breath','recover','bar-water-check','recovered');on('recovered-failure','recover-failed','bar-water-check','recovered');when('thirst-at-bar','bar-water-check','drink-bar','dehydration','gte',40);when('leave-bar','bar-water-check','walk-bench','dehydration','lt',40);on('water-at-bar','drink-bar','walk-bench','drank-bar');on('arrived-bench','walk-bench','bench-setup','at-bench');on('bench-prepared','bench-setup','bench','bench-ready');on('bench-success','bench','bench-check','bench-complete');on('bench-failure','bench','rack-and-rise','bench-failed');when('another-press','bench-check','bench','reps','lt',8);when('bench-set-done','bench-check','rack-and-rise','reps','gte',8);on('racked','rack-and-rise','bench-water-check','bench-recovered');when('thirst-at-bench','bench-water-check','drink-bench','dehydration','gte',40);when('leave-bench','bench-water-check','walk-home','dehydration','lt',40);on('water-at-bench','drink-bench','walk-home','drank-bench');on('back-home','walk-home','prepare','at-home');
  scene.presentation='live';scene.requiredFeatures.push('behavior-graphs','action-variations');scene.behaviorGraph={seed:20260930,variables:{fatigue:8,dehydration:10,reps:0,sets:0,successes:0,failures:0,drinks:0,atBench:false},variableBounds:{fatigue:{min:0,max:100},dehydration:{min:0,max:100},reps:{min:0,max:8},sets:{min:0,max:1000000},successes:{min:0,max:1000000},failures:{min:0,max:1000000},drinks:{min:0,max:1000000}},initial:'prepare',states,edges,activities};
+ for(const review of gymGripReviews)for(const [side,sign]of [['left',-1],['right',1]]){
+  const jump=review.id.startsWith('jump'),first=review.id==='jump-grab-right'?1:-1;
+  scene.contacts.push({id:review.id+'-'+side,name:review.label+' / '+side+' grip',enabled:true,actor:'atlas',chain:{upper:side+'Upper',lower:side+'Lower',end:side+'Hand'},target:{type:'joint',actor:'gym',joint:'root',offsetX:180+43*sign,offsetY:150},bend:sign<0?1:-1,weight:1,start:jump?(sign===first?1.2:3.1):0,end:jump?5.6:(sign<0?2.4:.2),clip:review.clip});
+ }
  for(const [side,i]of [['left',0],['right',1]])scene.contacts.push({id:side+'-failed-bench',name:side+' hand / stalled bench press',enabled:true,actor:'atlas',chain:{upper:side+'Upper',lower:side+'Lower',end:side+'Hand'},target:{type:'joint',actor:'atlas',joint:'barbell',offsetX:i?40:-40,offsetY:0},bend:i?-1:1,weight:1,start:0,end:4.4,clip:'bench-failed'});
  return scene;
 }

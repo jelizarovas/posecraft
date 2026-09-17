@@ -12,7 +12,7 @@ const world=(pack,clip,time)=>spatialKinematics(pack,sampleClip({...pack.clips[c
 test('live gym is portable authored activities, bounded stats and complementary decisions',()=>{
  const d=assertDocument(JSON.parse(JSON.stringify(createGym()))),g=d.behaviorGraph;
  assert.equal(d.presentation,'live');assert.ok(d.requiredFeatures.includes('action-variations'));
- assert.equal(Object.keys(g.activities).length,10);
+ assert.equal(Object.keys(g.activities).length,11);
  for(const activity of Object.values(g.activities))for(const v of [...activity.variants,...activity.failureVariants||[]]){
   assert.ok(d.packs.atlas.clips[v.clip]);assert.ok(v.start<v.end);
   assert.ok(Object.keys(v.offsets||{}).every(key=>key.startsWith('head.')),'variation cannot move a planted limb');
@@ -63,7 +63,7 @@ test('default live workout reaches both stations, fails tired reps, drinks and p
 });
 
 test('fresh versus exhausted outcomes come from stats and preserve deterministic replay',()=>{
- const document=createGym(),run=(fatigue,dehydration)=>{const b=new BehaviorRuntime(document);b.setVariable('fatigue',fatigue);b.setVariable('dehydration',dehydration);while(b.state!=='recover'&&b.time<60)b.tick(1/120);return {reps:b.variables.reps,state:b.state,time:b.time};};
+ const document=createGym(),run=(fatigue,dehydration)=>{const b=new BehaviorRuntime(document);b.setVariable('fatigue',fatigue);b.setVariable('dehydration',dehydration);while(!['recover','recover-failed'].includes(b.state)&&b.time<60)b.tick(1/120);return {reps:b.variables.reps,state:b.state,time:b.time};};
  const fresh=run(0,0),tired=run(85,80);assert.ok(fresh.reps>tired.reps);assert.deepEqual(run(85,80),tired);
  const c=new SceneController(document);try{c.setVariable('dehydration',80);for(let i=0;i<150;i++)c.step(.1);const expected=c.frame();const replay=c.seek(15);assert.deepEqual(replay.behavior,expected.behavior);assert.deepEqual(replay.actors.find(a=>a.id==='atlas').pose,expected.actors.find(a=>a.id==='atlas').pose);}finally{c.dispose();}
 });
