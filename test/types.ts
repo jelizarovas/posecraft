@@ -88,3 +88,6 @@ background.triggerEnsemble('burn');
 
 import {addSpatialRig,addOnaArmJoints} from 'posecraft/character-rigs';
 addOnaArmJoints(addSpatialRig(scene.packs.ona,'ona',{studies:false}));
+
+import {applyContacts,solveContact} from 'posecraft/contacts';
+void applyContacts;void solveContact;

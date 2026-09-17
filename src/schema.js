@@ -1,6 +1,6 @@
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -106,7 +106,7 @@ function validateStructure(doc) {
     }
     for (const [id, clip] of Object.entries(pack.clips)) {
       if (!record(clip) || !record(clip.tracks)) { check(false, `${p}.clips.${id}`, 'Expected clip tracks.'); continue; }
-      check(safeId.test(id) && finite(clip.duration, .1, 60) && typeof clip.loop === 'boolean', `${p}.clips.${id}`, 'Invalid clip duration or loop.');
+      check(safeId.test(id) && finite(clip.duration, .1, 180) && typeof clip.loop === 'boolean', `${p}.clips.${id}`, 'Invalid clip duration or loop.');
       for (const [key, track] of Object.entries(clip.tracks)) {
         const [joint, property] = key.split('.');
         check(joints.has(joint) && (['rotation', 'x', 'y'].includes(property)||pack.spatial&&Object.hasOwn(spatialChannels,property)) && key === `${joint}.${property}`, `${p}.clips.${id}.${key}`, 'Unknown animation channel.');
@@ -195,6 +195,26 @@ function validateStructure(doc) {
   for(const e of emitters){if(!record(e)){check(false,'emitters','Expected emitter.');continue;}const p='emitters.'+e.id;check(typeof e.id==='string'&&safeId.test(e.id)&&!emitterIds.has(e.id),p,'Emitter IDs must be unique.');emitterIds.add(e.id);check(typeof e.name==='string'&&e.name.length>0&&e.name.length<=100,p+'.name','Expected emitter name.');check(['flame','smoke','embers'].includes(e.type),p+'.type','Unknown emitter type.');check(typeof e.enabled==='boolean',p+'.enabled','Expected boolean.');for(const [key,[min,max]] of Object.entries(ranges))check(finite(e[key],min,max),p+'.'+key,`Expected ${min}..${max}.`);check(Number.isInteger(e.seed)&&Number.isInteger(e.maxParticles),p,'Seed and particle cap must be integers.');check(typeof e.color==='string'&&/^#[a-fA-F0-9]{6}$/.test(e.color),p+'.color','Expected six-digit hex color.');if(e.actor!==undefined)check(actorIds.has(e.actor),p+'.actor','Missing emitter anchor actor.');nodeFields(e,p);particles+=Number.isFinite(e.maxParticles)?e.maxParticles:0;}
   check(particles<=512,'emitters','At most 512 reserved particle slots per scene.');
   if(doc.lighting?.emitter!==undefined)check(typeof doc.lighting.emitter==='string'&&emitterIds.has(doc.lighting.emitter),'lighting.emitter','Missing light emitter.');
+  check(doc.contacts===undefined||Array.isArray(doc.contacts),'contacts','Expected contact constraint array.');
+  const contacts=Array.isArray(doc.contacts)?doc.contacts:[],contactIds=new Set();
+  check(contacts.length<=16,'contacts','At most 16 contact constraints per scene.');
+  for(const contact of contacts){
+   if(!record(contact)){check(false,'contacts','Expected contact constraint.');continue;}
+   const p='contacts.'+contact.id,actor=doc.actors.find(a=>a.id===contact.actor),pack=doc.packs[actor?.pack];
+   check(typeof contact.id==='string'&&safeId.test(contact.id)&&!contactIds.has(contact.id),p,'Contact IDs must be unique.');contactIds.add(contact.id);
+   check(typeof contact.name==='string'&&contact.name.length>0&&contact.name.length<=100,p+'.name','Expected contact name.');
+   check(typeof contact.enabled==='boolean',p+'.enabled','Expected boolean.');check(!!pack,p+'.actor','Missing contact actor.');
+   check(record(contact.chain),p+'.chain','Expected upper, lower and end joints.');
+   if(record(contact.chain)&&pack){const {upper,lower,end}=contact.chain,a=pack.joints.find(j=>j.id===upper),b=pack.joints.find(j=>j.id===lower),c=pack.joints.find(j=>j.id===end);check(!!a&&!!b&&!!c&&new Set([upper,lower,end]).size===3&&b.parent===upper&&c.parent===lower,p+'.chain','Contact chain must be connected upper/lower/end joints.');if(b&&c)check(Math.hypot(b.x,b.y)>.001&&Math.hypot(c.x,c.y)>.001,p+'.chain','Contact bones need nonzero rest offsets.');}
+   check([1,-1].includes(contact.bend),p+'.bend','Bend side must be -1 or 1.');check(finite(contact.weight,0,1),p+'.weight','Expected weight 0..1.');
+   check(finite(contact.start,0,180)&&finite(contact.end,0,180)&&contact.start<=contact.end,p,'Contact window must be ordered within 0..180 seconds.');
+   if(contact.period!==undefined)check(finite(contact.period,.1,180),p+'.period','Expected repeat period .1..180 seconds.');
+   if(contact.clip!==undefined)check(typeof contact.clip==='string'&&!!pack?.clips?.[contact.clip],p+'.clip','Missing contact clip.');
+   if(contact.keepOrientation!==undefined)check(typeof contact.keepOrientation==='boolean',p+'.keepOrientation','Expected boolean.');
+   const target=contact.target;check(record(target)&&['point','joint'].includes(target.type),p+'.target','Expected point or joint target.');
+   if(record(target)&&target.type==='point')check(finite(target.x)&&finite(target.y),p+'.target','Expected finite scene target coordinates.');
+   if(record(target)&&target.type==='joint'){const targetActor=doc.actors.find(a=>a.id===target.actor),targetPack=doc.packs[targetActor?.pack];check(!!targetPack?.joints.some(j=>j.id===target.joint),p+'.target','Missing target actor or joint.');for(const key of ['offsetX','offsetY'])if(target[key]!==undefined)check(finite(target[key],-1000,1000),p+'.target.'+key,'Expected local offset -1000..1000.');}
+  }
   if(doc.ensemble!==undefined){const e=doc.ensemble;check(record(e)&&e.type==='campfire'&&Number.isInteger(e.seed)&&finite(e.seed,0,4294967295),'ensemble','Expected a seeded campfire ensemble.');
    if(record(e)){check(Array.isArray(e.members)&&e.members.length===4&&new Set(e.members).size===4,'ensemble.members','Expected four distinct campers.');
     for(const id of Array.isArray(e.members)?e.members:[]){const actor=doc.actors.find(a=>a.id===id),pack=doc.packs[actor?.pack];check(!!pack?.spatial&&pack.clips?.campfire?.duration===24&&['root','head','hold-upper','hold-elbow','hold-hand','take-upper','take-elbow','take-hand','food','skewer','camp-eyes','camp-smile'].every(id=>pack.joints.some(j=>j.id===id)),'ensemble.members','Campers require the campfire rig and clip.');}

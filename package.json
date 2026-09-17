@@ -77,6 +77,10 @@
     "./scene-graph": {
       "types": "./src/scene-graph.d.ts",
       "default": "./src/scene-graph.js"
+    },
+    "./contacts": {
+      "types": "./src/contacts.d.ts",
+      "default": "./src/contacts.js"
     }
   },
   "bin": {
@@ -101,7 +105,8 @@
     "docs/draw.md",
     "docs/project-files.md",
     "docs/studio-roadmap.md",
-    "docs/emitters.md"
+    "docs/emitters.md",
+    "docs/contacts.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -130,7 +135,8 @@
     "test:workflow": "node test/studio-workflow-browser.mjs",
     "test:emitters": "node test/emitters-browser.mjs",
     "test:scene-tools": "node test/scene-tools-browser.mjs",
-    "test:campfire-migration": "node test/campfire-migration-browser.mjs"
+    "test:campfire-migration": "node test/campfire-migration-browser.mjs",
+    "test:contacts": "node test/contacts-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

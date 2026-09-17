@@ -5,7 +5,7 @@ const quantize = time => Math.round(time * 1000) / 1000;
 
 /** Pure clip edit. Callers commit the returned clip in one validated DocumentStore transaction. */
 export function editTimelineKeys(clip, selection, operation) {
-  if (!clip || !number(clip.duration) || clip.duration < .1 || clip.duration > 60 || typeof clip.loop !== 'boolean' || !clip.tracks || typeof clip.tracks !== 'object' || Array.isArray(clip.tracks)) throw new Error('Invalid animation clip.');
+  if (!clip || !number(clip.duration) || clip.duration < .1 || clip.duration > 180 || typeof clip.loop !== 'boolean' || !clip.tracks || typeof clip.tracks !== 'object' || Array.isArray(clip.tracks)) throw new Error('Invalid animation clip.');
   for (const [track, keys] of Object.entries(clip.tracks)) {
     if (!Array.isArray(keys) || !keys.length || keys.length > 1000 || keys.some((key, i) => !Array.isArray(key) || key.length < 2 || key.length > 3 || !number(key[0]) || !number(key[1]) || key[0] < 0 || key[0] > clip.duration || i > 0 && key[0] <= keys[i - 1][0] || key[2] !== undefined && !easings.includes(key[2]))) throw new Error(`Invalid keys in ${track}.`);
   }

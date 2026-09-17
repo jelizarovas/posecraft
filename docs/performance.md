@@ -53,3 +53,9 @@ This is a static-obstacle route planner. It does not drive walking, decide goals
 Run `npm run test:performance`. The browser test checks worker lifecycle, a 16-avatar playground, queue bounds under overload, path completion/cancellation, pause, and a comparison using 24 physical dummies and 32 props. It writes machine-specific results to `test-results/performance.json`. The initial local Edge run measured 95th-percentile UI frame gaps of 36.1 ms on the main thread and 18.1 ms with a worker. This is a short local comparison, not a cross-device frame-rate guarantee.
 
 The React playground offers 1, 4, 8, or 16 avatars and shows worker compute time, message round-trip time, and skipped simulation time. Studio reports worker compute time in its footer. Measure representative artwork and devices before increasing the scene limit of 24 avatars. Physical worlds remain per character; they duplicate static prop fixtures and do not collide with each other.
+
+## Authored contact constraints
+
+Scenes support up to 16 projected two-bone contacts. The scene worker evaluates them after the authored pose; Director uses its existing episode worker. The solver caches joint lookup, skips already-satisfied targets and stops refinement when angles stop changing. It uses a fixed search limit for unreachable targets.
+
+A stress test of 16 unreachable contacts across eight 22-joint actors, with nonzero yaw/pitch and orientation preservation, measured 17.11 ms median and 21.05 ms p95 for contact solving alone. This was Windows x64, Node 22.23.2, Intel i7-1265U, 600 samples after 100 warmups. These are local measurements, not mobile guarantees or full render timings. At that extreme the worker can miss a 60 fps simulation budget; the UI remains separate and the existing queue stays bounded. Plain synchronous API callers should use a worker for similarly heavy scenes.

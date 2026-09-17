@@ -1,3 +1,4 @@
+import {applyContacts} from './contacts.js';
 import {poseDefaults,spatialChannels} from './spatial.js';
 import {assertDocument} from './schema.js';
 import {sampleClip,interpolate,constrainPose,forwardKinematics} from './index.js';
@@ -60,9 +61,10 @@ export class EpisodeController {
    if(cue?.motion){const m=cue.motion;pose[m.joint+'.'+m.channel]+=motionValue(m,local);}
    pose=constrainPose(pack.joints,pose);
    const placement={...actor.transform,...Object.fromEntries(Object.entries(cue?.placement||{}).map(([key,keys])=>[key,interpolate(keys,local)]))};
-   return {id:actor.id,pose,world:forwardKinematics(pack.joints,pose),inputs,placement,state:clip,response:'calm',physics:null,spring:{x:0,y:0,vx:0,vy:0}};
+   const clipTime=local*(cue?.speed??1)+(cue?.offset??0);
+   return {clip,clipTime:pack.clips[clip].loop?clipTime%pack.clips[clip].duration:Math.min(clipTime,pack.clips[clip].duration),id:actor.id,pose,world:forwardKinematics(pack.joints,pose),inputs,placement,state:clip,response:'calm',physics:null,spring:{x:0,y:0,vx:0,vy:0}};
   });
-  return {time,shot:shot.id,scene:shot.scene,localTime:local,shotIndex:located.index,camera,actors};
+  return applyContacts(scene,{time,shot:shot.id,scene:shot.scene,localTime:local,shotIndex:located.index,camera,actors});
  }
  bakeMotion(shotId,actorId){
   const shot=this.project.shots.find(s=>s.id===shotId),cue=shot?.actors?.[actorId];require(cue?.motion,'Select a procedural motion to bake.');

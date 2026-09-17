@@ -6,3 +6,5 @@
 .scene-fold{border:0;padding:4px;font-size:13px;background:transparent}
 
 .studio-app:has(.scene-timeline) .demo-controls{display:none}
+
+.contact-heading,.contact-tabs{display:flex;align-items:center;justify-content:space-between;gap:8px}.contact-heading button{font-size:11px;padding:5px}.contact-heading .material-symbols-outlined{font-size:16px}.contact-tabs button{font-size:10px;padding:5px}.contact-tabs label{font-size:10px}#contact-readout{min-height:24px;color:var(--primary)}

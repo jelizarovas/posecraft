@@ -11,3 +11,7 @@
 .lighting-controls{display:flex;flex-wrap:wrap;gap:8px;width:100%}.lighting-controls label{flex:1;min-width:125px}.lighting-controls input{width:80px;min-width:40px;flex:1}
 
 @media(min-width:761px){.demo-thumb{height:36px;min-width:64px;width:64px}.demo-card-copy small{margin-top:2px}.demo-card{padding:3px 6px}.demo-library .section-label{margin-bottom:8px}}
+
+.motion-review{display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%}.motion-review label{white-space:nowrap}.motion-review button{padding:3px 6px}.motion-review input[type=checkbox]{width:14px;height:14px}.motion-review .material-symbols-outlined{font-size:18px}@media(max-width:760px){.motion-review{gap:6px}#demo-controls .motion-review select{max-width:110px;font-size:10px}.motion-review label{font-size:9px}}
+
+#demo-frame .material-symbols-outlined{transform:rotate(180deg)}

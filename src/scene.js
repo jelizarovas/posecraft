@@ -1,3 +1,4 @@
+import {applyContacts} from './contacts.js';
 import {CampfireEnsemble,ensembleEvents} from './ensemble.js';
 import { AnimationController, clamp, forwardKinematics, constrainPose, sampleClip } from './index.js';
 import { assertDocument } from './schema.js';
@@ -90,7 +91,7 @@ export class SceneController {
     if (!this.replaying && changed) this.record({ type: 'acceleration', ...this.motion });
   }
   record(event) {
-    if (this.time > 60) return;
+    if (this.time > 180) return;
     while (this.log.length && this.log.at(-1).time > this.time) this.log.pop();
     if (this.log.length >= 20000) throw new Error('Replay recording is full. Reset to start a new recording.');
     this.log.push({ time: this.time, ...event });
@@ -169,12 +170,14 @@ export class SceneController {
       if(recovery){const authored=pose;pose={...pose,...recovery.pose};if(recovery.phase==='home'){const blend=clamp((recovery.time-recovery.standDuration-recovery.duration)/.35,0,1);for(const key of Object.keys(pose))if(!key.startsWith(pack.physics.root+'.'))pose[key]+=(authored[key]-pose[key])*blend;}}
       let world=forwardKinematics(runtime.joints,pose);
       if(physics&&behavior.mode!=='animated')({pose,world}=physics.apply(pose));
-      return { id: actor.id, pose, inputs, world, response:response.state, physics:behavior.mode==='animated'?null:physics?.diagnostics||null, recovery:recovery?{phase:recovery.phase,blocked:recovery.blocked,target:{x:recovery.to.x,y:recovery.to.y}}:null,state: recovery?.phase==='walking'||recovery?.phase==='returning'?'walk':preview?.clip || runtime.layers[0].state, spring: { ...spring } };
+      const clip=preview?.clip||pack.states[runtime.layers[0].state]?.clip,definition=pack.clips[clip],elapsed=preview?.time??runtime.layers[0].time,clipTime=preview?elapsed:definition?.loop?elapsed%definition.duration:Math.min(elapsed,definition?.duration??elapsed);
+      return { id: actor.id, clip, clipTime, pose, inputs, world, response:response.state, physics:behavior.mode==='animated'?null:physics?.diagnostics||null, recovery:recovery?{phase:recovery.phase,blocked:recovery.blocked,target:{x:recovery.to.x,y:recovery.to.y}}:null,state: recovery?.phase==='walking'||recovery?.phase==='returning'?'walk':preview?.clip || runtime.layers[0].state, spring: { ...spring } };
     }) };
-    return this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
+    const evaluated=this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
+    return applyContacts(this.document,evaluated);
   }
   seek(time) {
-    if (!Number.isFinite(time) || time < 0 || time > 60) throw new Error('Seek range is 0..60 seconds.');
+    if (!Number.isFinite(time) || time < 0 || time > 180) throw new Error('Seek range is 0..180 seconds.');
     const log = this.log.map(e => ({ ...e })), wasPlaying = this.playing, wasAnimating=this.animationPlaying, wasReduced=this.reducedMotion;
     // Explicit scrubbing samples the requested moment even while playback is paused.
     this.animationPlaying=true;this.reducedMotion=false;

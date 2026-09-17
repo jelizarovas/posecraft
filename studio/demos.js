@@ -1,5 +1,5 @@
-import {loveseatBeat} from '../examples/loveseat.js';
-import {gymPhase} from '../examples/gym.js';
+import {loveseatBeat,loveseatBeats} from '../examples/loveseat.js';
+import {gymPhase,gymBeats} from '../examples/gym.js';
 import {lightingConfig} from '../src/lighting.js';
 import './demos.css';
 import {demoCatalog,createDemo,findDemo} from '../examples/showcase.js';
@@ -12,6 +12,7 @@ import {SoundEffects} from '../src/audio.js';
 const $=id=>document.getElementById(id),icon=name=>`<span class="material-symbols-outlined" aria-hidden="true">${name}</span>`;
 const media=matchMedia('(prefers-reduced-motion: reduce)'),sound=new SoundEffects();
 let ensembleSoundTime=-Infinity,ensembleSoundEvents=new Set();
+let playbackRate=1,reviewBeat=null,loopBeat=false;
 let scrubPending=null,selected,documentData,controller,worker,renderer,frame,renderedScene,token=0,ready=false,inFlight=false,pending=null,time=0,last=null,playing=!media.matches,offset={x:0,y:0},drag=null,debug=false,shakeStart=null,wander=false,nextWalk=0;
 const phone=new PhoneMotion({onStatus:message=>{if(selected?.id==='shake-and-settle'){$('demo-status').textContent=message;phoneButton();}}});
 function phoneButton(){const b=$('phone-motion');if(b){b.innerHTML=icon('gesture')+(phone.enabled?'Motion off':'Enable phone');b.setAttribute('aria-pressed',String(phone.enabled));}}
@@ -22,9 +23,9 @@ for(const d of demoCatalog){
  const doc=createDemo(d.id),episode=doc.kind==='episode',engine=episode?new EpisodeController(doc):new SceneController(doc),f=engine.frame(0),scene=episode?doc.scenes[f.scene]:doc;
  const button=document.createElement('button');button.className='demo-card';button.dataset.demo=d.id;button.style.setProperty('--demo-color',d.color);button.innerHTML=`<span class="demo-thumb">${renderSVG(scene,f)}</span><span class="demo-card-copy"><strong>${d.title}</strong><small>${d.category}</small></span>`;button.onclick=()=>select(d.id);$('demo-list').append(button);engine.dispose?.();
 }
-function cleanup(){ensembleSoundTime=-Infinity;ensembleSoundEvents.clear();scrubPending=null;stopMotion();wander=false;nextWalk=0;token++;worker?.terminate();worker=null;controller?.dispose();controller=null;renderer?.dispose();renderer=null;renderedScene=null;ready=false;inFlight=false;pending=null;offset={x:0,y:0};drag=null;$('demo-stage').style.transform='';}
+function cleanup(){playbackRate=1;reviewBeat=null;loopBeat=false;ensembleSoundTime=-Infinity;ensembleSoundEvents.clear();scrubPending=null;stopMotion();wander=false;nextWalk=0;token++;worker?.terminate();worker=null;controller?.dispose();controller=null;renderer?.dispose();renderer=null;renderedScene=null;ready=false;inFlight=false;pending=null;offset={x:0,y:0};drag=null;$('demo-stage').style.transform='';}
 const timedScenes=new Set(['campfire-night','ship-in-a-bottle','loveseat-stairs','gym-routine']);
-const sceneDuration=()=>selected?.id==='campfire-night'?60:Math.min(60,Math.max(...documentData.actors.map(a=>{const p=documentData.packs[a.pack],state=p.states[a.inputs?.action]||p.states[p.initial];return p.clips[state.clip].duration;})));
+const sceneDuration=()=>selected?.id==='campfire-night'?60:Math.min(180,Math.max(...documentData.actors.map(a=>{const p=documentData.packs[a.pack],state=p.states[a.inputs?.action]||p.states[p.initial];return p.clips[state.clip].duration;})));
 function select(id,seed,mode){
  cleanup();selected=findDemo(id)||demoCatalog[0];documentData=createDemo(selected.id);if(seed!==undefined&&documentData.ensemble)documentData.ensemble.seed=seed;if(mode)for(const a of documentData.actors||[]){const p=documentData.packs[a.pack];if(p.inputs.action?.options.includes(mode)){a.inputs={...a.inputs,action:mode};const state=Object.entries(p.states).find(([,s])=>s.clip===mode);if(state)p.initial=state[0];}}frame=null;time=0;last=null;debug=selected.id==='drop-lab';playing=!media.matches;const mine=token;
  history.replaceState(null,'','#'+selected.id);document.title=selected.title+' · Posecraft demos';
@@ -61,6 +62,13 @@ function drawControls(){
  if(['ship-in-a-bottle','loveseat-stairs','gym-routine'].includes(selected.id)){
   $('demo-target').parentElement.remove();const choices=selected.id==='ship-in-a-bottle'?[['calm','Calm'],['breeze','Breeze'],['gust','Gust']]:selected.id==='loveseat-stairs'?[['carry','Climb'],['rest-left','Rest lower arm'],['rest-right','Rest upper arm']]:[['workout','Alternating routine'],['full-set','Eight reps'],['fail-six','Fail after six'],['fail-seven','Fail after seven']];
   for(const [mode,label] of choices)action('scene-'+mode,label,()=>{select(selected.id,undefined,mode);resume();});
+  if(selected.id!=='ship-in-a-bottle'){
+   const beats=selected.id==='gym-routine'?gymBeats:documentData.actors.find(a=>a.id==='lower')?.inputs.action==='carry'?loveseatBeats:[{id:'rest',label:'Release, rest and regrip',start:0,end:6}],review=document.createElement('div');review.className='motion-review';review.innerHTML='<label>Review<select id="demo-beat" aria-label="Review action"><option value="">Whole scene</option>'+beats.map(b=>'<option value="'+b.id+'">'+b.label+'</option>').join('')+'</select></label><label>Speed<select id="demo-speed" aria-label="Playback speed"><option value="1">1×</option><option value="0.5">½×</option><option value="0.25">¼×</option></select></label><label><input id="demo-loop-beat" type="checkbox">Loop action</label><button id="demo-frame" aria-label="Advance one frame">'+icon('skip_previous')+'</button>';$('demo-controls').append(review);$('demo-speed').value=String(playbackRate);
+   $('demo-speed').onchange=e=>playbackRate=+e.target.value;
+   $('demo-beat').onchange=e=>{reviewBeat=beats.find(b=>b.id===e.target.value)||null;if(reviewBeat){playing=false;controller.pause();scrubPending=reviewBeat.start;controller.seek(reviewBeat.start);transport();}};
+   $('demo-loop-beat').onchange=e=>loopBeat=e.target.checked;
+   $('demo-frame').onclick=()=>{playing=false;controller.pause();scrubPending=Math.min(sceneDuration(),(scrubPending??frame?.time??0)+1/30);controller.seek(scrubPending);transport();};
+  }
  }else if(selected.id==='campfire-night'){
   $('demo-target').parentElement.remove();
   for(const [id,label] of [['conversation','Conversation'],['doze','Daydream'],['meteor','Meteor'],['share','Share a treat']])action('camp-'+id,label,()=>controller.triggerEnsemble(id));
@@ -113,7 +121,7 @@ $('demo-stage').onpointermove=e=>{if(!drag)return;offset={x:Math.max(-55,Math.mi
 window.addEventListener('hashchange',()=>{if(location.hash.slice(1)!==selected.id)select(location.hash.slice(1));});document.addEventListener('visibilitychange',()=>{last=null;controller?.rebaseline();if(document.hidden){stopMotion();sound.mute();$('demo-sound').classList.remove('active');$('demo-sound').innerHTML=icon('play_arrow')+'Sound off';$('demo-sound').setAttribute('aria-label','Enable interaction sounds');}});window.addEventListener('pagehide',()=>{cleanup();sound.dispose();});
 media.addEventListener('change',e=>{if(e.matches){stopMotion();playing=false;controller?.pause();transport();}last=null;});
 select(location.hash.slice(1));
-function tick(now){const dt=last===null?0:Math.min(.1,(now-last)/1000);last=now;if(playing&&!document.hidden){if(documentData.kind==='episode'){time=(time+dt)%episodeDuration(documentData);requestFrame();}else{if(selected.id==='shake-and-settle'){
+function tick(now){const dt=last===null?0:Math.min(.1,(now-last)/1000)*playbackRate;last=now;if(playing&&!document.hidden){if(reviewBeat&&loopBeat&&scrubPending===null&&frame?.time>=reviewBeat.end){scrubPending=reviewBeat.start;controller.seek(reviewBeat.start);}if(documentData.kind==='episode'){time=(time+dt)%episodeDuration(documentData);requestFrame();}else{if(selected.id==='shake-and-settle'){
  const signal=phone.signal.sample(now),age=shakeStart===null?2:(now-shakeStart)/1000,pulse=age<.85?Math.sin(age*42)*1100*(1-age/.85):0;
  if(age>=.85)shakeStart=null;const ax=signal.ax+pulse,ay=signal.ay-pulse*.45;
  controller?.setAcceleration(ax,ay);$('demo-stage').style.transform=`translate(${Math.max(-12,Math.min(12,ax/100))}px,${Math.max(-8,Math.min(8,ay/120))}px) rotate(${signal.turn*.35}deg)`;

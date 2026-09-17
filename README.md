@@ -27,6 +27,7 @@ Open the localhost address printed by Vite. `npm run build` creates the static G
 - [Director](https://jelizarovas.github.io/posecraft/director.html) for reusable scenes, timed shots, camera/actor keys, seeded motion with baking, and local video-frame references. Read the [Director guide](docs/director.md).
 - One-screen Studio with Material icons, selectable body parts, draggable rotation handles, joint-limit arcs and editable limits, keyframes, transition blending, undo/redo, local recovery, and JSON open/save/export.
 - Ona (13 actions), wwwzard (10 actions), Rusty (8 seated actions), and an original jointed Dummy (6 actions), each with 14 expressions. Ona includes six hair options. Appearance and input settings are independent per character.
+- [Contacts & grips](docs/contacts.md) for planted feet and moving handles, with clip windows, bend direction, strength, reach guides, undo and export. Gym and staircase demos include slow playback, action loops and frame stepping.
 - Shared portable scene compiler, SVG renderer, and fixed-step inertial response to a moving container.
 - Floating and falling ragdolls, contact-driven protective poses, adjustable muscle strength, automatic facial responses, and opt-in synthesized sound effects. Read the [reaction guide](docs/reactions.md).
 - Worker simulation with bounded queues and cancellable static-obstacle routing. The playground supports 1/4/8/16 avatars with timing diagnostics. Read [performance and routing](docs/performance.md).

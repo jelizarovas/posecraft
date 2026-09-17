@@ -56,7 +56,7 @@ export class WorkerSceneController {
  play(){this.playing=true;this.command('play');}
  pause(){this.playing=false;this.pendingDt=0;this.command('pause');}
  reset(){this.previewKeys.clear();this.pendingDt=0;this.host=null;this.command('reset');return this.latest;}
- seek(time){if(!Number.isFinite(time)||time<0||time>60)throw new Error('Seek range is 0..60 seconds.');this.previewKeys.clear();this.command('seek',[time],'seek');return this.latest;}
+ seek(time){if(!Number.isFinite(time)||time<0||time>180)throw new Error('Seek range is 0..180 seconds.');this.previewKeys.clear();this.command('seek',[time],'seek');return this.latest;}
  async findPath(request,{signal}={}){
   await this.ready;if(this.disposed)throw new Error('Simulation worker is unavailable.');if(signal?.aborted)throw new DOMException('Path cancelled','AbortError');
   if(this.paths.size>=24)throw new Error('At most 24 path requests may be pending.');const id=++this.pathId;
