@@ -91,7 +91,7 @@ function drawPose() {
   const angle = controller.frame().actors.find(a => a.id === selected)?.pose[`${joint}.rotation`];
   if ($('rotation') && angle !== undefined) { $('rotation').value = angle; $('rotation-value').textContent = `${Math.round(angle)}°`; }
 }
-function updateTime() { $('time').textContent = `${previewTime.toFixed(2)} / ${(pack()?.clips[clip]?.duration || 0).toFixed(2)} s`; if ($('scrub')) $('scrub').value = previewTime; }
+function updateTime() { $('play').textContent = playing ? 'Ⅱ' : '▶'; $('play').setAttribute('aria-label', playing ? 'Pause animation' : 'Play animation'); $('time').textContent = `${previewTime.toFixed(2)} / ${(pack()?.clips[clip]?.duration || 0).toFixed(2)} s`; if ($('scrub')) $('scrub').value = previewTime; }
 function addActor(source) {
   if (!store.document.packs.ona) return toast('This scene has no Ona pack. Open the starter to add Ona.');
     const a = source ? structuredClone(source) : structuredClone(starter.actors[0]);
@@ -109,7 +109,7 @@ $('file').onchange = async e => { const file = e.target.files[0]; if (!file) ret
 $('clip').onchange = e => { clip = e.target.value; previewTime = 0; playing = false; drawTimeline(); drawPose(); };
 $('add-key').onclick = () => { const tracks = structuredClone(pack().clips[clip].tracks), name = `${joint}.rotation`; const value = Number($('rotation').value); tracks[name] = [...(tracks[name] || []).filter(([t]) => Math.abs(t-previewTime) > .001), [Number(previewTime.toFixed(3)), value, $('easing')?.value || 'smooth']].sort((a,b)=>a[0]-b[0]); edit([set(['packs', actor().pack, 'clips', clip, 'tracks'], tracks)], 'Keyframe added.'); };
 $('play').onclick = () => { playing = !playing; $('play').textContent = playing ? 'Ⅱ' : '▶'; $('play').setAttribute('aria-label', playing ? 'Pause animation' : 'Play animation'); last = null; };
-function toggleGreeting() { greeting = !greeting; $('greet').textContent = greeting ? 'Rest' : 'Wave'; for (const a of controller.actors) if (a.pack.inputs.greeting) controller.setInput(a.actor.id, 'greeting', greeting); clip = greeting ? 'wave' : 'idle'; playing = true; $('play').textContent = 'Ⅱ'; if (tab === 'states') drawTimeline(); }
+function toggleGreeting() { greeting = !greeting; $('greet').textContent = greeting ? 'Rest' : 'Wave'; for (const a of controller.actors) if (a.pack.inputs.greeting) controller.setInput(a.actor.id, 'greeting', greeting); clip = greeting ? 'wave' : 'idle'; playing = true; $('play').textContent = 'Ⅱ'; drawTimeline(); }
 $('greet').onclick = toggleGreeting;
 $('shake').onclick = () => { scenario = { start: performance.now(), origin: { ...offset } }; };
 $('reset').onclick = () => { offset = {x:0,y:0}; scenario = null; $('stage').style.transform = ''; previewTime = 0; greeting = false; playing = false; $('play').textContent = '▶'; $('greet').textContent = 'Wave'; rebuild(); };

@@ -10,6 +10,7 @@ try {
  await page.goto(base);await page.locator('[data-part]').first().waitFor();
  await page.screenshot({path:'test-results/studio.png',fullPage:true});
  assert.equal(await page.locator('[data-actor="ona"]').count(),1);
+ await page.locator('#greet').click();assert.equal(await page.locator('#clip').inputValue(),'wave');await page.locator('#reset').click();
  await page.locator('#actor-name').fill('Ona test');await page.locator('#actor-name').press('Tab');
  await page.locator('#duplicate').click();assert.equal(await page.locator('#art [data-actor]').count(),2);
  await page.locator('#undo').click();assert.equal(await page.locator('#art [data-actor]').count(),1);
