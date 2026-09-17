@@ -153,7 +153,7 @@ export class SceneController {
     }
   }
   frame() {
-    const frame={ time: this.time, actors: this.actors.map(({ actor, pack, runtime, spring, preview,behavior,response,physics,recovery }) => {
+    const frame={ time: this.time, effectsTime:this.reducedMotion?0:this.time, actors: this.actors.map(({ actor, pack, runtime, spring, preview,behavior,response,physics,recovery }) => {
       let pose = preview ? { ...runtime.definition.defaults, ...sampleClip({ ...pack.clips[preview.clip], loop: false }, preview.time), ...preview.overrides } : { ...runtime.frame.pose };
       const inputs={...runtime.inputs};
       const emotion={startled:'surprised',scared:'scared',falling:'scared',bracing:'focused',protecting:'scared',curling:'scared',hurt:'hurt',recovering:'dizzy','getting-up':'focused',returning:'relieved',walking:'happy',relieved:'relieved',happy:'happy'}[response.state];

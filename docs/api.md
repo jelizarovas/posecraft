@@ -30,7 +30,7 @@ store.undo();
 store.redo();
 ```
 
-Transactions apply to a cloned document and commit only if all commands and the resulting scene validate. Every commit, undo, and redo advances revision. The history holds 60 authored versions. Persistent documents contain no runtime or DOM state.
+Transactions apply to a cloned document and commit only if all commands and the resulting scene validate. Use `{op:'delete', path:['lighting','emitter']}` to remove an existing optional object field. Array changes use `set` with a complete replacement array. Every commit, undo, and redo advances revision. The history holds 60 authored versions. Persistent documents contain no runtime or DOM state.
 
 ### Authoring helpers
 
@@ -39,6 +39,8 @@ Transactions apply to a cloned document and commit only if all commands and the 
 `posecraft/vector-authoring` exports `createDrawing`, `shapePath`, `importSVG`, `assignArtwork`, `movePivot` and `reparentJoint`. Pivot and parent changes preserve the resting artwork. `importSVG` needs a DOMParser, supplied by the browser or passed explicitly. It rejects unsupported SVG rather than silently dropping effects. See [Draw / Rig](draw.md).
 
 `posecraft/project-bundle` exports asynchronous `createProjectBundle(episode, loadReference)` and `readProjectBundle(bundle)`. The reader returns `{project, assets}`, where assets maps reference IDs to image Blobs. Bundles include referenced PNG, JPEG or WebP images and verify their checksums and size limits. Browser callers can supply `validateImage` to check decoding before importing. These helpers do not write browser storage. See [portable project files](project-files.md).
+
+`posecraft/emitters` samples seeded flame, smoke and ember effects directly at a time. `posecraft/scene-graph` provides default emitter settings, inherited folder visibility and safe removal helpers. Scenes declare `procedural-emitters` and `scene-groups` capabilities. `lighting.emitter` binds the existing point light to a source, including its pulse. See [scene effects and folders](emitters.md) for settings, particle caps and migration of older campfire drafts.
 
 ## Runtime and SVG
 

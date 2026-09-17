@@ -1,6 +1,17 @@
+import {emitterPulse} from './emitters.js';
+import {nodeVisible} from './scene-graph.js';
 // Stylized receivers and surface ramps. No mesh, ray tracing or layout reads.
 export const lightRanges={shadowLength:[0,3],celThickness:[0,1],celIntensity:[0,1],pointX:[-4096,8192],pointY:[-4096,8192],pointHeight:[20,2000],range:[50,4000],motionRadius:[0,1000],motionSpeed:[.05,5],flicker:[0,1],angle:[-180,180],elevation:[10,85],intensity:[0,2],ambient:[0,1],softness:[0,16],floorY:[0,4096],wallY:[0,4096],floorShadow:[0,1],wallShadow:[0,1],reflection:[0,.8],gloss:[0,1]};
-export function lightingConfig(scene){return {shadowLength:1,enabled:false,shading:'gradient',celThickness:.35,celIntensity:1,type:'directional',receiver:'corner',pointX:scene.bounds.width/2,pointY:scene.bounds.height*.6,pointHeight:220,range:500,motion:'none',motionRadius:220,motionSpeed:1,flicker:.2,showSource:false,angle:-135,elevation:45,intensity:.8,ambient:.6,color:'#fff1d6',shadowColor:'#292438',softness:3,floorY:scene.bounds.height*.82,wallY:scene.bounds.height*.66,floorShadow:.24,wallShadow:.14,reflection:.18,gloss:.25,...scene.lighting};}
+export function lightingConfig(scene,frame){const light={shadowLength:1,enabled:false,shading:'gradient',celThickness:.35,celIntensity:1,type:'directional',receiver:'corner',pointX:scene.bounds.width/2,pointY:scene.bounds.height*.6,pointHeight:220,range:500,motion:'none',motionRadius:220,motionSpeed:1,flicker:.2,showSource:false,angle:-135,elevation:45,intensity:.8,ambient:.6,color:'#fff1d6',shadowColor:'#292438',softness:3,floorY:scene.bounds.height*.82,wallY:scene.bounds.height*.66,floorShadow:.24,wallShadow:.14,reflection:.18,gloss:.25,...scene.lighting};
+ const emitter=scene.emitters?.find(e=>e.id===light.emitter);
+ if(emitter){
+  const actor=scene.actors.find(a=>a.id===emitter.actor),placement=frame?.actors?.find(a=>a.id===emitter.actor)?.placement||actor?.transform||{x:0,y:0,rotation:0,scale:1};
+  const angle=placement.rotation*Math.PI/180,x=emitter.x,y=emitter.y-(emitter.type==='flame'?emitter.size*.45:0);
+  light.type='point';light.pointX=placement.x+placement.scale*(x*Math.cos(angle)-y*Math.sin(angle));light.pointY=placement.y+placement.scale*(x*Math.sin(angle)+y*Math.cos(angle));
+  light.emitterSettings={...emitter,enabled:emitter.enabled&&nodeVisible(scene,emitter)&&(!emitter.actor||!!actor&&nodeVisible(scene,actor))};
+ }
+ return light;
+}
 const rad=Math.PI/180;
 function rgb(hex){if(!/^#(?:[a-f\d]{3}|[a-f\d]{6})$/i.test(hex))return null;let s=hex.slice(1);if(s.length===3)s=[...s].map(c=>c+c).join('');return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16));}
 export function surfaceRamp(fill,light){const base=rgb(fill),tint=rgb(light.color);if(!base||Math.max(...base)<65)return null;
@@ -29,8 +40,9 @@ export function surfaceFocus(light,rotation=0,partTransform=''){
 }
 export function sampleLighting(base,time=0){
  const l={...base},t=(base.motion==='flicker'?Math.floor(time*30)/30:time)*l.motionSpeed;
- if(l.type==='point'&&l.motion==='orbit'){l.pointX+=Math.sin(t*.65)*l.motionRadius;l.pointY+=Math.cos(t*.65)*l.motionRadius*.3;}
- if(l.motion==='flicker'){const dim=l.flicker*(.5+.25*Math.sin(t*13)+.15*Math.sin(t*23+1)+.1*Math.sin(t*37));l.intensity*=1-dim;l.celThickness=Math.min(1,l.celThickness*(1+.9*dim));}
+ if(!l.emitterSettings&&l.type==='point'&&l.motion==='orbit'){l.pointX+=Math.sin(t*.65)*l.motionRadius;l.pointY+=Math.cos(t*.65)*l.motionRadius*.3;}
+ if(l.emitterSettings){const pulse=emitterPulse(l.emitterSettings,time);l.intensity=Math.min(2,l.intensity*pulse);l.celThickness=Math.max(0,Math.min(1,l.celThickness*(1+.9*(1-pulse))));l.floorShadow*=Math.min(1,pulse);l.wallShadow*=Math.min(1,pulse);if(!pulse)l.showSource=false;}
+ else if(l.motion==='flicker'){const dim=l.flicker*(.5+.25*Math.sin(t*13)+.15*Math.sin(t*23+1)+.1*Math.sin(t*37));l.intensity*=1-dim;l.celThickness=Math.min(1,l.celThickness*(1+.9*dim));}
  return l;
 }
 export function actorAnchor(actor,evaluated){const t=evaluated.placement||actor.transform,root=Object.values(evaluated.world)[0]||{x:0,y:0},r=t.rotation*rad;return {x:t.x+t.scale*(root.x*Math.cos(r)-root.y*Math.sin(r)),y:t.y+t.scale*(root.x*Math.sin(r)+root.y*Math.cos(r))};}

@@ -1,6 +1,6 @@
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters'], unavailable: ['fluids', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -179,6 +179,22 @@ function validateStructure(doc) {
       check(spec && typeof value === spec.type && (!spec.options || spec.options.includes(value)) && (spec.type !== 'number' || finite(value, spec.min, spec.max)), `actors.${a.id}.inputs.${name}`, 'Invalid actor input.');
     }
   }
+  check(doc.groups===undefined||Array.isArray(doc.groups),'groups','Expected scene folder array.');
+  const groups=Array.isArray(doc.groups)?doc.groups:[],groupIds=new Set();
+  check(groups.length<=32,'groups','At most 32 scene folders.');
+  for(const g of groups){if(!record(g)){check(false,'groups','Expected folder.');continue;}check(typeof g.id==='string'&&safeId.test(g.id)&&!groupIds.has(g.id),'groups','Folder IDs must be unique.');groupIds.add(g.id);check(typeof g.name==='string'&&g.name.length>0&&g.name.length<=100,'groups.'+g.id,'Expected a folder name.');if(g.hidden!==undefined)check(typeof g.hidden==='boolean','groups.'+g.id+'.hidden','Expected boolean.');}
+  const groupMap=new Map(groups.filter(record).map(g=>[g.id,g]));
+  for(const g of groups.filter(record)){check(g.parent===null||groupIds.has(g.parent),'groups.'+g.id+'.parent','Missing parent folder.');const visited=new Set([g.id]);let at=g.parent;while(at&&groupMap.has(at)){if(visited.has(at)){check(false,'groups.'+g.id+'.parent','Folder cycle.');break;}visited.add(at);at=groupMap.get(at).parent;}check(visited.size<=8,'groups.'+g.id,'Folders support eight levels.');}
+  function nodeFields(node,path){if(node.group!==undefined)check(groupIds.has(node.group),path+'.group','Missing scene folder.');if(node.hidden!==undefined)check(typeof node.hidden==='boolean',path+'.hidden','Expected boolean.');if(node.layer!==undefined)check(['background','characters','foreground'].includes(node.layer),path+'.layer','Unknown drawing layer.');}
+  for(const a of doc.actors.filter(record))nodeFields(a,'actors.'+a.id);
+  for(const p of (Array.isArray(doc.props)?doc.props:[]).filter(record))nodeFields(p,'props.'+p.id);
+  check(doc.emitters===undefined||Array.isArray(doc.emitters),'emitters','Expected emitter array.');
+  const emitters=Array.isArray(doc.emitters)?doc.emitters:[],emitterIds=new Set();let particles=0;
+  check(emitters.length<=16,'emitters','At most 16 emitters.');
+  const ranges={x:[-10000,10000],y:[-10000,10000],rate:[0,60],lifetime:[.1,30],speed:[0,300],spread:[0,500],randomness:[0,1],seed:[0,4294967295],size:[.5,300],opacity:[0,1],maxParticles:[1,128]};
+  for(const e of emitters){if(!record(e)){check(false,'emitters','Expected emitter.');continue;}const p='emitters.'+e.id;check(typeof e.id==='string'&&safeId.test(e.id)&&!emitterIds.has(e.id),p,'Emitter IDs must be unique.');emitterIds.add(e.id);check(typeof e.name==='string'&&e.name.length>0&&e.name.length<=100,p+'.name','Expected emitter name.');check(['flame','smoke','embers'].includes(e.type),p+'.type','Unknown emitter type.');check(typeof e.enabled==='boolean',p+'.enabled','Expected boolean.');for(const [key,[min,max]] of Object.entries(ranges))check(finite(e[key],min,max),p+'.'+key,`Expected ${min}..${max}.`);check(Number.isInteger(e.seed)&&Number.isInteger(e.maxParticles),p,'Seed and particle cap must be integers.');check(typeof e.color==='string'&&/^#[a-fA-F0-9]{6}$/.test(e.color),p+'.color','Expected six-digit hex color.');if(e.actor!==undefined)check(actorIds.has(e.actor),p+'.actor','Missing emitter anchor actor.');nodeFields(e,p);particles+=Number.isFinite(e.maxParticles)?e.maxParticles:0;}
+  check(particles<=512,'emitters','At most 512 reserved particle slots per scene.');
+  if(doc.lighting?.emitter!==undefined)check(typeof doc.lighting.emitter==='string'&&emitterIds.has(doc.lighting.emitter),'lighting.emitter','Missing light emitter.');
   if(doc.ensemble!==undefined){const e=doc.ensemble;check(record(e)&&e.type==='campfire'&&Number.isInteger(e.seed)&&finite(e.seed,0,4294967295),'ensemble','Expected a seeded campfire ensemble.');
    if(record(e)){check(Array.isArray(e.members)&&e.members.length===4&&new Set(e.members).size===4,'ensemble.members','Expected four distinct campers.');
     for(const id of Array.isArray(e.members)?e.members:[]){const actor=doc.actors.find(a=>a.id===id),pack=doc.packs[actor?.pack];check(!!pack?.spatial&&pack.clips?.campfire?.duration===24&&['root','head','hold-upper','hold-elbow','hold-hand','take-upper','take-elbow','take-hand','food','skewer','camp-eyes','camp-smile'].every(id=>pack.joints.some(j=>j.id===id)),'ensemble.members','Campers require the campfire rig and clip.');}

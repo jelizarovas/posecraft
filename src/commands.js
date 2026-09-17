@@ -8,13 +8,16 @@ export class DocumentStore {
     if (!Array.isArray(commands) || !commands.length || commands.length > 100) throw new Error('Supply 1..100 commands.');
     const next = structuredClone(this.document);
     for (const command of commands) {
-      if (command.op !== 'set' || !Array.isArray(command.path) || !command.path.length || ['revision', 'schemaVersion'].includes(command.path[0])) throw new Error('Expected set command with an editable path.');
+      if (!['set','delete'].includes(command.op) || !Array.isArray(command.path) || !command.path.length || ['revision', 'schemaVersion'].includes(command.path[0])) throw new Error('Expected set or delete command with an editable path.');
       let target = next;
       for (const key of command.path) if (['__proto__', 'prototype', 'constructor'].includes(String(key))) throw new Error('Reserved path.');
       for (const key of command.path.slice(0, -1)) { if (!target || !Object.hasOwn(target, key)) throw new Error(`Missing path: ${command.path.join('.')}`); target = target[key]; }
       const key = command.path.at(-1);
       if (!target || typeof target !== 'object') throw new Error('Path does not address an object.');
-      target[key] = structuredClone(command.value);
+      if(command.op==='delete'){
+        if(Array.isArray(target)||!Object.hasOwn(target,key))throw new Error('Delete needs an existing object field. Replace arrays with set.');
+        delete target[key];
+      }else target[key] = structuredClone(command.value);
     }
     next.revision++;
     assertDocument(next);

@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createCampfire,campPhase} from '../examples/campfire.js';
+import {createCampfire,campPhase,convertCampfireEffects} from '../examples/campfire.js';
 import {SceneController} from '../src/scene.js';
 import {assertDocument,validateDocument} from '../src/schema.js';
 import {spatialParts} from '../src/spatial.js';
 import {renderSVG} from '../src/svg.js';
+import {sampleEmitter} from '../src/emitters.js';
 import {lightingConfig,sampleLighting,lightAt,shadowVectors,shadowProjection,wallProjection,surfaceRamp,surfaceStopValues} from '../src/lighting.js';
 test('floor and wall projections meet at the same corner point',()=>{
  const l=lightingConfig({bounds:{width:800,height:450},lighting:{enabled:true,floorY:365,wallY:300}});
@@ -15,9 +16,9 @@ test('floor and wall projections meet at the same corner point',()=>{
  assert.equal(wallProjection({...l,receiver:'floor'}),null);assert.equal(wallProjection({...l,angle:90}),null);
 });
 test('point light position controls bearing, falloff and deterministic flicker',()=>{
- const l=lightingConfig(createCampfire());assert.ok(lightAt(l,200,315).angle===0);assert.ok(Math.abs(lightAt(l,600,315).angle)===180);assert.ok(lightAt(l,390,315).intensity>lightAt(l,20,315).intensity);
+ const l=lightingConfig(createCampfire());assert.equal(l.pointY,316);assert.ok(lightAt(l,200,l.pointY).angle===0);assert.ok(Math.abs(lightAt(l,600,l.pointY).angle)===180);assert.ok(lightAt(l,390,l.pointY).intensity>lightAt(l,20,l.pointY).intensity);
  assert.notEqual(sampleLighting(l,1).intensity,sampleLighting(l,1.5).intensity);assert.deepEqual(sampleLighting(l,1),sampleLighting(l,1));
- const moving={...l,motion:'orbit'};assert.notEqual(sampleLighting(moving,0).pointX,sampleLighting(moving,2).pointX);
+ const moving={...l,emitterSettings:undefined,motion:'orbit'};assert.notEqual(sampleLighting(moving,0).pointX,sampleLighting(moving,2).pointX);
  const left=shadowVectors(l,{x:200}),right=shadowVectors(l,{x:600});assert.ok(left.x<0&&right.x>0);
 });
 test('cel width and contrast are independent and reject invalid scene options',()=>{
@@ -58,5 +59,23 @@ test('campfire hands grip the planted stick and carry food in front of the face'
  c.previewClip('camper-0','campfire',2.2,{});assert.equal(c.frame().actors.find(a=>a.id==='camper-0').pose['camp-blink.opacity'],1);
  c.previewClip('camper-0','campfire',12.4,{});assert.equal(c.frame().actors.find(a=>a.id==='camper-0').pose['camp-oh.opacity'],1);
  c.previewClip('camper-0','campfire',18.2,{});assert.ok(c.frame().actors.find(a=>a.id==='camper-0').pose['camp-chew-open.opacity']>0);c.dispose();
- const light=lightingConfig(d),a=sampleLighting(light,1),b=sampleLighting(light,1.5);assert.notEqual(a.celThickness,b.celThickness);assert.equal(sampleLighting({...light,flicker:0},1).celThickness,light.celThickness);
+ const light=lightingConfig(d),a=sampleLighting(light,1),b=sampleLighting(light,1.5);assert.notEqual(a.celThickness,b.celThickness);assert.equal(sampleLighting({...light,emitterSettings:{...light.emitterSettings,randomness:0}},1).celThickness,light.celThickness);
+});
+
+
+test('campfire fire, smoke and embers are bounded procedural emitters, not authored loops',()=>{
+ const d=assertDocument(createCampfire());assert.deepEqual(d.packs.fire.clips.loop.tracks,{});assert.deepEqual(d.packs.fire.joints.map(j=>j.id),['root']);assert.equal(d.packs.fire.parts.length,14);
+ assert.deepEqual(d.emitters.map(e=>e.type),['flame','smoke','embers']);assert.equal(d.lighting.emitter,'fire-flame');assert.deepEqual(d.groups.map(g=>g.id),['scenery','characters','campfire']);
+ for(const e of d.emitters){assert.equal(e.actor,'fire');assert.equal(e.group,'campfire');const a=sampleEmitter(e,2.345),b=sampleEmitter(e,6.345);assert.deepEqual(a,sampleEmitter(e,2.345));assert.notDeepEqual(a,b,'effects do not repeat the old four-second loop');assert.ok(a.length<=e.maxParticles);assert.ok(sampleEmitter({...e,rate:0},20).every(p=>p.opacity===0));}
+ const hidden=structuredClone(d);hidden.groups.find(g=>g.id==='campfire').hidden=true;assert.equal(sampleLighting(lightingConfig(hidden),2).intensity,0,'hiding the fire folder also extinguishes its light');const moved=structuredClone(d);Object.assign(moved.actors.find(a=>a.id==='fire').transform,{x:20,y:30,scale:2});assert.equal(lightingConfig(moved).pointX,820);assert.equal(lightingConfig(moved).pointY,662);
+ const smoke=d.emitters.find(e=>e.type==='smoke'),slow=sampleEmitter({...smoke,rate:.5},8).filter(p=>p.opacity>0),fast=sampleEmitter({...smoke,rate:4},8).filter(p=>p.opacity>0);assert.ok(fast.length>slow.length,'rate controls how many smoke births remain alive');
+});
+
+test('explicit legacy campfire conversion keeps authored characters and custom fire dependencies',()=>{
+ const legacy=createCampfire();delete legacy.emitters;delete legacy.lighting.emitter;legacy.groups=[{id:'campfire',name:'My custom folder',parent:null}];for(const a of legacy.actors)delete a.group;
+ legacy.requiredFeatures=legacy.requiredFeatures.filter(f=>!['scene-groups','procedural-emitters'].includes(f));const p=legacy.packs.fire;
+ for(const id of ['flame-0','smoke-0','ember-0']){p.joints.push({id,parent:'root',x:400,y:352,rotation:0,min:-180,max:180,length:0});p.parts.push({id,joint:id,d:'M0 0L4 0L2 -8Z',fill:'#ff9900'});p.clips.loop.tracks[id+'.y']=[[0,0],[4,-30]];}
+ p.parts.push({id:'custom-fire-sign',joint:'smoke-0',d:'M0 0H10V10H0Z',fill:'#ff0000'});legacy.packs['camper-0'].clips.campfire.tracks['head.rotation']=[[0,3],[24,6]];
+ const before=structuredClone(legacy),converted=assertDocument(convertCampfireEffects(legacy));assert.deepEqual(legacy,before,'conversion never mutates the open draft');assert.deepEqual(converted.packs['camper-0'],legacy.packs['camper-0']);assert.ok(converted.packs.fire.parts.some(p=>p.id==='custom-fire-sign'));assert.ok(converted.packs.fire.joints.some(j=>j.id==='smoke-0'));assert.ok(converted.packs.fire.clips.loop.tracks['smoke-0.y']);assert.ok(!converted.packs.fire.joints.some(j=>j.id==='flame-0'));assert.ok(!converted.packs.fire.clips.loop.tracks['flame-0.y']);assert.ok(!converted.packs.fire.parts.some(p=>p.id==='smoke-0'));assert.equal(converted.groups.find(g=>g.id==='campfire').name,'My custom folder');assert.ok(converted.groups.some(g=>g.id==='campfire-2'));
+ assert.deepEqual(convertCampfireEffects(converted),converted,'conversion is idempotent even with retained custom dependencies');
 });

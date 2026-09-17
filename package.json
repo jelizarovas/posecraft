@@ -65,6 +65,14 @@
     "./project-bundle": {
       "types": "./src/project-bundle.d.ts",
       "default": "./src/project-bundle.js"
+    },
+    "./emitters": {
+      "types": "./src/emitters.d.ts",
+      "default": "./src/emitters.js"
+    },
+    "./scene-graph": {
+      "types": "./src/scene-graph.d.ts",
+      "default": "./src/scene-graph.js"
     }
   },
   "bin": {
@@ -88,7 +96,8 @@
     "docs/timeline.md",
     "docs/draw.md",
     "docs/project-files.md",
-    "docs/studio-roadmap.md"
+    "docs/studio-roadmap.md",
+    "docs/emitters.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -112,7 +121,10 @@
     "test:timeline": "node test/timeline-browser.mjs",
     "test:draw": "node test/draw-browser.mjs",
     "test:projects": "node test/project-bundle-browser.mjs",
-    "test:workflow": "node test/studio-workflow-browser.mjs"
+    "test:workflow": "node test/studio-workflow-browser.mjs",
+    "test:emitters": "node test/emitters-browser.mjs",
+    "test:scene-tools": "node test/scene-tools-browser.mjs",
+    "test:campfire-migration": "node test/campfire-migration-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

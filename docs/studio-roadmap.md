@@ -55,3 +55,9 @@ Integration gate passed: `test/studio-workflow-browser.mjs` creates original art
 User guides: [Draw / Rig](draw.md), [timeline editing](timeline.md), [portable projects](project-files.md). Each module is exported as an SDK subpath and included in the package type check.
 
 This milestone establishes three priority-1 foundations. It does not complete the 30-second production-film milestone. Next dependencies are audio tracks and frame-accurate output, contact/attachment authoring, and deeper timeline tools such as curve handles and onion skinning. Physics baking, multiple lights, transitions and team workflows remain in their existing priority order.
+
+## Scene organization and procedural effects
+
+Implemented after milestone 1: separate Scene and Character workspaces; nested folders with inherited visibility; scene layers; seeded flame, smoke and ember emitters; an emitter-bound point light; independent effect preview and scrubbing. The campfire's stones and logs are static, while smoke, embers and flame use settings instead of generated clip tracks. Existing authored campfire drafts have an explicit, undoable conversion. Character clips remain separately editable. See [effects and folders](emitters.md).
+
+This is the first procedural-effects authoring slice. Folders do not transform contents together. Emitters have no particle collision, general event scripts or joint attachment; the scene still supports one key light. These limits remain separate from the production-film milestone above.

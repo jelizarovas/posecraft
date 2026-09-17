@@ -70,3 +70,15 @@ editTimelineKeys(editableClip,[{track:'head.rotation',time:0}],{type:'move',offs
 editTimelineKeys(editableClip,[],{type:'easing',easing:'bounce'});
 const bundle=createProjectBundle(episode.project,async()=>new Blob());
 bundle.then(value=>readProjectBundle(value)).then(value=>value.assets.get('reference'));
+
+import {createEmitter,removeGroup,nodeVisible} from 'posecraft/scene-graph';
+import {sampleEmitter,emitterPulse} from 'posecraft/emitters';
+scene.groups=[{id:'effects',name:'Effects',parent:null}];
+scene.emitters=[{...createEmitter('smoke','smoke'),group:'effects'}];
+sampleEmitter(scene.emitters[0],2)[0].opacity;
+emitterPulse(scene.emitters[0],2);
+nodeVisible(scene,scene.emitters[0]);
+removeGroup(scene,'effects');
+scene.lighting={emitter:'smoke',enabled:true};
+// @ts-expect-error Emitter type is a supported effect, not arbitrary executable code.
+createEmitter('script','unsafe');

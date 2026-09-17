@@ -27,14 +27,39 @@ function sky(){
  loop(p,60,tracks);return p;
 }
 function fire(){
- const p=pack('Campfire, embers and smoke'),tracks={};
+ const p=pack('Campfire stones and logs');
  for(let i=0;i<11;i++){const a=i*Math.PI*2/11,x=400+Math.cos(a)*53,y=353+Math.sin(a)*16;p.parts.push(path('stone-'+i,'root',ellipse(x,y,13,8),i%2?'#798077':'#5d6a64'));}
  p.parts.push(path('log-a','root','M360 344L442 358L438 370L357 355Z','#745032'),path('log-b','root','M365 365L439 340L445 350L371 376Z','#956543'),path('log-grain','root','M368 352L431 365M377 368L438 347','none',{stroke:'#3d3528',strokeWidth:2}));
- for(let i=0;i<3;i++){const id='flame-'+i;p.joints.push(joint(id,'root',400+(i-1)*9,352));p.parts.push(path(id,id,flame,['#e96a32','#ffb143','#ffe199'][i],{transform:`scale(${1-i*.26} ${1-i*.15})`}));tracks[id+'.rotation']=Array.from({length:41},(_,k)=>[k*.1,Math.sin(k*1.8+i)*7,'smooth']);tracks[id+'.y']=Array.from({length:41},(_,k)=>[k*.1,Math.sin(k*2.1+i)*4,'smooth']);}
- for(let i=0;i<6;i++){const id='ember-'+i;p.joints.push(joint(id,'root',380+i*8,323));p.parts.push(path(id,id,ellipse(0,0,1.5,3),'#ffcd76',{opacityChannel:id+'.opacity'}));tracks[id+'.y']=[[0,0],[4,-100-i*8]];tracks[id+'.x']=[[0,0],[4,Math.sin(i*2)*36]];tracks[id+'.opacity']=[[0,0],[.3+i*.15,.8],[3,.4],[4,0]];}
- for(let i=0;i<3;i++){const id='smoke-'+i;p.joints.push(joint(id,'root',400+i*5,283-i*23));p.parts.push(path(id,id,ellipse(0,0,12+i*5,7+i*4),'#9da392',{opacityChannel:id+'.opacity'}));tracks[id+'.y']=[[0,0],[4,-35]];tracks[id+'.x']=[[0,0],[4,26]];tracks[id+'.opacity']=[[0,0],[1,.13],[4,0]];}
- loop(p,4,tracks);return p;
+ loop(p,4,{});return p;
 }
+const uniqueId=(items,preferred)=>{let id=preferred,n=2;while(items.some(item=>item.id===id))id=preferred+'-'+n++;return id;};
+function addCampfireEffects(doc){
+ doc.groups||=[];doc.emitters||=[];
+ const group=(id,name)=>{const existing=doc.groups.find(g=>g.id===id&&g.name===name);if(existing)return existing.id;const value=uniqueId(doc.groups,id);doc.groups.push({id:value,name,parent:null});return value;};
+ const scenery=group('scenery','Scenery'),characters=group('characters','Characters'),campfire=group('campfire','Campfire'),fireActor=doc.actors.find(a=>a.id==='fire');
+ for(const a of doc.actors)if(!a.group)a.group=a.id==='night'?scenery:a.id==='fire'?campfire:characters;
+ const defaults={actor:fireActor.id,group:fireActor.group,layer:'characters',enabled:true,randomness:.8,opacity:1};
+ const effects=[
+  {id:'fire-flame',name:'Campfire flame',type:'flame',x:400,y:352,rate:2.5,lifetime:1,speed:0,spread:16,seed:6713,size:80,color:'#ee6f32',maxParticles:3},
+  {id:'fire-smoke',name:'Campfire smoke',type:'smoke',x:400,y:283,rate:2.2,lifetime:4.5,speed:19,spread:15,seed:6714,size:14,color:'#9da392',opacity:.17,maxParticles:24},
+  {id:'fire-embers',name:'Campfire embers',type:'embers',x:400,y:323,rate:5,lifetime:3.2,speed:37,spread:23,seed:6715,size:2,color:'#ffcd76',opacity:.9,maxParticles:32}
+ ].map(effect=>({...defaults,...effect,id:uniqueId(doc.emitters,effect.id)}));
+ doc.emitters.push(...effects);doc.lighting={...doc.lighting,emitter:effects[0].id};doc.requiredFeatures=[...new Set([...(doc.requiredFeatures||[]),'scene-groups','procedural-emitters'])];return doc;
+}
+// Explicit migration only: opening a saved draft must never rewrite authored work.
+export function convertCampfireEffects(document){
+ const doc=structuredClone(document),a=doc.actors?.find(a=>a.id==='fire'),p=doc.packs?.[a?.pack];
+ if(doc.kind!=='scene'||doc.ensemble?.type!=='campfire'||!p)throw new Error('Choose a campfire scene to convert its fire effects.');
+ const effects=new Set(p.joints.filter(j=>j.parent==='root'&&/^(flame|ember|smoke)-\d+$/.test(j.id)).map(j=>j.id));
+ if(doc.emitters?.some(e=>e.actor===a.id&&e.type==='flame'&&e.id===doc.lighting?.emitter))return doc;
+ p.parts=p.parts.filter(part=>!(effects.has(part.id)&&part.joint===part.id));
+ // Keep a legacy joint if custom artwork or a custom child still depends on it.
+ const retained=new Set(p.parts.map(part=>part.joint));for(const expression of Object.values(p.expressions||{}))for(const key of Object.keys(expression))retained.add(key.split('.')[0]);for(const j of p.joints)if(!effects.has(j.id)&&j.parent)retained.add(j.parent);
+ const removed=new Set([...effects].filter(id=>!retained.has(id)));p.joints=p.joints.filter(j=>!removed.has(j.id));
+ for(const clip of Object.values(p.clips))for(const key of Object.keys(clip.tracks))if(removed.has(key.split('.')[0]))delete clip.tracks[key];
+ doc.revision++;return addCampfireEffects(doc);
+}
+
 export function campPhase(time,index=0){const t=(time+index*5)%24;return t<9?'roasting':t<12?'toasting':t<13.5?'burning':t<15?'lowering the stick':t<15.8?'blowing':t<16.4?'reaching':t<17?'sliding off':t<19?'eating':t<20?'swallowing':t<21.5?'replacing':t<23?'returning to fire':'fresh';}
 const mix=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});
 const ramp=(t,a,b)=>ease((t-a)/(b-a));
@@ -122,5 +147,5 @@ function camper(index,x,scale,colors,hair,groundY=365,yaw=0){
 }
 export function createCampfire(){
  const outfits=[{clothing:'#de9b69',hair:'#674538',eyes:'#477b78'},{clothing:'#a9bf8c',hair:'#b57840',eyes:'#72509b'},{clothing:'#a29acf',hair:'#372f3e',eyes:'#438e9a'},{clothing:'#78afb0',hair:'#ceb16d',eyes:'#729052'}],hair=['bob','curls','swept','ponytail'],campers=[[320,.92,302,24],[470,.92,295,-24],[235,1.12,407,135],[567,1.12,411,-135]].map(([x,scale,ground,yaw],i)=>camper(i,x,scale,outfits[i],hair[i],ground,yaw));
- return {schemaVersion:1,kind:'scene',id:'campfire-night',name:'Campfire night',revision:0,bounds:{width:800,height:450},requiredFeatures:['spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell'],ensemble:{type:'campfire',seed:20260917,members:campers.map(c=>c.a.id),sky:'night'},packs:{night:sky(),fire:fire(),...Object.fromEntries(campers.map(({a,p})=>[a.pack,p]))},actors:[actor('night','night','background'),campers[0].a,campers[1].a,actor('fire','fire','characters'),campers[2].a,campers[3].a],lighting:{enabled:true,shading:'cel',celThickness:.4,celIntensity:.72,type:'point',receiver:'floor',pointX:400,pointY:315,pointHeight:100,range:390,intensity:1.5,ambient:.48,color:'#ffd099',shadowColor:'#091420',floorY:365,wallY:280,floorShadow:.25,wallShadow:0,reflection:0,softness:0,gloss:.2,motion:'flicker',flicker:.35,motionSpeed:1}};
+ return addCampfireEffects({schemaVersion:1,kind:'scene',id:'campfire-night',name:'Campfire night',revision:0,bounds:{width:800,height:450},requiredFeatures:['spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell'],ensemble:{type:'campfire',seed:20260917,members:campers.map(c=>c.a.id),sky:'night'},packs:{night:sky(),fire:fire(),...Object.fromEntries(campers.map(({a,p})=>[a.pack,p]))},actors:[actor('night','night','background'),campers[0].a,campers[1].a,actor('fire','fire','characters'),campers[2].a,campers[3].a],lighting:{enabled:true,shading:'cel',celThickness:.4,celIntensity:.72,type:'point',receiver:'floor',pointX:400,pointY:315,pointHeight:100,range:390,intensity:1.5,ambient:.48,color:'#ffd099',shadowColor:'#091420',floorY:365,wallY:280,floorShadow:.25,wallShadow:0,reflection:0,softness:0,gloss:.2,motion:'flicker',flicker:.35,motionSpeed:1}});
 }
