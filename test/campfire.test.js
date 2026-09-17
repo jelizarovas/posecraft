@@ -52,7 +52,7 @@ test('campfire hands grip the planted stick and carry food in front of the face'
    assert.ok(Math.abs(Math.hypot(f.world['hold-hand'].x-f.world.skewer.x,f.world['hold-hand'].y-f.world.skewer.y)-18)<.15,'holding hand stays on shaft');
    if(t>=16.4&&t<19||t>=20.7&&t<21.5)assert.ok(Math.hypot(hand.x-food.x,hand.y-food.y)<.2,'food follows taking hand');
    if(t===15.5){assert.ok(Math.abs(stick[5]-56)<.01,'butt of stick is planted at ground');assert.ok(Math.hypot(food.x-tip.x,food.y-tip.y)<.2,'food remains on stick before grasp');}
-   assert.ok(view.order.indexOf('take-palm')>view.order.indexOf('face-0'),'hand draws in front of head');
+   assert.ok(view.order.indexOf('take-skin')>view.order.indexOf('face-0'),'hand draws in front of head');
   }
  }
  c.previewClip('camper-0','campfire',2.2,{});assert.equal(c.frame().actors.find(a=>a.id==='camper-0').pose['camp-blink.opacity'],1);

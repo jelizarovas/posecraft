@@ -5,6 +5,7 @@ const rad=Math.PI/180;
 function rgb(hex){if(!/^#(?:[a-f\d]{3}|[a-f\d]{6})$/i.test(hex))return null;let s=hex.slice(1);if(s.length===3)s=[...s].map(c=>c+c).join('');return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16));}
 export function surfaceRamp(fill,light){const base=rgb(fill),tint=rgb(light.color);if(!base||Math.max(...base)<65)return null;
  const color=(gain,mix)=>'#'+base.map((v,i)=>Math.round(Math.max(0,Math.min(255,v*gain*(1-mix)+tint[i]*mix))).toString(16).padStart(2,'0')).join('');
+ if(light.surfaceExposure===0){const shade=color(light.ambient*.76,.025);return [shade,shade,shade];}
  return [color(light.ambient+light.intensity*.55,light.gloss*light.intensity*.48),color(light.ambient+light.intensity*.42,.04*light.intensity),color(light.ambient*.76,.025)];}
 export function surfaceStopValues(ramp,light){
  // Coincident stops make an antialiased edge with no color interpolation band.
@@ -34,7 +35,16 @@ export function sampleLighting(base,time=0){
 }
 export function actorAnchor(actor,evaluated){const t=evaluated.placement||actor.transform,root=Object.values(evaluated.world)[0]||{x:0,y:0},r=t.rotation*rad;return {x:t.x+t.scale*(root.x*Math.cos(r)-root.y*Math.sin(r)),y:t.y+t.scale*(root.x*Math.sin(r)+root.y*Math.cos(r))};}
 export function lightAt(light,x,y){if(light.type!=='point')return light;const dx=light.pointX-x,dy=light.pointY-y,distance=Math.hypot(dx,dy);return {...light,angle:Math.atan2(dy,dx)/rad,intensity:Math.round(light.intensity/(1+(distance/light.range)**2)*50)/50};}
-export function partLighting(light,actor,evaluated,part,spatial){if(light.type!=='point')return light;const j=spatial?.world[part.joint]||evaluated.world[part.joint],t=evaluated.placement||actor.transform,r=t.rotation*rad;return lightAt(light,t.x+t.scale*(j.x*Math.cos(r)-j.y*Math.sin(r)),t.y+t.scale*(j.x*Math.sin(r)+j.y*Math.cos(r)));}
+export function partLighting(light,actor,evaluated,part,spatial){
+ if(light.type!=='point')return light;
+ const j=spatial?.world[part.joint]||evaluated.world[part.joint],t=evaluated.placement||actor.transform,r=t.rotation*rad,x=t.x+t.scale*(j.x*Math.cos(r)-j.y*Math.sin(r)),y=t.y+t.scale*(j.x*Math.sin(r)+j.y*Math.cos(r)),local=lightAt(light,x,y);
+ if(actor.groundY===undefined||!spatial)return local;
+ // Ground placement supplies scene depth. Use the visible side's rotated normal,
+ // so a fire behind a near-side camper cannot paint a highlight on their back.
+ const m=j.m,side=m[8]<0?-1:1,nx=side*(m[2]*Math.cos(r)-m[5]*Math.sin(r)),ny=side*(m[2]*Math.sin(r)+m[5]*Math.cos(r)),nz=side*m[8],dx=light.pointX-x,dy=light.pointY-y,dz=(light.pointY-actor.groundY)*2-j.z*t.scale,distance=Math.hypot(dx,dy,dz)||1,exposure=Math.round(Math.max(0,Math.min(1,(nx*dx+ny*dy+nz*dz)/distance*1.8))*50)/50;
+ return {...local,intensity:local.intensity*exposure,surfaceExposure:exposure};
+}
+
 export function shadowVectors(light,anchor={x:0,y:0}){const reach=light.shadowLength??1,length=reach/Math.tan(light.elevation*rad);return light.type==='point'?{x:reach*(anchor.x-light.pointX)/light.pointHeight,y:reach*(light.floorY-light.pointY-light.pointHeight)/light.pointHeight}:{x:-Math.cos(light.angle*rad)*length*.65,y:Math.sin(light.angle*rad)*length*.65};}
 export function shadowProjection(light,anchor){const {x,y}=shadowVectors(light,anchor);return `matrix(1 0 ${-x} ${-y} ${x*light.floorY} ${light.floorY*(1+y)})`;}
 export function wallProjection(light,anchor){const {x,y}=shadowVectors(light,anchor);if(light.receiver!=='corner'||y>=-.0001||light.floorY<light.wallY)return null;const reach=(light.floorY-light.wallY)/-y;return `translate(${x*reach} ${light.wallY-light.floorY+reach})`;}

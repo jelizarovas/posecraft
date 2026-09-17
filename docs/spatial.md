@@ -51,3 +51,11 @@ Once the silhouettes are approved, revise the motion: held poses with clear silh
 The general techniques have established parallels in [Spine's draw-order and attachment system](https://us.esotericsoftware.com/spine-slots), [Spine's weighted deformation](https://us.esotericsoftware.com/spine-weights), and [Toon Boom's turn-control workflows](https://www.toonboom.com/oli-putland-master-controller/). Posecraft's code here is its own implementation; none of those runtimes or paid tools is required.
 
 `npm test` checks face visibility, non-collapsing profile volume, overlap order, knee projection, morph bounds, JSON validation, clip/episode sampling and finite matrices. `npm run test:spatial` checks the live SVG, responsive demo, and Studio keyframe persistence. These are technical checks; visual review at combined turn/bend angles remains necessary.
+
+## Soft arms and independent joints
+
+Campfire arms use one continuous skin over upper-arm, elbow and wrist joints. Select **Holding upper arm**, **Holding forearm**, **Holding wrist**, or the corresponding **Free** joint in Studio. Rotation, Yaw and Pitch can each be keyed. Wrist tilt changes palm width; the skin follows the projected elbow and hand without drawing seams. The internal joint chain still determines hand contacts.
+
+A part can declare `spatial.softLimb: {elbow: "elbow-id", hand: "hand-id", radius: 7}`. The elbow must be a direct child of the part's joint and the hand a child of that elbow. Radius is 1..30 local units. This bounded two-bone skin uses the existing SVG renderer, not mesh physics. Declare `soft-limbs` in required features.
+
+Dummy's left and right foot joints already attach to their respective calves. Their spatial artwork now retains heel/toe volume when turned, with separate outward resting angles. Select a foot to key its Yaw or Pitch without turning the calf. **Hands & feet** in the Turn & pose demo demonstrates ankle and wrist motion.

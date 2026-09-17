@@ -64,14 +64,20 @@ function camper(index,x,scale,colors,hair,groundY=365,yaw=0){
  p.joints.push(joint('camp-original','root'));
  const shell=p.parts.find(v=>v.id==='face-0');Object.assign(shell,{d:'M-32 -47Q0 -55 32 -47Q42 -43 40 -10Q38 9 0 9Q-38 9 -40 -10Q-42 -43 -32 -47Z',transform:'',stroke:'#383936',strokeWidth:2.2});
  p.parts.find(v=>v.id==='face-1').opacityChannel='camp-original.opacity';
- // Keep hair attached to the same projected head plane at rear-quarter views.
- for(const id of ['hair-back','hair-front'])Object.assign(p.parts.find(v=>v.id===id).spatial,{depth:0,thickness:.72,order:id==='hair-back'?-10:90});
+ // Every hair piece uses the head volume; rear hair covers the skull, not a floating cap.
+ const rear=p.parts.find(v=>v.id==='hair-rear-cap');
+ Object.assign(rear,{d:'M-40 -24Q-44 -53 0 -55Q44 -53 40 -24L38 0Q0 13 -38 0Z',stroke:'#383936',strokeWidth:2.2});
+ Object.assign(rear.spatial,{depth:0,thickness:.72,axis:'x',order:95});
+ rear.variants.bob={d:'M-40 -24Q-44 -53 0 -55Q44 -53 40 -24L44 10Q0 20 -44 10Z'};
+ rear.variants.curls={d:'M-40 -24Q-49 -28 -43 -39Q-48 -49 -33 -51Q-25 -61 -13 -56Q0 -63 13 -56Q26 -61 34 -51Q48 -49 43 -38Q50 -27 40 -23L39 -2Q30 8 20 3Q10 12 0 5Q-12 12 -22 3Q-34 9 -39 -2Z'};
+ for(const id of ['hair-back','hair-front'])Object.assign(p.parts.find(v=>v.id===id).spatial,{depth:0,thickness:.72,axis:'x',order:id==='hair-back'?-10:90});
+ const tail=p.parts.find(v=>v.id==='hair-back');tail.variants.ponytail.d='M29 -48Q46 -59 55 -44Q62 -23 49 -5Q38 -16 44 -33Q48 -46 29 -38Z';
  for(const part of p.parts)if(['leftArm','rightArm','eyes','mouth'].includes(part.joint)||['brows','hurt-cheek'].includes(part.id))part.opacityChannel='camp-original.opacity';
  const addPart=(...args)=>{const v=path(...args);v.showWhen={input:'action',equals:'campfire'};p.parts.push(v);return v;};
  for(const [name,side] of [['hold',sign],['take',-sign]]){
   p.joints.push(joint(name+'-upper','root',side*27,0),joint(name+'-elbow',name+'-upper',26,0),joint(name+'-hand',name+'-elbow',26,0));
-  for(const [id,bone,width,order] of [[name+'-upper',name+'-upper',6,1],[name+'-forearm',name+'-elbow',5,2]])addPart(id,bone,`M0 -${width}Q-5 0 0 ${width}H26Q31 0 26 -${width}Z`,'#fafbf8',{channel:'skin',stroke:'#383936',strokeWidth:1.3,spatial:{order}});
-  addPart(name+'-palm',name+'-hand',ellipse(0,0,6,5),'#fafbf8',{channel:'skin',stroke:'#383936',strokeWidth:1.2,spatial:{order:100}});
+  addPart(name+'-palm',name+'-hand','M0 0','none');
+  addPart(name+'-skin',name+'-upper','M0 -7Q26 -7 52 -4.5Q58 0 52 4.5Q26 7 0 7Q-7 0 0 -7Z','#fafbf8',{channel:'skin',stroke:'#383936',strokeWidth:1.5,spatial:{order:100,softLimb:{elbow:name+'-elbow',hand:name+'-hand',radius:7}}});
  }
  p.joints.push(joint('camp-point','take-hand'));addPart('camp-point','camp-point','M1 0L16 0','none',{stroke:'#fafbf8',strokeWidth:3.5,opacityChannel:'camp-point.opacity',spatial:{order:102}});
  p.joints.push(joint('skewer','root'),joint('food','root'),joint('toast','food'),joint('snack-flame','food'));
@@ -110,5 +116,5 @@ function camper(index,x,scale,colors,hair,groundY=365,yaw=0){
 }
 export function createCampfire(){
  const outfits=[{clothing:'#de9b69',hair:'#674538',eyes:'#477b78'},{clothing:'#a9bf8c',hair:'#b57840',eyes:'#72509b'},{clothing:'#a29acf',hair:'#372f3e',eyes:'#438e9a'},{clothing:'#78afb0',hair:'#ceb16d',eyes:'#729052'}],hair=['bob','curls','swept','ponytail'],campers=[[320,.92,302,24],[470,.92,295,-24],[235,1.12,407,135],[567,1.12,411,-135]].map(([x,scale,ground,yaw],i)=>camper(i,x,scale,outfits[i],hair[i],ground,yaw));
- return {schemaVersion:1,kind:'scene',id:'campfire-night',name:'Campfire night',revision:0,bounds:{width:800,height:450},requiredFeatures:['spatial-rig','scene-lighting','scenery-layers','campfire-ensemble'],ensemble:{type:'campfire',seed:20260917,members:campers.map(c=>c.a.id),sky:'night'},packs:{night:sky(),fire:fire(),...Object.fromEntries(campers.map(({a,p})=>[a.pack,p]))},actors:[actor('night','night','background'),campers[0].a,campers[1].a,actor('fire','fire','characters'),campers[2].a,campers[3].a],lighting:{enabled:true,shading:'cel',celThickness:.4,celIntensity:.72,type:'point',receiver:'floor',pointX:400,pointY:315,pointHeight:100,range:390,intensity:1.5,ambient:.48,color:'#ffd099',shadowColor:'#091420',floorY:365,wallY:280,floorShadow:.25,wallShadow:0,reflection:0,softness:0,gloss:.2,motion:'flicker',flicker:.35,motionSpeed:1}};
+ return {schemaVersion:1,kind:'scene',id:'campfire-night',name:'Campfire night',revision:0,bounds:{width:800,height:450},requiredFeatures:['spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs'],ensemble:{type:'campfire',seed:20260917,members:campers.map(c=>c.a.id),sky:'night'},packs:{night:sky(),fire:fire(),...Object.fromEntries(campers.map(({a,p})=>[a.pack,p]))},actors:[actor('night','night','background'),campers[0].a,campers[1].a,actor('fire','fire','characters'),campers[2].a,campers[3].a],lighting:{enabled:true,shading:'cel',celThickness:.4,celIntensity:.72,type:'point',receiver:'floor',pointX:400,pointY:315,pointHeight:100,range:390,intensity:1.5,ambient:.48,color:'#ffd099',shadowColor:'#091420',floorY:365,wallY:280,floorShadow:.25,wallShadow:0,reflection:0,softness:0,gloss:.2,motion:'flicker',flicker:.35,motionSpeed:1}};
 }

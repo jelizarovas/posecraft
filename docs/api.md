@@ -126,4 +126,4 @@ The optional `scene.ensemble` descriptor is `{type: "campfire", seed: 20260917, 
 
 The seeded decision clock runs at 20 Hz; pose sampling uses scene time between decisions. The same seed and requests reproduce the same event sequence across frame rates. Cooking mechanics remain editable clips. Manual clip previews, non-campfire actions and physical modes opt that actor out of the live director. The worker skips redundant background/cooking-clip ticks while the director samples them. Director episodes currently use the authored clips, without the ensemble.
 
-`actor.groundY` optionally sets the floor/contact line for that actor's cast effects. It defaults to the scene floor line. Use it for staged casts at different depths; it is a visual receiver setting, not a collision floor or perspective solver.
+`actor.groundY` optionally sets the floor/contact line for that actor's cast effects. It defaults to the scene floor line. When explicitly set on a spatial actor, it also supplies approximate depth for point-light exposure. Use it for staged casts at different depths; it is a visual receiver setting, not a collision floor or perspective solver.
