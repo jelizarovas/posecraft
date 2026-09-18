@@ -198,3 +198,9 @@ Set `renderer: 'canvas', canvasDepth: 'actor'` for [per-actor depth composition]
 Props may declare a `joint` or `object` attachment. `posecraft/scene-attachments` exports `evaluatedProps(scene, frame)`, the pure evaluator used by SVG, Canvas and prop-target contacts. Declare `prop-attachments` and disable the decoration's static collider. [Attachment reference](attachments.md).
 
 Director samples saved shared-object ownership against shot placement and clip poses. It does not run a scene's live transfer graph, Catch or object physics. For a film, author the ownership needed by each scene/shot; importing a live demo does not bake its events.
+
+## Clip timing, markers and pose review
+
+`Clip.events` is an optional ordered list of `{time, name}` markers, validated with the scene and delivered as runtime marker events during playback. The schema permits up to 128 markers and distinct names at the same time.
+
+`retimeSceneClip` from `posecraft/timeline-editing` returns a validated atomic edit for an authored clip, matching contact windows and authored scroll ranges. It rejects unsupported live dependencies instead of guessing their timing. `createAnimationPreview` from `posecraft/animation-preview` samples selected authored poses and contacts against a frozen frame, without event emission or controller advancement. See [timeline API and limits](timeline.md).

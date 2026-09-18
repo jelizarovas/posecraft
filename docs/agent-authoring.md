@@ -11,7 +11,7 @@ Agents and other clients can inspect a scene, propose supported edits, preview t
 - `proposeSceneEdit(document, {expectedRevision, operations})` produces a reviewable proposal without changing the document.
 - `applySceneProposal(document, proposal)` returns the validated document at the next revision. A stale revision fails before editing.
 
-Supported semantic operations are `create-clip`, `create-contact`, and `create-interaction`. Creation refuses an existing ID. Clip tracks and contact/interaction values use the ordinary schema. A builder does not generate gait, discover inverse-kinematics targets, or infer a new behavior graph.
+Supported semantic operations are `create-clip`, `create-contact`, `create-interaction`, and standalone `retime-clip`. Creation refuses an existing ID. Clip tracks and contact/interaction values use the ordinary schema. A builder does not generate gait, discover inverse-kinematics targets, or infer a new behavior graph.
 
 For example, save this request as `request.json`:
 
@@ -29,7 +29,7 @@ For example, save this request as `request.json`:
 }
 ```
 
-The pack and joint must exist in the scene. To create a contact or pointer binding, use `{ "type": "create-contact", "value": ... }` or `{ "type": "create-interaction", "value": ... }`, with a complete [contact](contacts.md) or [pointer interaction](live-scenes.md). Up to 16 operations form one atomic transaction. All commands and a human-readable summary are included in the proposal. Invalid data rejects the whole proposal.
+The pack and joint must exist in the scene. To create a contact or pointer binding, use `{ "type": "create-contact", "value": ... }` or `{ "type": "create-interaction", "value": ... }`, with a complete [contact](contacts.md) or [pointer interaction](live-scenes.md). Up to 16 creation operations form one atomic transaction. Clip creation accepts optional `events` marker data. Retiming must be a standalone operation: `{ "type": "retime-clip", "pack": "drawing", "id": "wave", "duration": 4 }`. It uses the shared [whole-clip retiming](timeline.md) rules, including matching contacts and explicit rejection of unsupported live dependencies. Its proposal summary includes timing notes. Inspection returns independent marker data for every clip. All commands and a human-readable summary are included in the proposal. Invalid data rejects the whole proposal.
 
 ## CLI workflow
 

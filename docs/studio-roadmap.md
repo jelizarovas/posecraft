@@ -90,3 +90,9 @@ Continuation: Catch now includes saved obstacle routes with incremental planning
 ## September 18 contact and attachment authoring
 
 Contacts now target moving shared objects and scene props, with explicit fade-in/out windows. Prop artwork attaches to actor joints or shared objects and uses the same transforms in SVG, Canvas, Studio and exports. The new handoff demo uses ordinary editable clips, contacts and graph commands; one gift changes owner only at contact. Detach and removal preserve visible placement in Studio, with undo/reopen coverage. Director resolves saved ownership and attachment transforms within authored shots, without running live object physics or event graphs. See [attachments](attachments.md) and [the implementation report](implementation-2026-09-18.md).
+
+## Timeline timing and pose review continuation
+
+Whole-clip retiming now scales authored keys, markers, matching clip-filtered contacts and authored scroll windows in one revision-checked transaction. Unsupported live timing dependencies fail explicitly. Studio adds marker creation/editing/seeking and cached onion-skin artwork plus selected-joint paths while paused. The same pure preview and retiming operations are public SDK modules. See [timeline tools and limits](timeline.md).
+
+This does not complete film timing: Director cues in other files remain separate, live graphs are not globally retimed or baked, and dialogue/audio output and curve handles remain future work.

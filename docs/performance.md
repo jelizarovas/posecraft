@@ -59,3 +59,16 @@ The React playground offers 1, 4, 8, or 16 avatars and shows worker compute time
 Scenes support up to 16 projected two-bone contacts. The scene worker evaluates them after the authored pose; Director uses its existing episode worker. The solver caches joint lookup, skips already-satisfied targets and stops refinement when angles stop changing. It uses a fixed search limit for unreachable targets.
 
 A stress test of 16 unreachable contacts across eight 22-joint actors, with nonzero yaw/pitch and orientation preservation, measured 17.11 ms median and 21.05 ms p95 for contact solving alone. This was Windows x64, Node 22.23.2, Intel i7-1265U, 600 samples after 100 warmups. These are local measurements, not mobile guarantees or full render timings. At that extreme the worker can miss a 60 fps simulation budget; the UI remains separate and the existing queue stays bounded. Plain synchronous API callers should use a worker for similarly heavy scenes.
+
+## Paused animation guides
+
+Pose guides do no sampling during playback. Studio caches them until the selected pose or document changes. The sampler copies the selected clip and joint data instead of the entire artwork library, and path evaluation skips contacts for other clips. Ghost rendering uses only the selected character and its already evaluated pose. Path generation yields between batches of five intervals; edits and playback cancel stale work.
+
+A desktop Node 22 benchmark on an Intel i7-1265U, with two warm-up runs and five measured runs, measured these median totals for a captured pose, two ghost samples, a 31-point joint path and two SVG strings:
+
+| Scene | Initial implementation | Selected-data implementation |
+| --- | --- | --- |
+| Gym | 1,175 ms | 129 ms |
+| Campfire | 183 ms | 27 ms |
+
+These totals exclude browser DOM parsing and painting and do not measure phone performance. The Studio additionally yields between ghost renders and path batches. Run `node test/animation-preview-performance.mjs` to record timings on the current machine; the report goes to `test-results/animation-preview-performance.json`.

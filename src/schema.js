@@ -147,6 +147,15 @@ function validateStructure(doc) {
     for (const [id, clip] of Object.entries(pack.clips)) {
       if (!record(clip) || !record(clip.tracks)) { check(false, `${p}.clips.${id}`, 'Expected clip tracks.'); continue; }
       check(safeId.test(id) && finite(clip.duration, .1, 180) && typeof clip.loop === 'boolean', `${p}.clips.${id}`, 'Invalid clip duration or loop.');
+      if (clip.events !== undefined) {
+        const seen = new Set();
+        check(Array.isArray(clip.events) && clip.events.length <= 128 && clip.events.every((event, i) => {
+          if (!record(event) || !finite(event.time, 0, clip.duration) || typeof event.name !== 'string' || !event.name.trim() || event.name !== event.name.trim() || event.name.length > 80 || /[\u0000-\u001f\u007f]/.test(event.name) || i > 0 && event.time < clip.events[i-1].time) return false;
+          const key = JSON.stringify([event.time, event.name]);
+          if (seen.has(key)) return false;
+          seen.add(key); return true;
+        }), `${p}.clips.${id}.events`, 'Use at most 128 ordered markers with finite clip times and unique name/time pairs. Names need 1–80 trimmed characters without control characters.');
+      }
       for (const [key, track] of Object.entries(clip.tracks)) {
         const [joint, property] = key.split('.');
         check(joints.has(joint) && (['rotation', 'x', 'y'].includes(property)||pack.spatial&&Object.hasOwn(spatialChannels,property)) && key === `${joint}.${property}`, `${p}.clips.${id}.${key}`, 'Unknown animation channel.');

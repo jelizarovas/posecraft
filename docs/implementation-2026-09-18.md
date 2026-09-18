@@ -33,3 +33,13 @@ All 438 unit tests pass. Focused coverage includes rotated/scaled attachments, a
 The compiled handoff runs without Planck. Physical motion baking explicitly rejects attached-artwork scenes until their timing and dependencies can be captured together. Decorations remain rectangular scene props; attachments do not add arbitrary imported artwork, articulated prop collisions, automatic full-body balance or inter-actor depth testing. Existing layer and scene-depth controls decide where the decoration draws.
 
 Guides: [attachments](attachments.md), [contacts](contacts.md), [Director](director.md). Reproduce the main checks with `node --test test/contacts-targets.test.js test/scene-attachments.test.js test/handoff.test.js test/episode-object-contacts.test.js`, `npm run test:handoff`, `npm run test:attachments`, and `npm run test:roadmap-release`.
+
+## Continuation: clip timing and pose review
+
+Studio now edits named clip markers and retimes a whole authored clip with its matching contact windows, fades and authored scroll ranges. Invalid edits preserve the document; shared-pack users update together. Live graph/activity/procedural timing is not inferred from keyframes. The operation reports unsupported dependencies and leaves external Director projects untouched. The semantic agent API exposes the same retiming operation and marker data.
+
+Character mode adds nearby-pose artwork and selected-joint paths. These sample the authored clip against a frozen stage snapshot, including contact constraints, without stepping live behaviors or emitting events. Rendering uses only the selected character, and path work yields in cancellable batches. Guides disappear during playback and stay out of project and website exports. Scrubbing now updates existing controls instead of replacing a focused input.
+
+Verification: all 456 unit tests and public type checks pass. Browser checks cover marker CRUD, proportional retiming, undo/reload, compact layouts, ghost spacing and boundaries, cached rendering, cancellation, heavy Gym previews, and unchanged project data. Nine proportional samples and marker playback agree across full, lightweight, worker and compiled players. The production gallery/contact/Catch/Campfire regressions pass. Package contents include the new SDK module and exclude local attachments.
+
+See [timeline tools](timeline.md), [agent authoring](agent-authoring.md) and the scoped [paused-preview measurements](performance.md). This increment does not add curve handles, audio editing, movie encoding or general live-scene retiming.

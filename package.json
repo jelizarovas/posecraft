@@ -177,6 +177,10 @@
     "./scene-attachments": {
       "types": "./src/scene-attachments.d.ts",
       "default": "./src/scene-attachments.js"
+    },
+    "./animation-preview": {
+      "types": "./src/animation-preview.d.ts",
+      "default": "./src/animation-preview.js"
     }
   },
   "bin": {
@@ -281,7 +285,10 @@
     "test:actor-depth-export": "node test/canvas-actor-depth-export-browser.mjs",
     "test:object-ack": "node test/object-command-worker-browser.mjs",
     "test:handoff": "node test/handoff-browser.mjs",
-    "test:attachments": "node test/attachments-studio-browser.mjs"
+    "test:attachments": "node test/attachments-studio-browser.mjs",
+    "test:animation-guides": "node test/animation-guides-browser.mjs",
+    "test:markers": "node test/markers-studio-browser.mjs",
+    "test:retiming-export": "node test/retiming-export-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

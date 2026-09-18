@@ -160,3 +160,11 @@ import {evaluatedProps} from "posecraft/scene-attachments";
 const attachedArtwork= evaluatedProps(scene,player.frame());void attachedArtwork;
 const propBinding:import("posecraft/schema").PropAttachment={type:"object",object:"ball",inheritRotation:false,offsetX:10};
 const movingContact:import("posecraft/schema").SceneContact={id:"grip",name:"Grip",enabled:true,actor:"ona",chain:{upper:"rightArm",lower:"rightForearm",end:"rightWrist"},target:{type:"prop",prop:"handle"},bend:1,weight:1,start:0,end:4,fadeIn:.5,fadeOut:.5};void propBinding;void movingContact;
+
+import {createAnimationPreview} from "posecraft/animation-preview";
+import {retimeSceneClip} from "posecraft/timeline-editing";
+const guides=createAnimationPreview(scene,player.frame(),{actor:scene.actors[0].id,clip:"idle"});
+guides.onion(.5,{step:.1,count:2});guides.path("head",{samples:31});
+const retimed=retimeSceneClip(scene,{packId:scene.actors[0].pack,clipId:"idle",duration:4});
+new DocumentStore(scene).transact(retimed.commands,retimed.expectedRevision);
+const marker:import("posecraft/schema").ClipMarker={time:1,name:"hand:ready"};void marker;

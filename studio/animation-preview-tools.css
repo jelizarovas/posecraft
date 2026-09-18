@@ -1,0 +1,12 @@
+.animation-preview-overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:inherit}
+.animation-preview-overlay svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.animation-preview-overlay [data-guide-side]{opacity:.26}
+.animation-preview-controls{position:absolute;top:54px;left:14px;z-index:5;max-width:calc(100% - 28px);font-size:11px}
+.animation-preview-controls[hidden]{display:none}
+.animation-preview-controls summary{display:flex;align-items:center;gap:5px;list-style:none;cursor:pointer;background:#fffffff0;border:1px solid #ded8e4;border-radius:6px;padding:5px 8px;width:max-content}
+.animation-preview-controls summary::-webkit-details-marker{display:none}
+.animation-preview-controls summary .material-symbols-outlined{font-size:17px}
+.animation-preview-controls>div{margin-top:4px;width:255px;max-width:100%;display:grid;gap:10px;padding:12px;background:white;border:1px solid #ded8e4;border-radius:7px;box-shadow:0 8px 20px #33224422}
+.animation-preview-controls label{display:flex;align-items:center;gap:7px}
+.animation-preview-controls input[type=number]{width:65px;margin-left:auto}
+.animation-preview-controls small,.animation-preview-controls output{font-size:10px;line-height:1.45;color:#7a6989}

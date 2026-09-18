@@ -15,7 +15,8 @@ export interface SceneLighting {emitter?:string;shadowLength?:number;celThicknes
 export interface Joint { id:string; parent:string|null; x:number; y:number; length:number; rotation:number; min:number; max:number }
 export interface Camera {x:number;y:number;zoom:number;rotation:number;width:number;height:number}
 export type Keyframe = [number, number, ('linear'|'smooth'|'step')?];
-export interface Clip { duration:number; loop:boolean; tracks:Record<string,Keyframe[]> }
+export interface ClipMarker { time:number; name:string }
+export interface Clip { duration:number; loop:boolean; tracks:Record<string,Keyframe[]>; events?:ClipMarker[] }
 export type Input = {type:'boolean'; default:boolean}|{type:'number';default:number;min:number;max:number}|{type:'string';default:string;options:string[]};
 export interface MeshWeight {joint:string;x:number;y:number;z?:number;weight:number}
 export interface MeshVertex {weights:MeshWeight[]}

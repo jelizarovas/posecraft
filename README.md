@@ -15,6 +15,8 @@ Open the localhost address printed by Vite. `npm run build` creates the static G
 
 ## What works in 0.1
 
+- [Timeline tools](docs/timeline.md): retime complete clips with matching contacts, edit event markers, and inspect nearby poses and joint paths.
+
 - [A game of catch](https://jelizarovas.github.io/posecraft/demos.html#game-of-catch): shared ball ownership, catches, misses and retrieval. Author players, grips and skills in Studio.
 - [Character decision graphs](docs/actor-behaviors.md), [motion layers](docs/motion-layers.md), [scroll bindings](docs/scroll.md), [replay checkpoints](docs/checkpoints.md), [optional Canvas rendering](docs/renderers.md), and [agent CLI/MCP tools](docs/agent-authoring.md).
 
@@ -25,7 +27,7 @@ Open the localhost address printed by Vite. `npm run build` creates the static G
 
 - [Turn & pose](https://jelizarovas.github.io/posecraft/demos.html#turn-and-pose), an Ona/Dummy depth-rig study with curved facial projection, front/back visibility, depth ordering, continuous soft arms, independent elbows/wrists and keyable yaw/pitch. [Rig guide and limits](docs/spatial.md).
 
-- [Thirteen live demos](https://jelizarovas.github.io/posecraft/demos.html), including [Shake & settle](https://jelizarovas.github.io/posecraft/demos.html#shake-and-settle) with opt-in phone motion, assisted get-up, return to marks and click-to-walk. [Demo guide](docs/demos.md).
+- [Fifteen demos](https://jelizarovas.github.io/posecraft/demos.html), including [Shake & settle](https://jelizarovas.github.io/posecraft/demos.html#shake-and-settle) with opt-in phone motion, assisted get-up, return to marks and click-to-walk. [Demo guide](docs/demos.md).
 
 - [Director](https://jelizarovas.github.io/posecraft/director.html) for reusable scenes, timed shots, camera/actor keys, seeded motion with baking, and local video-frame references. Read the [Director guide](docs/director.md).
 - One-screen Studio with Material icons, selectable body parts, draggable rotation handles, joint-limit arcs and editable limits, keyframes, transition blending, undo/redo, local recovery, and JSON open/save/export.
