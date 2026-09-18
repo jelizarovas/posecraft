@@ -199,7 +199,7 @@ export class SceneController {
     let evaluated=this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
     if(this.fluid)evaluated=this.fluid.apply(evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
     if(this.graph){evaluated.behavior=this.graph.snapshot();evaluated.emitterOverrides={...this.graph.emitterOverrides,...evaluated.emitterOverrides};}
-    return applyContacts(this.document,this.pointers?.apply(evaluated)||evaluated);
+    const constrained=applyContacts(this.document,this.pointers?.apply(evaluated)||evaluated);return this.graph?.bindFrame(constrained,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))})||constrained;
   }
   seek(time) {
     if (!Number.isFinite(time) || time < 0 || time > 180) throw new Error('Seek range is 0..180 seconds.');

@@ -22,6 +22,7 @@ export function removeSceneEntity(document,kind,id){
  const next=structuredClone(document);if(!next[field]?.some(n=>n.id===id))throw new Error('Missing scene item.');next[field]=next[field].filter(n=>n.id!==id);
  if(kind==='actor'){
   if(next.fluid&&(next.fluid.vessel===id||next.fluid.contents===id)){delete next.fluid;if(next.requiredFeatures)next.requiredFeatures=next.requiredFeatures.filter(feature=>feature!=='bottle-fluid');}
+  if(next.poseBindings)next.poseBindings=next.poseBindings.filter(b=>b.actor!==id);
   if(next.interactions)next.interactions=next.interactions.filter(b=>b.actor!==id);
   if(next.contacts)next.contacts=next.contacts.filter(c=>c.actor!==id&&!(c.target.type==='joint'&&c.target.actor===id));
   if(next.emitters)next.emitters=next.emitters.filter(e=>e.actor!==id);
@@ -32,7 +33,7 @@ export function removeSceneEntity(document,kind,id){
   const keep=action=>!(action.type==='perform'&&!next.behaviorGraph.activities?.[action.activity])&&!(action.actor&&action.actor!=='$actor'&&!next.actors.some(a=>a.id===action.actor))&&!(action.type==='emitter'&&!next.emitters?.some(e=>e.id===action.emitter))&&!(action.type==='ensemble'&&!next.ensemble)&&!(action.type==='input'&&action.actor==='$actor'&&!next.actors.some(a=>validBehaviorInput(next,a.id,action.input,action.value)));
   for(const state of Object.values(next.behaviorGraph.states))state.actions=state.actions.filter(keep);
   for(const handler of next.behaviorGraph.handlers||[])handler.actions=handler.actions.filter(keep);
-  for(const activity of Object.values(next.behaviorGraph.activities||{}))for(const key of ['onStart','onSuccess','onFailure'])activity[key]=(activity[key]||[]).filter(keep);
+  for(const activity of Object.values(next.behaviorGraph.activities||{})){for(const key of ['onStart','onSuccess','onFailure'])activity[key]=(activity[key]||[]).filter(keep);for(const variant of [...activity.variants,...activity.failureVariants||[]])if(variant.onSuccess)variant.onSuccess=variant.onSuccess.filter(keep);}
  }
  if(next.lighting?.emitter&&!next.emitters?.some(e=>e.id===next.lighting.emitter)){delete next.lighting.emitter;next.lighting.enabled=false;}
  return next;

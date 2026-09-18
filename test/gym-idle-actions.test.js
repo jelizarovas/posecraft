@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGym,gymPose,gymTravelPose} from '../examples/gym.js';
-import {installGymIdleActions,gymIdleReviews} from '../examples/gym-idle-actions.js';
+import {installGymIdleActions,gymIdleReviews,gymWaterReviews,gymBottleLocations} from '../examples/gym-idle-actions.js';
 import {gymRoomStations} from '../examples/gym-room.js';
 import {sampleClip} from '../src/index.js';
 import {spatialKinematics} from '../src/spatial.js';
@@ -14,14 +14,14 @@ test('idle actions are editable, bounded and return to their documented body end
  const {doc,metadata}=fixture(),pack=doc.packs.atlas;
  for(const {clip:id}of gymIdleReviews){const clip=pack.clips[id],m=metadata[id];assert.ok(clip&&!clip.loop);for(const [t,source]of [[0,m.startPose],[clip.duration,m.endPose]]){const pose=sampleClip(clip,t),expected=gymPose(source,'full-set');for(const [key,value]of Object.entries(expected))if(!key.startsWith('water-bottle.'))assert.ok(Math.abs((pose[key]||0)-value)<1e-5,`${id}/${t}/${key}`);}for(let t=0;t<=clip.duration;t+=.1){const p=sampleClip(clip,t);for(const value of Object.values(p))assert.ok(Number.isFinite(value));for(const j of Object.values(spatialKinematics(pack,p)))assert.ok([j.x,j.y,j.z,...j.m].every(Number.isFinite));}for(const keys of Object.values(clip.tracks))assert.ok(keys.length<=1000);}
 });
-test('one bottle stays on the table, follows the gripping hand only after pickup, then returns',()=>{
- const {doc,metadata}=fixture(),pack=doc.packs.atlas,station=gymRoomStations.bottle.point;
- for(const place of ['bar','bench']){const clip=pack.clips['drink-at-'+place],m=metadata['drink-at-'+place];
-  for(const time of [0,m.arrive,m.pickup-.001,m.replace+.001,m.depart,clip.duration]){const w=spatialKinematics(pack,sampleClip(clip,time));assert.ok(distance(w['water-bottle'],station)<.3,`${place} anchored at ${time}`);}
-  for(let time=m.pickup;time<=m.replace;time+=.05){const p=sampleClip(clip,time),w=spatialKinematics(pack,p),b=w['water-bottle'],grip={x:b.x+b.m[0]*8,y:b.y+b.m[3]*8};assert.ok(distance(grip,w.rightHand)<.75,`${place} bottle hand contact at ${time}`);assert.equal(p['water-bottle.opacity'],1);}
+test('one bottle travels between supported locations with continuous hand contact',()=>{
+ const {doc,metadata}=fixture(),pack=doc.packs.atlas;
+ for(const spec of gymWaterReviews){const clip=pack.clips[spec.clip],m=metadata[spec.clip],source=gymBottleLocations[spec.source].point,destination=gymBottleLocations[spec.destination].point;
+  for(const [time,point]of [[0,source],[m.arrive,source],[m.pickup-.001,source],[m.replace+.001,destination],[m.depart,destination],[clip.duration,destination]]){const w=spatialKinematics(pack,sampleClip(clip,time));assert.ok(distance(w['water-bottle'],point)<.3,`${spec.id} anchored at ${time}`);}
+  for(let time=m.pickup;time<=m.replace;time+=.05){const p=sampleClip(clip,time),w=spatialKinematics(pack,p),b=w['water-bottle'],grip={x:b.x+b.m[0]*8,y:b.y+b.m[3]*8};assert.ok(distance(grip,w.rightHand)<.9,`${spec.id} bottle hand contact at ${time}: ${distance(grip,w.rightHand)}`);assert.equal(p['water-bottle.opacity'],1);}
   for(const boundary of [m.pickup,m.replace]){const a=spatialKinematics(pack,sampleClip(clip,boundary-.001))['water-bottle'],b=spatialKinematics(pack,sampleClip(clip,boundary+.001))['water-bottle'];assert.ok(distance(a,b)<.4,'no ownership-switch jump');}
  }
- for(const id of ['full-set','tired-breaths','jump-grab-left','wipe-forehead-bar'])for(const time of [0,.7,2]){const w=spatialKinematics(pack,sampleClip(pack.clips[id],time));assert.ok(distance(w['water-bottle'],station)<.05,`${id} fixed bottle`);}
+ const search=metadata['drink-from-1-to-2-bar'];assert.equal(search.search,true);assert.ok(search.searchEnd-search.searchStart>=1.79);
 });
 test('excursions travel in depth and seated recovery holds the bench before rising',()=>{
  const {doc,metadata}=fixture(),pack=doc.packs.atlas;

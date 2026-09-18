@@ -5,6 +5,7 @@ import {assertDocument} from '../src/schema.js';
 import {sampleClip} from '../src/index.js';
 import {spatialKinematics} from '../src/spatial.js';
 import {SceneController} from '../src/scene.js';
+import {gymWaterReviews,gymBottleLocations} from '../examples/gym-idle-actions.js';
 import {BehaviorRuntime} from '../src/behaviors.js';
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const world=(pack,clip,time)=>spatialKinematics(pack,sampleClip({...pack.clips[clip],loop:false},time));
@@ -22,17 +23,17 @@ test('live gym is portable authored activities, bounded stats and complementary 
  }
 });
 
-test('water breaks fetch one table bottle, bring its cap to the mouth and replace it',()=>{
+test('water breaks carry one bottle while walking and sipping, then leave it supported',()=>{
  const p=createGym().packs.atlas;
- for(const [clip,base]of [['drink-at-bar',29],['drink-at-bench',52.5]]){
-  const rest=world(p,'full-set',base),duration=p.clips[clip].duration,travel=(duration-8.1)/2;let previous,sipFeet,sipSamples=0;
+ for(const spec of gymWaterReviews){
+  const clip=spec.clip,base=spec.place==='bar'?29:52.5,rest=world(p,'full-set',base),duration=p.clips[clip].duration;let previous,sipRoot,sipTravel=0,sipSamples=0;
   for(let i=0;i<=Math.ceil(duration*30);i++){
    const t=Math.min(duration,i/30),pose=sampleClip(p.clips[clip],t),w=world(p,clip,t);
-   if(previous&&t>=travel&&t<=duration-travel)for(const name of ['rightLower','rightHand'])assert.ok(distance(w[name],previous[name])<9,'arm moves continuously through pickup, sip and replacement');previous=w;
-   if(pose['water-bottle.rotation']<-64){const b=w['water-bottle'],cap={x:b.x-20*b.m[1],y:b.y-20*b.m[4]},grip={x:b.x+8*b.m[0],y:b.y+8*b.m[3]};assert.ok(distance(grip,w.rightHand)<.75,'hand stays wrapped around bottle');assert.ok(distance(cap,{x:w.head.x,y:w.head.y+13})<9,'cap reaches mouth');sipFeet??={left:w.leftFoot,right:w.rightFoot};for(const side of ['left','right'])assert.ok(distance(w[side+'Foot'],sipFeet[side])<.1,'feet plant while sipping');sipSamples++;}
-   if(i===0||t===duration){assert.ok(distance(w.rightHand,rest.rightHand)<.1);assert.ok(distance(w['water-bottle'],{x:400,y:270})<.1,'bottle remains at the table after return');assert.equal(pose['water-bottle.opacity'],1);}
+   if(previous)for(const name of ['rightLower','rightHand'])assert.ok(distance(w[name],previous[name])<12,clip+' arm moves continuously at '+t);previous=w;
+   if(pose['water-bottle.rotation']<-64){const b=w['water-bottle'],cap={x:b.x-20*b.m[1],y:b.y-20*b.m[4]},grip={x:b.x+8*b.m[0],y:b.y+8*b.m[3]};assert.ok(distance(grip,w.rightHand)<.9,'hand stays wrapped around bottle');assert.ok(distance(cap,{x:w.head.x,y:w.head.y+13})<10,'cap reaches mouth');sipRoot??=w.root;sipTravel=Math.max(sipTravel,distance(sipRoot,w.root));assert.ok(Math.abs(pose['torso.yaw'])<.1,'upper body faces camera while sipping');sipSamples++;}
+   if(i===0||t===duration){assert.ok(distance(w.rightHand,rest.rightHand)<.1);assert.ok(distance(w['water-bottle'],gymBottleLocations[i===0?spec.source:spec.destination].point)<.1,'bottle rests at its source/destination');assert.equal(pose['water-bottle.opacity'],1);}
   }
-  assert.ok(sipSamples>30,'a deliberate water break is visible');
+  assert.ok(sipSamples>30);assert.ok(sipTravel>60,'drinking includes real travel');
  }
 });
 

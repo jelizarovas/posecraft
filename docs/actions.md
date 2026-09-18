@@ -69,3 +69,39 @@ Clips must exist in the actor's pack. A variant's optional `start` and `end` sel
 `frame.behavior.variables` contains current stats. `frame.behavior.actions[actorId]` reports activity, variant, sampled speed, outcome, progress, and whether it is still active. Actor frames expose the evaluated `clip`, `clipTime`, and `activity`. Use the ordinary `dispatch` and `setVariable` controller methods to control a scene from a website. Explicit clip preview takes precedence over live action poses. Sequence presentation disables the live graph.
 
 Graphs support up to 32 activities, 16 variants per outcome, 32 pose offsets per variant, and 32 success influences per activity. Numeric stats stay within authored bounds, or ±1,000,000 without bounds. Live playback stores current actions rather than an ever-growing action history. The self-hosted compiler includes these rules in the illustration runtime without requiring rigid-body physics.
+
+
+## Remembering prop placement
+
+A successful variant may write its own state before the action's shared completion effects. For example, one bottle animation can leave it at the bar and another can leave it by the bench:
+
+```js
+{
+  id: 'drink-from-bench', clip: 'drink-from-bench',
+  weight: 1, speed: { min: 0.95, max: 1.05 },
+  when: { variable: 'bottleLocation', op: 'eq', value: 2 },
+  onSuccess: [
+    { type: 'set', variable: 'bottleX', value: 610 },
+    { type: 'set', variable: 'bottleY', value: 320 },
+    { type: 'set', variable: 'bottleLocation', value: 2 }
+  ]
+}
+```
+
+`when` is optional and supports equality against an existing numeric variable. Eligible variants retain their relative weights. Conditions are checked once at action start, before start effects. If the selected outcome has no eligible variant, the perform request returns false, leaves the previous pose intact, and applies no start or completion effects. Include an eligible fallback or cover every possible location in the graph. A variant's optional `onSuccess` list uses the same effects as the recipe, cannot contain `perform`, and runs exactly once before the recipe's `onSuccess`. Failed attempts do not run variant success effects.
+
+A scene can keep a joint at the remembered point while the actor walks away:
+
+```js
+poseBindings: [{
+  actor: 'atlas', joint: 'water-bottle', space: 'world',
+  x: { variable: 'bottleX' }, y: { variable: 'bottleY' },
+  excludeClips: ['drink-from-bar', 'drink-from-bench']
+}]
+```
+
+Here `world` means absolute coordinates within the actor's pack, before its scene `Actor.transform`. Moving, scaling or rotating the whole actor instance still moves this coordinate space. For a joint directly below an untranslated root definition, the binding subtracts the root's current position and the joint's rest offset. Rotated parents use the inverse projected parent transform. Only position is bound; rotation and depth order remain authored. Joint `.z` changes drawing order, not local translation.
+
+Bindings run after contacts in both the full and illustration runtimes. The excluded clips own the prop's position while picking it up, carrying it or placing it. Explicit clip previews, sequence presentation, physics and recovery keep their authored/evaluated poses. An edge-on parent or an offset outside the supported ±4096 joint translation range leaves the authored position unchanged instead of producing invalid geometry.
+
+A scene supports 32 bindings, one per actor/joint, with up to 64 excluded clips each. Targets must be existing non-root joints and both coordinates must reference numeric graph variables. Bindings are serialized with the scene and reported as the `pose-bindings` export feature. Actor deletion removes its bindings. Reset and recorded-input replay restore the same locations and eligible action choices.

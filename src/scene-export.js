@@ -14,6 +14,7 @@ export function inspectSceneFeatures(document) {
   if(scene.fluid)features.push('bottle-fluid');
   if(scene.behaviorGraph&&scene.presentation!=='sequence')features.push('behaviors');
   if(scene.presentation!=='sequence'&&Object.keys(scene.behaviorGraph?.activities||{}).length)features.push('action-variations');
+  if(scene.presentation!=='sequence'&&scene.poseBindings?.length)features.push('pose-bindings');
   if(scene.interactions?.length)features.push('pointer-interactions');
   if(physical.length)features.push('physics');
   return {runtime:physical.length?'physics':'illustration',features,reasons:physical.map(actor=>`${actor.name||actor.id} uses ${actor.behavior.mode} motion.`)};

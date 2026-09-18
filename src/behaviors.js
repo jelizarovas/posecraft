@@ -1,4 +1,5 @@
 import {ActionVariations,validateActivities} from './action-variations.js';
+import {PoseBindings,validatePoseBindings} from './pose-bindings.js';
 const id=/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/,eventName=/^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/;
 const object=v=>v&&typeof v==='object'&&!Array.isArray(v),number=v=>Number.isFinite(v)&&Math.abs(v)<=1000000,value=v=>typeof v==='boolean'||number(v);
 export const BEHAVIOR_LIMITS=Object.freeze({states:32,edges:128,variables:32,actions:16,queue:64,events:16,transitions:8});
@@ -8,6 +9,7 @@ export function validateBehaviorEvent(document,event,payload={}){if(typeof event
 export function validateBehaviorVariable(graph,name,next){if(!graph||!Object.hasOwn(graph.variables,name)||!value(next)||typeof next!==typeof graph.variables[name])throw Error('Unknown behavior variable or invalid value.');}
 /** Data-only validation shared by scene loading and the lightweight runtime. */
 export function validateBehaviorGraph(document,check){
+ validatePoseBindings(document,check);
  if(document.presentation!==undefined)check(['live','sequence'].includes(document.presentation),'presentation','Expected live or sequence.');
  const g=document.behaviorGraph;if(g===undefined)return;
  check(object(g),'behaviorGraph','Expected behavior graph.');if(!object(g))return;
@@ -46,7 +48,7 @@ export function validateBehaviorGraph(document,check){
 const condition=(w,variables)=>!w||({eq:(a,b)=>a===b,neq:(a,b)=>a!==b,gt:(a,b)=>a>b,gte:(a,b)=>a>=b,lt:(a,b)=>a<b,lte:(a,b)=>a<=b}[w.op])(variables[w.variable],w.value);
 /** A seeded finite-state machine with no timers, callbacks in data or history replay. */
 export class BehaviorRuntime {
- constructor(document,{apply=()=>{}}={}){const errors=[];validateBehaviorGraph(document,(ok,path,message)=>{if(!ok)errors.push(path+': '+message);});if(errors.length||!document.behaviorGraph)throw Error(errors.join('; ')||'Missing behavior graph.');this.document=document;this.graph=document.behaviorGraph;this.apply=apply;this.handlers=new Map((this.graph.handlers||[]).map(h=>[h.event,h.actions]));this.outgoing=new Map(Object.keys(this.graph.states).map(state=>[state,this.graph.edges.filter(e=>e.from===state||e.from==='*')]));this.reset();}
+ constructor(document,{apply=()=>{}}={}){const errors=[];validateBehaviorGraph(document,(ok,path,message)=>{if(!ok)errors.push(path+': '+message);});if(errors.length||!document.behaviorGraph)throw Error(errors.join('; ')||'Missing behavior graph.');this.document=document;this.bindings=new PoseBindings(document);this.graph=document.behaviorGraph;this.apply=apply;this.handlers=new Map((this.graph.handlers||[]).map(h=>[h.event,h.actions]));this.outgoing=new Map(Object.keys(this.graph.states).map(state=>[state,this.graph.edges.filter(e=>e.from===state||e.from==='*')]));this.reset();}
  random(){this.rng=(Math.imul(this.rng,1664525)+1013904223)>>>0;return this.rng/4294967296;}
  reset(){this.time=0;this.rng=this.graph.seed>>>0;this.variables={...this.graph.variables};for(const name of Object.keys(this.variables))this.variables[name]=this.boundedVariable(name,this.variables[name]);this.activities=new ActionVariations(this.document,{random:()=>this.random(),variables:()=>this.variables,effects:(actions,payload)=>this.runActions(actions,payload)});this.queue=[];this.emitterOverrides={};this.transitions=0;this.droppedEvents=0;this.enter(this.graph.initial,{});return this.snapshot();}
  enter(state,payload){this.state=state;this.enteredAt=this.time;this.payload={...payload};this.deadlines=new Map();for(const edge of this.outgoing.get(state))if(edge.after)this.deadlines.set(edge.id,this.time+edge.after.min+(edge.after.max-edge.after.min)*(edge.after.max===edge.after.min?0:this.random()));
@@ -67,6 +69,7 @@ export class BehaviorRuntime {
  setVariable(name,value){validateBehaviorVariable(this.graph,name,value);this.variables[name]=this.boundedVariable(name,value);}
  hasActivity(actor){return this.activities.actions.has(actor);}
  actionPose(actor){return this.activities.pose(actor);}
+ bindFrame(frame,options){return this.bindings.apply(frame,this.variables,options);}
  cancelActivity(actor){return this.activities.cancel(actor);}
  tick(dt){if(!Number.isFinite(dt)||dt<0)throw Error('Behavior elapsed time must be finite and nonnegative.');this.time+=dt;this.activities.advance(this.time);let transitions=0,events=0;
   while(transitions<8&&events<16){const pending=this.queue.shift();if(pending){events++;this.runActions(this.handlers.get(pending.event)||[],pending.payload);}const outgoing=this.outgoing.get(this.state),choices=outgoing.filter(edge=>condition(edge.when,this.variables)&&(pending?edge.event===pending.event:edge.after&&this.time+1e-9>=this.deadlines.get(edge.id)));

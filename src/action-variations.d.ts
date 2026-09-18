@@ -1,6 +1,6 @@
 import type {SceneDocument} from './schema.js';
 import type {BehaviorAction,BehaviorPayload} from './behaviors.js';
-export interface ActionVariant {id:string;clip:string;start?:number;end?:number;weight:number;speed:{min:number;max:number};offsets?:Record<string,{min:number;max:number}>}
+export interface ActionVariant {when?:{variable:string;op:'eq';value:number};onSuccess?:ActivityEffect[];id:string;clip:string;start?:number;end?:number;weight:number;speed:{min:number;max:number};offsets?:Record<string,{min:number;max:number}>}
 export type ActivityEffect=Exclude<BehaviorAction,{type:'perform'}>;
 export interface ActivityRecipe {actor:string;variants:ActionVariant[];failureVariants?:ActionVariant[];success:{base:number;modifiers:{variable:string;weight:number}[]};onStart:ActivityEffect[];onSuccess:ActivityEffect[];onFailure:ActivityEffect[]}
 export interface ActionSummary {activity:string;variant:string;speed:number;success:boolean;progress:number;active:boolean}

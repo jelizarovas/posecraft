@@ -29,6 +29,10 @@ function roomParts(){
  const pad=rectangle(-85,155,-24,24,58),bottom=rectangle(-85,155,-24,24,47);parts.push(part('bench-side',path([pad[0],pad[1],bottom[1],bottom[0]]),'#294654',16),part('bench-end',path([pad[1],pad[2],bottom[2],bottom[1]]),'#223d4a',16),part('bench-pad',path(pad),'#4e7880',17,{stroke:'#294653',strokeWidth:3}));
  let rack='';for(const v of [-92,92]){rack+=line(project(-10,v,0),project(-10,v,134));rack+=line(project(-10,v,134),project(7,v,134));rack+=line(project(-38,v,0),project(19,v,0));}parts.push(part('bench-rack',rack,'none',18,{stroke:'#627f87',strokeWidth:7}));
  const station=gymFloorPoint(400,383),h=93*(1+station.u*gymRoomPerspective.uScale+station.v*gymRoomPerspective.vScale),top=rectangle(station.u-32,station.u+32,station.v-24,station.v+24,h),base=rectangle(station.u-32,station.u+32,station.v-24,station.v+24,h-9);let tableLegs='';for(const u of [-25,25])for(const v of [-17,17])tableLegs+=line(project(station.u+u,station.v+v,0),project(station.u+u,station.v+v,h-7));parts.push(part('water-table-legs',tableLegs,'none',20,{stroke:'#7b6950',strokeWidth:6}),part('water-table-edge',path([top[0],top[1],base[1],base[0]]),'#947e5e',21,{stroke:'#695d4c',strokeWidth:1.5}),part('water-table',path(top),'#b6a17c',22,{stroke:'#837053',strokeWidth:2}));
+ // Small shelves give the wandering water break real surfaces to leave a bottle on.
+ for(const [name,x,y,width]of [['window-water',320,225,62],['mirror-water',755,275,66]]){
+  parts.push(part(name+'-bracket',`M${x-19} ${y+4}V${y+24}L${x-6} ${y+4}M${x+19} ${y+4}V${y+24}L${x+6} ${y+4}`,'none',20,{stroke:'#7b6950',strokeWidth:3}),part(name+'-edge',`M${x-width/2} ${y}H${x+width/2}V${y+6}H${x-width/2}Z`,'#947e5e',21,{stroke:'#695d4c',strokeWidth:1.5}),part(name+'-top',`M${x-width/2} ${y}L${x-width/2+8} ${y-5}H${x+width/2+8}L${x+width/2} ${y}Z`,'#b6a17c',22,{stroke:'#837053',strokeWidth:1.5}));
+ }
  return parts;
 }
 function barbellParts(){const target=gymBenchTargets().bar,angle=-target.rotation*rad,toLocal=p=>({x:(p.x-target.x)*Math.cos(angle)-(p.y-target.y)*Math.sin(angle),y:(p.x-target.x)*Math.sin(angle)+(p.y-target.y)*Math.cos(angle)}),parts=[];
@@ -36,7 +40,7 @@ function barbellParts(){const target=gymBenchTargets().bar,angle=-target.rotatio
  for(const [side,v]of [['left',-103],['right',103]]){const circle=(depth,r)=>Array.from({length:24},(_,i)=>{const a=i*Math.PI/12;return toLocal(project(-10+Math.cos(a)*r,depth,129+Math.sin(a)*r));}),front=circle(v,22),rear=circle(v+8,22);parts.push({...part('plate-'+side+'-edge',path([...front.slice(0,13),...rear.slice(0,13).reverse()]),'#283f4e',92),joint:'barbell'},{...part('plate-'+side,path(front),'#476a78',93,{stroke:'#263f4b',strokeWidth:2}),joint:'barbell'},{...part('collar-'+side,path(circle(v,6)),'#c5d4d8',94,{stroke:'#849ca5',strokeWidth:1}),joint:'barbell'});}
  return parts;
 }
-/** Mutates only room artwork, barbell artwork, and scene lighting. Bottle ownership stays in Atlas clips. */
+/** Mutates room artwork, barbell artwork, and lighting. Atlas owns the bottle artwork. */
 export function configureGymRoom(scene){
  scene.packs.gym={...scene.packs.gym,name:'Gym / perspective room',spatial:true,joints:[rootJoint('root')],parts:roomParts(),clips:{still:{duration:1,loop:true,tracks:{}}},inputs:{},initial:'still',states:{still:{clip:'still'}}};
  const atlas=scene.packs.atlas;if(atlas){const replaced=new Set(['barbell-shaft','plate-left','plate-right','collar-left','collar-right','plate-left-edge','plate-right-edge']);atlas.parts=atlas.parts.filter(p=>!replaced.has(p.id));atlas.parts.push(...barbellParts());}

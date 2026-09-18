@@ -1,3 +1,4 @@
+import type {Frame} from './scene.js';
 import type {ActivityRecipe,ActionPose,ActionSummary} from './action-variations.js';
 export type {ActivityRecipe,ActionVariant,ActionPose,ActionSummary} from './action-variations.js';
 import type {SceneDocument} from './schema.js';
@@ -17,6 +18,6 @@ export class BehaviorRuntime {
  constructor(document:SceneDocument,options?:{apply?:(action:BehaviorAction,payload:BehaviorPayload)=>void});
  state:string;time:number;variables:Record<string,boolean|number>;emitterOverrides:Record<string,{enabled:boolean}>;
  dispatch(event:string,payload?:BehaviorPayload):boolean;setVariable(name:string,value:boolean|number):void;
- hasActivity(actorId:string):boolean;actionPose(actorId:string):ActionPose|null;cancelActivity(actorId:string):boolean;
+ bindFrame(frame:Frame,options?:{disabledActors?:Set<string>}):Frame;hasActivity(actorId:string):boolean;actionPose(actorId:string):ActionPose|null;cancelActivity(actorId:string):boolean;
  tick(dt:number):BehaviorSnapshot;reset():BehaviorSnapshot;snapshot():BehaviorSnapshot;
 }
