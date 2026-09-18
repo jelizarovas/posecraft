@@ -125,3 +125,5 @@ The [demo gallery](https://jelizarovas.github.io/posecraft/demos.html) includes 
 
 
 Catch also has a [walking-around-obstacles variant](https://jelizarovas.github.io/posecraft/demos.html?obstacles=1#game-of-catch). Studio exposes its [walking area and route budget](docs/navigation-authoring.md). **Motion & website** includes optional [actor depth rendering](docs/renderers.md) and [physical-motion recording into editable clips](docs/physics-baking.md).
+
+[A little handoff](https://jelizarovas.github.io/posecraft/demos.html#a-little-handoff) demonstrates one shared gift, contact-based transfers and attached artwork. Studio can author [moving grip targets and attachment offsets](docs/attachments.md), with contact fade windows and Undo.

@@ -7,6 +7,7 @@ const rad=Math.PI/180,finite=(v,a,b)=>Number.isFinite(v)&&v>=a&&v<=b,id=/^[a-zA-
 export const BAKE_LIMITS=Object.freeze({duration:8,samples:961,scalarSamples:250000,events:10000,keys:50000,fps:[15,24,30,60,120]});
 const abort=signal=>{if(signal?.aborted){const error=new Error('Motion bake cancelled.');error.name='AbortError';throw error;}},yieldTask=()=>new Promise(resolve=>setTimeout(resolve,0));
 function validate(document,options){
+ if(document.props?.some(p=>p.attachment))throw Error('Motion baking does not yet support attached scene props. Use a separate physical study scene.');
  const actor=document.actors.find(a=>a.id===options.actor);if(!actor)throw Error('Choose an existing actor to bake.');const pack=document.packs[actor.pack];if(!pack.physics)throw Error('The selected actor has no physical rig.');
  const start=options.start??0,duration=options.duration??2,fps=options.fps??30,clipId=options.clipId??'baked-motion',position=options.maxPositionError??.5,angle=options.maxAngleError??.5;
  if(!finite(start,0,180)||!finite(duration,.1,8)||start+duration>180||!BAKE_LIMITS.fps.includes(fps)||typeof clipId!=='string'||!id.test(clipId)||pack.clips[clipId]||!finite(position,.01,5)||!finite(angle,.01,5))throw Error('Bake needs a new clip ID, start/end within 180s, duration 0.1..8s, FPS 15/24/30/60/120 and tolerances 0.01..5.');

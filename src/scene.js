@@ -223,6 +223,7 @@ export class SceneController {
     evaluated=applyMotionLayers(this.document,evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
     if(this.actorBehaviors){evaluated.actorBehaviors=this.actorBehaviors.snapshot();evaluated.emitterOverrides={...evaluated.emitterOverrides,...this.actorBehaviors.emitterOverrides()};}
     if(this.propGames)evaluated=this.propGames.apply(evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
+    if(this.objects&&this.document.contacts?.some(c=>['object','prop'].includes(c.target.type)))evaluated=this.objects.apply(evaluated);
     const constrained=applyContacts(this.document,this.pointers?.apply(evaluated)||evaluated),bound=this.graph?.bindFrame(constrained,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))})||constrained;return this.objects?this.objects.apply(bound):bound;
   }
   seek(time) {

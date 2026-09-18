@@ -1,3 +1,4 @@
+import {validateAttachments} from './scene-attachments.js';
 import {validateActorBehaviors} from './actor-behaviors.js';
 import {validateMotionLayers} from './motion-layers.js';
 import {validateScrollConfig} from './scroll-bindings.js';
@@ -8,7 +9,7 @@ import {validateInteractions} from './pointer-interactions.js';
 import {validateBehaviorGraph} from './behaviors.js';
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', renderers: ['svg','canvas'], features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings','scene-depth','surface-decals','skinned-mesh','scene-objects','prop-games','motion-layers','scroll-bindings','actor-behaviors','navigation'], unavailable: ['general-fluid-dynamics', 'svg-import','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', renderers: ['svg','canvas'], features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings','scene-depth','surface-decals','skinned-mesh','scene-objects','prop-games','motion-layers','scroll-bindings','actor-behaviors','navigation','prop-attachments','contact-targets'], unavailable: ['general-fluid-dynamics', 'svg-import','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -254,9 +255,13 @@ function validateStructure(doc) {
    check(finite(contact.start,0,180)&&finite(contact.end,0,180)&&contact.start<=contact.end,p,'Contact window must be ordered within 0..180 seconds.');
    if(contact.period!==undefined)check(finite(contact.period,.1,180),p+'.period','Expected repeat period .1..180 seconds.');
    if(contact.clip!==undefined)check(typeof contact.clip==='string'&&!!pack?.clips?.[contact.clip],p+'.clip','Missing contact clip.');
+   for(const key of ['fadeIn','fadeOut'])if(contact[key]!==undefined)check(finite(contact[key],0,180),p+'.'+key,'Fade time must be 0..180 seconds.');
+   check((contact.fadeIn||0)+(contact.fadeOut||0)<=contact.end-contact.start,p,'Contact fades must fit the active window.');
+   if(['object','prop'].includes(contact.target?.type)||contact.fadeIn!==undefined||contact.fadeOut!==undefined)check(doc.requiredFeatures?.includes('contact-targets'),'requiredFeatures','Declare contact-targets.');
    if(contact.keepOrientation!==undefined)check(typeof contact.keepOrientation==='boolean',p+'.keepOrientation','Expected boolean.');
-   const target=contact.target;check(record(target)&&['point','joint'].includes(target.type),p+'.target','Expected point or joint target.');
+   const target=contact.target;check(record(target)&&['point','joint','object','prop'].includes(target.type),p+'.target','Expected point, joint, prop or shared object target.');
    if(record(target)&&target.type==='point')check(finite(target.x)&&finite(target.y),p+'.target','Expected finite scene target coordinates.');
+   if(record(target)&&['object','prop'].includes(target.type)){const field=target.type==='object'?'objects':'props';check(Array.isArray(doc[field])&&doc[field].some(v=>v?.id===target[target.type]),p+'.target','Missing target '+target.type+'.');check(Object.keys(target).every(k=>['type',target.type,'offsetX','offsetY'].includes(k)),p+'.target','Unknown target setting.');for(const key of ['offsetX','offsetY'])if(target[key]!==undefined)check(finite(target[key],-1000,1000),p+'.target.'+key,'Expected offset -1000..1000.');}
    if(record(target)&&target.type==='joint'){const targetActor=doc.actors.find(a=>a.id===target.actor),targetPack=doc.packs[targetActor?.pack];check(!!targetPack?.joints.some(j=>j.id===target.joint),p+'.target','Missing target actor or joint.');for(const key of ['offsetX','offsetY'])if(target[key]!==undefined)check(finite(target[key],-1000,1000),p+'.target.'+key,'Expected local offset -1000..1000.');}
   }
   if(doc.ensemble!==undefined){const e=doc.ensemble;check(record(e)&&e.type==='campfire'&&Number.isInteger(e.seed)&&finite(e.seed,0,4294967295),'ensemble','Expected a seeded campfire ensemble.');
@@ -270,6 +275,7 @@ function validateStructure(doc) {
   validateInteractions(doc,check);
   validateBottleFluid(doc,check);
   validateSceneObjects(doc,check);
+  validateAttachments(doc,check);
   validatePropGames(doc,check);
   validateMotionLayers(doc,check);
   if(doc.scroll!==undefined)validateScrollConfig(doc,doc.scroll,check);

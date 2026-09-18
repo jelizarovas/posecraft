@@ -1,11 +1,13 @@
 import './scene-tools.css';
 import {createEmitter,removeGroup as removeSceneGroup,removeSceneEntity} from '../src/scene-graph.js';
+import {createAttachmentTools} from './attachment-tools.js';
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon=name=>`<span class="material-symbols-outlined" aria-hidden="true">${name}</span>`;
 const set=(path,value)=>({op:'set',path,value});
 const lists={group:'groups',actor:'actors',prop:'props',emitter:'emitters'};
 const layers=['background','characters','foreground'];
-export function createSceneTools({getDocument,getSelection,select,commit,editEntity,play,pause,isPlaying,getTime,setTime,getSceneTime=()=>0,setSceneTime=()=>{},contacts,behaviors,objects,flows,actorBehaviors}){
+export function createSceneTools({getDocument,getFrame,getSelection,select,commit,editEntity,play,pause,isPlaying,getTime,setTime,getSceneTime=()=>0,setSceneTime=()=>{},contacts,behaviors,objects,flows,actorBehaviors}){
+ const attachments=createAttachmentTools({getDocument,getFrame,commit});
  let contactActor=null;let effectPage='settings';const collapsed=new Set();
  const doc=()=>getDocument(),sel=()=>getSelection();
  const duration=()=>Math.min(180,Math.max(doc().ensemble?60:10,...doc().actors.map(a=>{const p=doc().packs[a.pack],state=p.states[a.inputs?.action]||p.states[p.initial];return p.clips[state.clip].duration;})));
@@ -53,6 +55,7 @@ export function createSceneTools({getDocument,getSelection,select,commit,editEnt
    if(mode==='joint'){target.querySelector('#scene-depth-joint').onchange=ev=>patch({depth:{...e.depth,joint:ev.target.value}});target.querySelector('#scene-depth-offset').onchange=ev=>patch({depth:{...e.depth,offset:+ev.target.value}});}
   }
 
+  if(s.kind==='prop'){const panel=document.createElement('div');panel.id='scene-attachments';target.append(panel);attachments.render(panel,e.id);}
   if(s.kind==='actor'&&contacts){const b=document.createElement('button');b.id='scene-contacts';b.className='text-button';b.innerHTML=icon('link')+'Contacts & grips';b.onclick=()=>{contactActor=e.id;inspector(target);};target.append(b);}
   if(group)target.querySelector('#scene-delete-group').onclick=()=>removeGroup(e.id);
   if(!group&&!effect)target.querySelector('#scene-edit-entity').onclick=()=>editEntity(s);

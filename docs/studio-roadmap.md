@@ -6,7 +6,7 @@ The [September architecture review](architecture-review-2026-09-17.md) checks th
 
 ## What is already usable
 
-Posecraft has reusable character packs, constrained joints, numeric keyframes, expressions and looks, experimental depth rigs, scene lighting, thirteen demos, assisted physical responses, and browser/React embeds. Director adds scenes, shots, camera and placement keys, reference-frame comparison, seeded motion and webcam takes. Project JSON can be saved and reopened. See [Director](director.md), [rigs](spatial.md), [lighting](lighting.md) and [capture](capture.md).
+Posecraft has reusable character packs, constrained joints, numeric keyframes, expressions and looks, experimental depth rigs, scene lighting, fifteen demos, assisted physical responses, and browser/React embeds. Director adds scenes, shots, camera and placement keys, reference-frame comparison, seeded motion and webcam takes. Project JSON can be saved and reopened. See [Director](director.md), [rigs](spatial.md), [lighting](lighting.md) and [capture](capture.md).
 
 ## A production milestone
 
@@ -85,3 +85,8 @@ See [the implementation report](implementation-2026-09-17.md) for measured resul
 
 
 Continuation: Catch now includes saved obstacle routes with incremental planning and checkpoint state. Canvas has an optional per-actor depth pass for mixed mesh/vector characters. Studio and CLI can record a bounded physical study into an editable clip, review it, apply with Undo, and export ordinary playback without the physical solver when no physical actors remain. See [navigation](navigation-authoring.md), [actor depth](renderers.md) and [physical recording](physics-baking.md). General crowd navigation, arbitrary live-scene baking, exact physical solver checkpoints and film/audio production remain separate work.
+
+
+## September 18 contact and attachment authoring
+
+Contacts now target moving shared objects and scene props, with explicit fade-in/out windows. Prop artwork attaches to actor joints or shared objects and uses the same transforms in SVG, Canvas, Studio and exports. The new handoff demo uses ordinary editable clips, contacts and graph commands; one gift changes owner only at contact. Detach and removal preserve visible placement in Studio, with undo/reopen coverage. Director resolves saved ownership and attachment transforms within authored shots, without running live object physics or event graphs. See [attachments](attachments.md) and [the implementation report](implementation-2026-09-18.md).

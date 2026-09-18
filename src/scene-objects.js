@@ -85,7 +85,7 @@ export class SceneObjects {
   }
   this.contacts=nextContacts;delete this._hits;
  }
- apply(frame){return {...frame,objects:this.bodies.map(b=>({...b,...(b.owner?objectGrip(this.document,frame,b.owner)||{}:{}),owner:b.owner?{...b.owner}:null,visible:b.enabled,depth:b.depth??this.config.floorY}))};}
+ apply(frame){return {...frame,objects:this.bodies.map(b=>{const grip=b.owner?objectGrip(this.document,frame,b.owner):null;return {...b,...grip,owner:b.owner?{...b.owner}:null,visible:b.enabled&&(!b.owner||!!grip),depth:b.depth??this.config.floorY};})};}
 }
 
 export function objectEventPayload(event){return {...(event.actor?{actor:event.actor}:{}),...(event.object?{object:event.object}:{}),...(event.game?{game:event.game}:{}),...(Number.isFinite(event.x)&&Number.isFinite(event.y)?{x:event.x,y:event.y}:{})};}

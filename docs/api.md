@@ -189,3 +189,12 @@ See [shared props and Catch](shared-objects.md), [actor decision graphs](actor-b
 Set `renderer: 'canvas', canvasDepth: 'actor'` for [per-actor depth composition](renderers.md). Unsupported mesh materials fail explicitly. Scene-unit ordering between actors and scenery remains unchanged.
 
 `posecraft/scene-baking` exports asynchronous `bakeSceneMotion(scene, options)`. It returns a validated document, undoable commands and measured error diagnostics without mutating the source. `node tools/cli.mjs bake scene.json request.json output.json` writes a new baked document and refuses to overwrite a file. See [supported recordings and limits](physics-baking.md).
+
+
+## Moving contact targets and attached props
+
+`SceneContact.target` accepts `{type: 'object', object: id}` and `{type: 'prop', prop: id}`, with optional rotated `offsetX`/`offsetY`. Optional `fadeIn` and `fadeOut` ramp contact strength inside its clip window. Declare `contact-targets` for these fields. Inactive unavailable targets report a null target/error and an explicit reason; contact diagnostics include effective weight. [Contact reference](contacts.md).
+
+Props may declare a `joint` or `object` attachment. `posecraft/scene-attachments` exports `evaluatedProps(scene, frame)`, the pure evaluator used by SVG, Canvas and prop-target contacts. Declare `prop-attachments` and disable the decoration's static collider. [Attachment reference](attachments.md).
+
+Director samples saved shared-object ownership against shot placement and clip poses. It does not run a scene's live transfer graph, Catch or object physics. For a film, author the ownership needed by each scene/shot; importing a live demo does not bake its events.

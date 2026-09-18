@@ -20,7 +20,9 @@ export function removeGroup(document,id){
 export function removeSceneEntity(document,kind,id){
  const field={actor:'actors',prop:'props',emitter:'emitters'}[kind];if(!field)throw new Error('Unknown scene item.');
  const next=structuredClone(document);if(!next[field]?.some(n=>n.id===id))throw new Error('Missing scene item.');next[field]=next[field].filter(n=>n.id!==id);
+ if(kind==='prop'&&next.contacts)next.contacts=next.contacts.filter(c=>c.target.type!=='prop'||c.target.prop!==id);
  if(kind==='actor'){
+  for(const p of next.props||[])if(p.attachment?.type==='joint'&&p.attachment.actor===id)delete p.attachment;
   if(next.motionLayers)next.motionLayers=next.motionLayers.filter(l=>l.actor!==id);
   if(next.scroll){if(next.scroll.clips)next.scroll.clips=next.scroll.clips.filter(c=>c.actor!==id);if(next.scroll.bindings)next.scroll.bindings=next.scroll.bindings.filter(b=>b.target.actor!==id);}
   if(next.actorBehaviors)next.actorBehaviors=next.actorBehaviors.filter(g=>g.actor!==id);

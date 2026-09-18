@@ -52,6 +52,10 @@ A shot contains an ID, name, scene ID, duration, and camera tracks for `x`, `y`,
 
 Sampling applies the clip, expressions, shot pose keys, procedural addition, and then joint limits. Actor placement and camera transforms are independent. The camera uses scene-space center coordinates, degrees of rotation, and zoom relative to the output width. The output aspect ratio determines the crop. References are excluded from rendered SVG exports.
 
+Shared objects keep their saved positions or follow their saved owner's joint through the shot's clip and placement keys. Contacts can reach these objects or attached props. Owned objects resolve before contacts so targets read the unconstrained pose, then again afterward so visible artwork stays on the solved hand. Hidden or unavailable owner joints hide their objects and attached artwork. Portable project files retain these references.
+
+Director does not run live object physics, catch games, ownership-transfer commands or behavior graphs. Unowned objects remain at their saved position, even when the scene declares gravity. A live handoff is not automatically reconstructed as a shot; author the corresponding clips and ownership for each scene or use an appropriate baked sequence.
+
 ```sh
 node tools/cli.mjs episode-validate episode.json
 node tools/cli.mjs episode-inspect episode.json

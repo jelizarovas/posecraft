@@ -5,6 +5,8 @@ export function inspectSceneFeatures(document) {
   const scene=assertDocument(document),packs=scene.actors.map(actor=>scene.packs[actor.pack]);
   const physical=scene.actors.filter(actor=>(actor.behavior?.mode||'animated')!=='animated');
   const features=['clips',scene.renderer||'svg'];
+  if(scene.props?.some(p=>p.attachment))features.push('prop-attachments');
+  if(scene.contacts?.some(c=>['prop','object'].includes(c.target.type)||c.fadeIn!==undefined||c.fadeOut!==undefined))features.push('contact-targets');
   if(scene.canvasDepth)features.push('actor-depth');
   if(scene.objectGames?.some(g=>g.navigation))features.push('navigation');
   if(scene.actorBehaviors?.length)features.push('actor-behaviors');

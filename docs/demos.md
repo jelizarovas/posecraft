@@ -101,3 +101,10 @@ The gym uses distinct Atlas drawings around a full turn, with authored views eve
 Walking travels across and into the floor. The bench, rack, weights and room use a shared two-vanishing-point projection; shadows are disabled. Atlas leaves his bottle on the table or either shelf, then fetches it from that location next time. Water breaks can include walking while sipping and checking the wrong spot first. Weighted action choices select where he leaves it. A single bottle persists through later exercises, and replaying the same seed reproduces the choices.
 
 The live graph can choose a tilted one-hand rest and switch hands between pull-ups. Recovery can include sitting on the bench, wiping the forehead, looking through the window or flexing toward the mirror. Resting reduces fatigue through saved action completion effects. Use **Action variations** for the full turn, floor walk, hand switch, water trips and each rest action. All clips, contacts, weights and fatigue effects remain editable in Studio.
+
+
+## A little handoff
+
+Clover offers a wrapped gift, Moss reaches and takes it, then returns it. The ten-second live cycle uses editable give/receive clips, object-target contacts with a fade-in, and ordinary graph transfer commands. The parcel has one shared circle body; five attached rectangles form its box, lid and ribbon. Transfers require both grip points to meet within 0.5 scene units. Moving the recipient beyond reach leaves the gift with its current owner.
+
+The gallery offers four paused acting beats and **Play exchange**. Open the demo in Studio to edit character contact windows, prop attachments or the event graph. The factory is `createHandoff()` in `examples/handoff.js`; the gallery ID is `a-little-handoff`. This is a repeatable authored exchange, not a general social planner.

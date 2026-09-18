@@ -155,3 +155,8 @@ const routeJob=new PathJob(scene,{start:{x:50,y:100},end:{x:200,y:100},area:{x:0
 routeJob.step(16);navigationSegmentClear(scene,{x:50,y:100},{x:200,y:100},{clearance:10});
 scene.canvasDepth="actor";
 const bake:ReturnType<typeof bakeSceneMotion>=bakeSceneMotion(scene,{actor:scene.actors[0].id,duration:2,fps:30});void bake;
+
+import {evaluatedProps} from "posecraft/scene-attachments";
+const attachedArtwork= evaluatedProps(scene,player.frame());void attachedArtwork;
+const propBinding:import("posecraft/schema").PropAttachment={type:"object",object:"ball",inheritRotation:false,offsetX:10};
+const movingContact:import("posecraft/schema").SceneContact={id:"grip",name:"Grip",enabled:true,actor:"ona",chain:{upper:"rightArm",lower:"rightForearm",end:"rightWrist"},target:{type:"prop",prop:"handle"},bend:1,weight:1,start:0,end:4,fadeIn:.5,fadeOut:.5};void propBinding;void movingContact;

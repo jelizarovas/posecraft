@@ -1,5 +1,7 @@
 import {clamp,forwardKinematics,wrapAngle} from './index.js';
 import {spatialKinematics} from './spatial.js';
+import {nodeVisible} from './scene-graph.js';
+import {evaluatedProps} from './scene-attachments.js';
 const rad=Math.PI/180,I=[1,0,0,0,1,0,0,0,1],cache=new WeakMap();
 const apply=(m,p)=>[m[0]*p[0]+m[1]*p[1]+m[2]*p[2],m[3]*p[0]+m[4]*p[1]+m[5]*p[2],m[6]*p[0]+m[7]*p[1]+m[8]*p[2]];
 const rz=(p,a)=>{const c=Math.cos(a*rad),s=Math.sin(a*rad);return [c*p[0]-s*p[1],s*p[0]+c*p[1],p[2]];};
@@ -46,13 +48,28 @@ export function solveContact(pack,source,chain,target,{bend=1,weight=1,keepOrien
 export function applyContacts(document,frame,{time=frame.localTime??frame.time,actorTimes={},actorClips={}}={}){
  if(!document.contacts?.length)return frame;
  const actors=new Map(document.actors.map(a=>[a.id,a])),base=new Map(frame.actors.map(a=>[a.id,a])),contexts=new Map(),result={...frame,actors:frame.actors.slice(),contacts:[]};
+ let props;
  const context=id=>{if(contexts.has(id))return contexts.get(id);const actor=actors.get(id),evaluated=base.get(id);if(!actor||!evaluated)return null;const pack=document.packs[actor.pack],value={actor,evaluated,pack,world:basis(pack,evaluated.pose),placement:placement(actor,evaluated)};contexts.set(id,value);return value;};
- for(const contact of document.contacts){const source=context(contact.actor);if(!source)continue;let target;
-  if(contact.target.type==='point')target={x:contact.target.x,y:contact.target.y};else {const other=context(contact.target.actor),joint=other?.world[contact.target.joint];if(!joint)continue;const offset=apply(joint.m,[contact.target.offsetX||0,contact.target.offsetY||0,0]);target=scenePoint({x:joint.x+offset[0],y:joint.y+offset[1]},other.placement);}
+ for(const contact of document.contacts){const source=context(contact.actor);if(!source)continue;let target=null,targetReason=null;
+  const spec=contact.target;
+  if(spec.type==='point')target={x:spec.x,y:spec.y};
+  else if(spec.type==='joint'){
+   const other=context(spec.actor),joint=other?.world[spec.joint];
+   if(!joint||!nodeVisible(document,other.actor))targetReason='target-unavailable';
+   else {const offset=apply(joint.m,[spec.offsetX||0,spec.offsetY||0,0]);target=scenePoint({x:joint.x+offset[0],y:joint.y+offset[1]},other.placement);}
+  }else if(spec.type==='object'||spec.type==='prop'){
+   const object=spec.type==='object',node=object?frame.objects?.find(o=>o.id===spec.object):(props??=evaluatedProps(document,frame)).find(p=>p.id===spec.prop);
+   if(!node||node.enabled===false||node.visible===false||!nodeVisible(document,node))targetReason='target-unavailable';
+   else if(object&&node.owner?.actor===contact.actor)targetReason='self-owned-object';
+   else if(!object&&node.attachment?.type==='joint'&&node.attachment.actor===contact.actor)targetReason='self-attached-prop';
+   else if(!object&&node.attachment?.type==='object'&&frame.objects?.find(o=>o.id===node.attachment.object)?.owner?.actor===contact.actor)targetReason='self-owned-object';
+   else {const offset=rz([spec.offsetX||0,spec.offsetY||0,0],node.rotation||0);target={x:node.x+offset[0],y:node.y+offset[1]};}
+  }else targetReason='target-unavailable';
   const index=result.actors.findIndex(a=>a.id===contact.actor),current=result.actors[index],elapsed=actorTimes[contact.actor]??current.clipTime??time,localTime=contact.period?((elapsed%contact.period)+contact.period)%contact.period:elapsed,clip=actorClips[contact.actor]??current.clip??source.pack.states[current.state]?.clip??current.state;
-  let reason=!contact.enabled?'disabled':contact.weight===0?'weight':contact.clip&&contact.clip!==clip?'clip':localTime<contact.start-1e-8||localTime>contact.end+1e-8?'outside-window':current.physics||current.recovery?'physics':null;
-  let pose=current.pose,limited=false;if(!reason){const solved=solveContact(source.pack,pose,contact.chain,localPoint(target,source.placement),contact);pose=solved.pose;limited=solved.limited;result.actors[index]={...current,pose,world:forwardKinematics(source.pack.joints,pose)};}
-  const endpoint=basis(source.pack,pose)[contact.chain.end],actual=scenePoint(endpoint,source.placement),error=Math.hypot(actual.x-target.x,actual.y-target.y);result.contacts.push({id:contact.id,actor:contact.actor,active:!reason,reason,target,actual,error,limited});
+  const fade=Math.min(contact.fadeIn>0?clamp((localTime-contact.start)/contact.fadeIn,0,1):1,contact.fadeOut>0?clamp((contact.end-localTime)/contact.fadeOut,0,1):1),weight=contact.weight*fade;
+  const reason=!contact.enabled?'disabled':contact.clip&&contact.clip!==clip?'clip':localTime<contact.start-1e-8||localTime>contact.end+1e-8?'outside-window':current.physics||current.recovery?'physics':targetReason||(!weight?'weight':null);
+  let pose=current.pose,limited=false;if(!reason){const solved=solveContact(source.pack,pose,contact.chain,localPoint(target,source.placement),{...contact,weight});pose=solved.pose;limited=solved.limited;result.actors[index]={...current,pose,world:forwardKinematics(source.pack.joints,pose)};}
+  const endpoint=basis(source.pack,pose)[contact.chain.end],actual=scenePoint(endpoint,source.placement),error=target?Math.hypot(actual.x-target.x,actual.y-target.y):null;result.contacts.push({id:contact.id,actor:contact.actor,active:!reason,reason,target,actual,error,limited,weight:reason?0:weight});
  }
  return result;
 }

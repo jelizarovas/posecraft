@@ -173,6 +173,10 @@
     "./scene-baking": {
       "types": "./src/scene-baking.d.ts",
       "default": "./src/scene-baking.js"
+    },
+    "./scene-attachments": {
+      "types": "./src/scene-attachments.d.ts",
+      "default": "./src/scene-attachments.js"
     }
   },
   "bin": {
@@ -220,7 +224,9 @@
     "docs/implementation-2026-09-17.md",
     "docs/architecture-review-2026-09-17.md",
     "docs/navigation-authoring.md",
-    "docs/physics-baking.md"
+    "docs/physics-baking.md",
+    "docs/attachments.md",
+    "docs/implementation-2026-09-18.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -273,7 +279,9 @@
     "test:physics-baking": "node test/scene-baking-browser.mjs",
     "test:navigation": "node test/catch-navigation-browser.mjs",
     "test:actor-depth-export": "node test/canvas-actor-depth-export-browser.mjs",
-    "test:object-ack": "node test/object-command-worker-browser.mjs"
+    "test:object-ack": "node test/object-command-worker-browser.mjs",
+    "test:handoff": "node test/handoff-browser.mjs",
+    "test:attachments": "node test/attachments-studio-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

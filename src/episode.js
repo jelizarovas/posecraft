@@ -1,4 +1,5 @@
 import {applyContacts} from './contacts.js';
+import {objectGrip} from './scene-objects.js';
 import {poseDefaults,spatialChannels} from './spatial.js';
 import {assertDocument} from './schema.js';
 import {sampleClip,interpolate,constrainPose,forwardKinematics} from './index.js';
@@ -45,6 +46,12 @@ export function shotAt(project,time){
  for(let i=0;i<project.shots.length;i++){const shot=project.shots[i];if(time<start+shot.duration||i===project.shots.length-1)return {shot,index:i,start,time:Math.min(time-start,shot.duration)};start+=shot.duration;}
 }
 const hash=(seed,n)=>{let x=(seed^Math.imul(n,374761393))|0;x=Math.imul(x^(x>>>13),1274126177);return ((x^(x>>>16))>>>0)/4294967295*2-1;};
+// Director samples authored clips and saved ownership; it does not advance live
+// object physics or game graphs. Resolve grips twice around the contact solve.
+function declaredObjects(scene,frame){
+ if(!scene.objects?.length)return frame;
+ return {...frame,objects:scene.objects.map(object=>{const grip=object.owner?objectGrip(scene,frame,object.owner):null;return {...object,...grip,vx:0,vy:0,owner:object.owner?{...object.owner}:null,visible:object.enabled!==false&&(!object.owner||!!grip)};})};
+}
 export function motionValue(m,time){const t=time*m.frequency;if(m.kind==='sway')return Math.sin(t*Math.PI*2+hash(m.seed,0)*Math.PI)*m.amplitude;const n=Math.floor(t),f=t-n,s=f*f*(3-2*f);return (hash(m.seed,n)*(1-s)+hash(m.seed,n+1)*s)*m.amplitude;}
 export class EpisodeController {
  constructor(project){this.project=structuredClone(assertEpisode(project));this.defaults=new Map();for(const [id,scene] of Object.entries(project.scenes))for(const [key,pack] of Object.entries(scene.packs))this.defaults.set(id+':'+key,poseDefaults(pack));}
@@ -64,7 +71,8 @@ export class EpisodeController {
    const clipTime=local*(cue?.speed??1)+(cue?.offset??0);
    return {clip,clipTime:pack.clips[clip].loop?clipTime%pack.clips[clip].duration:Math.min(clipTime,pack.clips[clip].duration),id:actor.id,pose,world:forwardKinematics(pack.joints,pose),inputs,placement,state:clip,response:'calm',physics:null,spring:{x:0,y:0,vx:0,vy:0}};
   });
-  return applyContacts(scene,{time,shot:shot.id,scene:shot.scene,localTime:local,shotIndex:located.index,camera,actors});
+  const frame=declaredObjects(scene,{time,shot:shot.id,scene:shot.scene,localTime:local,shotIndex:located.index,camera,actors});
+  return declaredObjects(scene,applyContacts(scene,frame));
  }
  bakeMotion(shotId,actorId){
   const shot=this.project.shots.find(s=>s.id===shotId),cue=shot?.actors?.[actorId];require(cue?.motion,'Select a procedural motion to bake.');
