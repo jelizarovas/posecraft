@@ -230,7 +230,8 @@
     "docs/navigation-authoring.md",
     "docs/physics-baking.md",
     "docs/attachments.md",
-    "docs/implementation-2026-09-18.md"
+    "docs/implementation-2026-09-18.md",
+    "docs/atlas-3d.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -288,7 +289,8 @@
     "test:attachments": "node test/attachments-studio-browser.mjs",
     "test:animation-guides": "node test/animation-guides-browser.mjs",
     "test:markers": "node test/markers-studio-browser.mjs",
-    "test:retiming-export": "node test/retiming-export-browser.mjs"
+    "test:retiming-export": "node test/retiming-export-browser.mjs",
+    "test:atlas-three": "node test/atlas-three-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"
@@ -312,6 +314,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "planck": "1.4.2"
+    "planck": "1.4.2",
+    "three": "0.186.0"
   }
 }
