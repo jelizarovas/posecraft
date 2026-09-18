@@ -1,9 +1,14 @@
+import {validateActorBehaviors} from './actor-behaviors.js';
+import {validateMotionLayers} from './motion-layers.js';
+import {validateScrollConfig} from './scroll-bindings.js';
+import {validateSceneObjects} from './scene-objects.js';
+import {validatePropGames} from './prop-games.js';
 import {validateBottleFluid} from './bottle-validation.js';
 import {validateInteractions} from './pointer-interactions.js';
 import {validateBehaviorGraph} from './behaviors.js';
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings','scene-depth','surface-decals','skinned-mesh'], unavailable: ['general-fluid-dynamics', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', renderers: ['svg','canvas'], features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings','scene-depth','surface-decals','skinned-mesh','scene-objects','prop-games','motion-layers','scroll-bindings','actor-behaviors'], unavailable: ['general-fluid-dynamics', 'svg-import','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -51,6 +56,7 @@ function validateStructure(doc) {
   }
   try { walk(doc, '$', 0); if (JSON.stringify(doc).length > 5000000) throw new Error('Document exceeds 5 MB.'); } catch (e) { return { valid: false, errors: [{ path: '$', message: e.message }] }; }
   check(doc.schemaVersion === 1, 'schemaVersion', 'Only schema version 1 is supported.');
+  if(doc.renderer!==undefined)check(['svg','canvas'].includes(doc.renderer),'renderer','Expected svg or canvas renderer.');
   check(doc.kind === 'scene', 'kind', 'Expected scene.');
   check(safeId.test(doc.id), 'id', 'Use a stable alphanumeric ID.');
   check(typeof doc.name === 'string' && doc.name.length <= 100, 'name', 'Expected a name up to 100 characters.');
@@ -259,8 +265,13 @@ function validateStructure(doc) {
    }
   }
   validateBehaviorGraph(doc,check);
+  validateActorBehaviors(doc,check);
   validateInteractions(doc,check);
   validateBottleFluid(doc,check);
+  validateSceneObjects(doc,check);
+  validatePropGames(doc,check);
+  validateMotionLayers(doc,check);
+  if(doc.scroll!==undefined)validateScrollConfig(doc,doc.scroll,check);
   return { valid: errors.length === 0, errors };
 }
 

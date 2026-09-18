@@ -1,3 +1,4 @@
+import {rendererPoint,rendererHit} from './render-input.js';
 import {PhoneMotion} from './device-motion.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),finite=v=>typeof v==='number'&&Number.isFinite(v);
 /** Screen-space gravity and acceleration remain separate: steady tilt is not a shake. */
@@ -20,9 +21,9 @@ export function mountBottleControls(element,document,controller,{isEnabled=()=>t
  if(!document.fluid)return {dispose(){},enableMotion:async()=>false,disableMotion(){},get motionEnabled(){return false;}};
  const points=new Map(),originalTouch=element.style.touchAction,originalTab=element.getAttribute('tabindex');let disposed=false,raf=0,lastSensor=0,lastReading=null;const config=document.fluid;
  element.style.touchAction='none';element.tabIndex=0;
- const point=e=>{const matrix=element.querySelector('svg')?.getScreenCTM();if(!matrix)return null;const p=new DOMPoint(e.clientX,e.clientY).matrixTransform(matrix.inverse());return {id:e.pointerId,x:clamp(p.x,-10000,10000),y:clamp(p.y,-10000,10000)};};
+ const point=e=>{const p=rendererPoint(element,e);return p?{id:e.pointerId,x:clamp(p.x,-10000,10000),y:clamp(p.y,-10000,10000)}:null;};
  const send=type=>{controller.fluidInput({type,points:[...points.values()]});onUpdate();};
- function down(e){if(!isEnabled()||e.button!==0||points.size>=2||points.has(e.pointerId))return;const actor=e.target.closest?.('[data-actor]')?.dataset.actor;if(!points.size&&actor!==config.vessel&&actor!==config.contents)return;const p=point(e);if(!p)return;e.preventDefault();e.stopImmediatePropagation();points.set(e.pointerId,p);if(e.shiftKey&&e.pointerType==='mouse')points.set(2147483647,{id:2147483647,x:p.x+80,y:p.y});element.focus({preventScroll:true});try{element.setPointerCapture(e.pointerId);}catch{}onInteract();send('grab');}
+ function down(e){if(!isEnabled()||e.button!==0||points.size>=2||points.has(e.pointerId))return;const actor=rendererHit(element,e)?.actor||e.target.closest?.('[data-actor]')?.dataset.actor;if(!points.size&&actor!==config.vessel&&actor!==config.contents)return;const p=point(e);if(!p)return;e.preventDefault();e.stopImmediatePropagation();points.set(e.pointerId,p);if(e.shiftKey&&e.pointerType==='mouse')points.set(2147483647,{id:2147483647,x:p.x+80,y:p.y});element.focus({preventScroll:true});try{element.setPointerCapture(e.pointerId);}catch{}onInteract();send('grab');}
  function move(e){if(!points.has(e.pointerId))return;const p=point(e);if(!p)return;e.preventDefault();e.stopImmediatePropagation();points.set(e.pointerId,p);if(points.has(2147483647))points.set(2147483647,{id:2147483647,x:p.x+80,y:p.y});send('move');}
  function end(e){if(!points.has(e.pointerId))return;e.preventDefault();e.stopImmediatePropagation();if(e.type==='pointercancel'){cancel();return;}points.delete(e.pointerId);points.delete(2147483647);send(e.type==='pointercancel'?'cancel':'release');if(element.hasPointerCapture(e.pointerId))element.releasePointerCapture(e.pointerId);}
  function cancel(){if(points.size){const ids=[...points.keys()];points.clear();send('cancel');for(const id of ids)if(element.hasPointerCapture(id))element.releasePointerCapture(id);}}

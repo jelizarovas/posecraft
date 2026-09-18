@@ -1,3 +1,4 @@
+import type {ObjectCommand,SceneObject,ObjectOwner} from './scene-objects.js';
 import type {FluidCommand} from './bottle-fluid.js';
 import type {PointerCommand} from './schema.js';
 import type {BehaviorPayload,BehaviorSnapshot} from './behaviors.js';
@@ -11,6 +12,7 @@ export class WorkerSceneController {
  readonly ready:Promise<WorkerSceneController>;readonly stats:WorkerStats;readonly time:number;document:SceneDocument;playing:boolean;animationPlaying:boolean;reducedMotion:boolean;motion:{ax:number;ay:number};size?:{width:number;height:number};
  onFrame?:(frame:Frame)=>void;
  frame():Frame;step(dt:number):Frame;reset():Frame;seek(time:number):Frame;
+ objectCommand(command:ObjectCommand):boolean|void;
  fluidInput(command:FluidCommand):void;
  pointer(command:PointerCommand):void;
  dispatch(event:string,payload?:BehaviorPayload):boolean;setVariable(name:string,value:boolean|number):void;

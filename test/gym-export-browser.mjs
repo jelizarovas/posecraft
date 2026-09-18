@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import http from 'node:http';
+import {chromium} from '@playwright/test';
+import {createGym} from '../examples/gym.js';
+import {SceneController} from '../src/scene.js';
+import {compileScene} from '../tools/compile-scene.mjs';
+await fs.mkdir('test-results',{recursive:true});const scene=createGym(),directory=await fs.mkdtemp(path.resolve('test-results/gym-website-')),manifest=await compileScene(scene,path.join(directory,'site')),modules=manifest.files.flatMap(f=>f.modules);assert.ok(modules.some(id=>id.endsWith('/motion-layers.js')));assert.ok(!modules.some(id=>/planck|\/physics\.js|\/scene\.js/.test(id)));const expected=new SceneController(scene);const frame=expected.seek(2),pose=frame.actors.find(a=>a.id==='atlas').pose;expected.dispose();
+const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost'),file=path.resolve(directory,'.'+url.pathname+(url.pathname.endsWith('/')?'index.html':''));if(!file.startsWith(directory+path.sep))throw Error('Outside fixture');res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':'text/html');res.end(await fs.readFile(file));}catch{res.writeHead(404);res.end();}});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})}),page=await browser.newPage({viewport:{width:900,height:650}}),errors=[];page.on('pageerror',error=>errors.push(error.message));
+try{await page.goto('http://127.0.0.1:'+server.address().port+'/site/');await page.waitForFunction(()=>window.posecraft?.controller);const actual=await page.evaluate(()=>{posecraft.pause();posecraft.seek(2);return posecraft.controller.frame().actors.find(a=>a.id==='atlas').pose;});assert.deepEqual(actual,pose);assert.equal(await page.locator('#error').isVisible(),false);assert.ok(await page.locator('[data-fragment-path]').count()>100);await page.screenshot({path:'test-results/gym-website-proof.png'});assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:true,motionLayers:scene.motionLayers.length,features:manifest.features,bytes:manifest.files.reduce((n,f)=>n+f.bytes,0)}));}finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

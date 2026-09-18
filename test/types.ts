@@ -125,3 +125,26 @@ const weightedSurface: import('posecraft/schema').SkinnedMesh={
 scene.packs[scene.actors[0].pack].parts[0].spatial={mesh:weightedSurface};
 // @ts-expect-error Correctives only use numeric pose channels.
 weightedSurface.correctives!.push({joint:'root',channel:'expression',min:0,max:1,offsets:[]});
+
+
+import {objectGrip} from 'posecraft/scene-objects';
+import type {SceneObject} from 'posecraft/scene-objects';
+import {predictIntercept} from 'posecraft/prop-games';
+import type {ActorBehavior} from 'posecraft/actor-behaviors';
+import {applyMotionLayers} from 'posecraft/motion-layers';
+import {inspectScene} from 'posecraft/agent-authoring';
+import {evaluateDrawing} from 'posecraft/render-evaluation';
+import {mountRenderer} from 'posecraft/render-mount';
+const ball:SceneObject={id:'ball',name:'Ball',shape:'circle',x:100,y:100,radius:10,fill:'#ee8833',mass:1};
+scene.objects=[ball];scene.renderer='canvas';
+player.objectCommand({type:'release',object:'ball',vx:10,vy:-100});
+player.setActorVariable('ona','patience',.5);player.dispatchActor('ona','hello');
+objectGrip(scene,player.frame(),{actor:'ona',joint:'rightWrist'});
+predictIntercept({x:0,y:0,vx:10,vy:-50},100,0);
+const directedFrame=applyMotionLayers(scene,player.frame());
+evaluateDrawing(scene,directedFrame);inspectScene(scene);
+mountRenderer(document.createElement('div'),scene,directedFrame).dispose();
+const ownGraph:ActorBehavior={id:'ona-decisions',actor:'ona',graph:{seed:1,initial:'idle',variables:{},states:{idle:{actions:[]}},edges:[]}};
+scene.actorBehaviors=[ownGraph];
+// @ts-expect-error Only declared shared-object commands are supported.
+player.objectCommand({type:'teleport',object:'ball'});

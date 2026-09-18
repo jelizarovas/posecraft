@@ -1,0 +1,19 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import {chromium} from '@playwright/test';
+import {createServer} from 'vite';
+await fs.mkdir('test-results',{recursive:true});await fs.writeFile('test-results/render-performance.html','<!doctype html><body></body>');
+const server=await createServer({configFile:false,root:process.cwd(),server:{host:'127.0.0.1',port:5188,strictPort:true,hmr:false},appType:'mpa'});await server.listen();const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+try{const page=await browser.newPage({viewport:{width:1000,height:800}});await page.goto('http://127.0.0.1:5188/test-results/render-performance.html');const results=await page.evaluate(async()=>{
+ const [{createGym},{sampleClip,forwardKinematics},{evaluateDrawing},{renderCanvas},{mountSVG}]=await Promise.all([import('/examples/gym.js'),import('/src/index.js'),import('/src/render-evaluation.js'),import('/src/canvas.js'),import('/src/svg.js')]);
+ const source=createGym(),pack=source.packs[source.actors.find(a=>a.id==='atlas').pack],template=source.actors.find(a=>a.id==='atlas'),cases=[];
+ delete template.group;pack.parts=pack.parts.filter(p=>!p.spatial?.mesh||p.id==='trunk');const summary=a=>{a.sort((x,y)=>x-y);return {median:a[Math.floor(a.length*.5)],p95:a[Math.floor(a.length*.95)]};};
+ for(const count of [1,4,16]){const scene={schemaVersion:1,kind:'scene',id:'benchmark',name:'Atlas mesh renderer benchmark',revision:0,bounds:{width:800,height:600},requiredFeatures:source.requiredFeatures.filter(f=>['spatial-rig','skinned-mesh','directional-artwork','scene-depth'].includes(f)),packs:{atlas:pack},actors:Array.from({length:count},(_,i)=>({...template,id:'atlas-'+i,pack:'atlas',transform:{x:(i%4)*190,y:Math.floor(i/4)*145,scale:.3,rotation:0}}))};
+ const canvas=document.createElement('canvas');canvas.width=800;canvas.height=600;const ctx=canvas.getContext('2d'),host=document.createElement('div');document.body.append(host);let renderer;const metrics={authoredPose:[],evaluation:[],canvasDraw:[],svgEvaluationAndDOM:[]};let paths=0;
+ for(let i=0;i<34;i++){let start=performance.now();const time=30+i/60,pose=sampleClip(pack.clips['full-set'],time),world=forwardKinematics(pack.joints,pose),frame={time,effectsTime:time,actors:scene.actors.map(a=>({id:a.id,pose,world,inputs:a.inputs,state:'idle'}))};const simulation=performance.now()-start;start=performance.now();const drawing=evaluateDrawing(scene,frame);const evaluation=performance.now()-start;start=performance.now();renderCanvas(ctx,drawing);const canvasDraw=performance.now()-start;if(!renderer)renderer=mountSVG(host,scene,frame);start=performance.now();renderer.update(frame);const svg=performance.now()-start;if(i>=10){metrics.authoredPose.push(simulation);metrics.evaluation.push(evaluation);metrics.canvasDraw.push(canvasDraw);metrics.svgEvaluationAndDOM.push(svg);}paths=drawing.stats.paths;}
+ cases.push({actors:count,paths,domNodes:host.querySelectorAll('*').length,measurements:24,milliseconds:Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,summary(v)])),heap:performance.memory?.usedJSHeapSize??null});renderer.dispose();host.remove();}
+ return {userAgent:navigator.userAgent,viewport:[800,600],seed:'authored deterministic full-set; Atlas connected body mesh + vector head/shoes, garment/mark mesh overlays excluded to stay within16-actor schema budget',trace:'time=30+i/60, i=0..33; first10 warmup; shared pose evaluated once per frame',cases};
+ });const report={environment:{platform:process.platform,arch:process.arch,node:process.version,cpu:os.cpus()[0]?.model},...results};await fs.writeFile('test-results/render-performance.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));}finally{await browser.close();await server.close();}
+
+
+

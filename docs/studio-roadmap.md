@@ -2,6 +2,8 @@
 
 Status: implementation started, September 17, 2026. The first coordinated milestone is tracked below. The broader roadmap remains planned work, not a claim of completed features or delivery estimates. Existing behavior is documented in the linked guides.
 
+The [September architecture review](architecture-review-2026-09-17.md) checks the supplied recommendations against the current code and proposes the next shared-engine and demo work. Its proposed order is not an implementation-complete checklist.
+
 ## What is already usable
 
 Posecraft has reusable character packs, constrained joints, numeric keyframes, expressions and looks, experimental depth rigs, scene lighting, thirteen demos, assisted physical responses, and browser/React embeds. Director adds scenes, shots, camera and placement keys, reference-frame comparison, seeded motion and webcam takes. Project JSON can be saved and reopened. See [Director](director.md), [rigs](spatial.md), [lighting](lighting.md) and [capture](capture.md).
@@ -73,3 +75,10 @@ The gym and staircase now include action review, slow playback, looping and fram
 Studio now separates live illustrations from sequenced scenes. Its behavior inspector edits saved states, typed variables, random delays, conditional weighted branches, global event handlers and pointer bindings. Campfire demonstrates fire/cooking dependencies, cold recovery and resistant drags. The website compiler selects a physics-free illustration runtime or the physical runtime, and can build a self-hosted folder with only the selected dependency graph. See [live scenes](live-scenes.md).
 
 The behavior editor is a form-based state machine, not a node canvas or a general algorithm editor. Campfire cooking, social behavior and movement still use reusable built-in ensemble mechanics. Complete dependency pruning of every rendering feature, physical simulation baking and arbitrary user-authored locomotion algorithms remain future work.
+
+
+## September 17 engine and authoring implementation
+
+The [architecture review](architecture-review-2026-09-17.md) now has implementation and acceptance evidence for its seven workstreams. Studio includes shared object/game authoring, per-character decision graphs, motion layers, renderer choice and scroll bindings. Catch uses the exported shared solver. Campfire cooking is saved graph data with an explicit legacy conversion; Bottle uses five hull samples and bounded water feedback. Semantic CLI/MCP tools and bounded replay caches are available.
+
+See [the implementation report](implementation-2026-09-17.md) for measured results and precise limits. Canvas remains optional and capability-gated; physical checkpoints, general navigation, complete social choreography authoring and film/audio production remain separate work.

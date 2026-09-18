@@ -283,7 +283,8 @@ function finishGymScene(scene,idleMetadata){
  }
  installGymDepth(scene,idleMetadata);addGymTurnaround(pack);
  for(const [host,ids]of [['trunk',['left-pec','right-pec','abs','back-scapula-left','back-scapula-right','back-spine']],['leftarm',['leftbiceps','leftgrip']],['rightarm',['rightbiceps','rightgrip']],['leftleg',['leftshoe']],['rightleg',['rightshoe']],['shorts',['shorts-stripe']],['head-shape',['hair','beard','eyes','eyebrows','effort','blink','nose','breath-mouth','back-hair-strands','ear-left','ear-right']]])for(const id of ids){const p=pack.parts.find(p=>p.id===id);if(p)p.spatial={...p.spatial,surfaceOf:host};}
- addGymSkin(pack);scene.requiredFeatures.push('directional-artwork','surface-decals','skinned-mesh');
+ addGymSkin(pack);
+ scene.motionLayers=[{id:'breathing',actor:'atlas',joint:'torso',channel:'y',type:'sine',amplitude:.65,frequency:.45,phase:0,seed:17},{id:'effort',actor:'atlas',joint:'torso',channel:'rotation',type:'noise',amplitude:1.2,frequency:7,phase:0,seed:19,variable:'fatigue',range:[60,100]}];scene.requiredFeatures.push('motion-layers');scene.requiredFeatures.push('directional-artwork','surface-decals','skinned-mesh');
  return scene;
 }
 

@@ -15,3 +15,5 @@
 .motion-review{display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%}.motion-review label{white-space:nowrap}.motion-review button{padding:3px 6px}.motion-review input[type=checkbox]{width:14px;height:14px}.motion-review .material-symbols-outlined{font-size:18px}@media(max-width:760px){.motion-review{gap:6px}#demo-controls .motion-review select{max-width:110px;font-size:10px}.motion-review label{font-size:9px}}
 
 #demo-frame .material-symbols-outlined{transform:rotate(180deg)}
+
+.demo-group{margin:18px 4px 8px;font-weight:600}.demo-group:first-child{margin-top:4px}@media(max-width:800px){.demo-group{display:none}}

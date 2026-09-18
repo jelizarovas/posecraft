@@ -1,11 +1,12 @@
+import {validateObjectCommand} from './scene-objects.js';
 import {ActionVariations,validateActivities} from './action-variations.js';
 import {PoseBindings,validatePoseBindings} from './pose-bindings.js';
 const id=/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/,eventName=/^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/;
 const object=v=>v&&typeof v==='object'&&!Array.isArray(v),number=v=>Number.isFinite(v)&&Math.abs(v)<=1000000,value=v=>typeof v==='boolean'||number(v);
 export const BEHAVIOR_LIMITS=Object.freeze({states:32,edges:128,variables:32,actions:16,queue:64,events:16,transitions:8});
-export const behaviorEnsembleEvents=['conversation','doze','meteor','share','share-missed','share-help','burn','fire-off','fire-relight','fire-on','food-throw','face-shoo'];
+export const behaviorEnsembleEvents=['conversation','doze','meteor','share','share-missed','share-help','burn','fire-off','fire-relight','fire-on','food-throw','face-shoo','food-ready'];
 export function validBehaviorInput(document,actor,input,value){const a=document.actors.find(a=>a.id===actor),spec=document.packs[a?.pack]?.inputs?.[input];return !!spec&&typeof value===spec.type&&(!spec.options||spec.options.includes(value))&&(spec.type!=='number'||Number.isFinite(value)&&value>=spec.min&&value<=spec.max);}
-export function validateBehaviorEvent(document,event,payload={}){if(typeof event!=='string'||!eventName.test(event)||!object(payload)||Object.keys(payload).some(k=>!['actor','x','y'].includes(k))||payload.actor!==undefined&&!document.actors.some(a=>a.id===payload.actor)||['x','y'].some(k=>payload[k]!==undefined&&!number(payload[k])))throw Error('Invalid scene event or payload.');return {...payload};}
+export function validateBehaviorEvent(document,event,payload={}){if(typeof event!=='string'||!eventName.test(event)||!object(payload)||Object.keys(payload).some(k=>!['actor','x','y','object','game'].includes(k))||payload.actor!==undefined&&!document.actors.some(a=>a.id===payload.actor)||payload.object!==undefined&&!document.objects?.some(o=>o.id===payload.object)||payload.game!==undefined&&!document.objectGames?.some(g=>g.id===payload.game)||['x','y'].some(k=>payload[k]!==undefined&&!number(payload[k])))throw Error('Invalid scene event or payload.');return {...payload};}
 export function validateBehaviorVariable(graph,name,next){if(!graph||!Object.hasOwn(graph.variables,name)||!value(next)||typeof next!==typeof graph.variables[name])throw Error('Unknown behavior variable or invalid value.');}
 /** Data-only validation shared by scene loading and the lightweight runtime. */
 export function validateBehaviorGraph(document,check){
@@ -27,6 +28,7 @@ export function validateBehaviorGraph(document,check){
    else if(action.type==='input')check(actor(action.actor)&&(action.actor==='$actor'?document.actors.some(a=>validBehaviorInput(document,a.id,action.input,action.value)):validBehaviorInput(document,action.actor,action.input,action.value)),p,'Invalid actor input action.');
    else if(action.type==='emitter')check(document.emitters?.some(e=>e.id===action.emitter)&&typeof action.enabled==='boolean',p,'Invalid emitter action.');
    else if(action.type==='ensemble')check(!!document.ensemble&&behaviorEnsembleEvents.includes(action.event)&&(action.actor===undefined||actor(action.actor)),p,'Invalid ensemble event action.');
+   else if(action.type==='object'){try{validateObjectCommand(document,action.command);}catch(e){check(false,p,e.message);}}
    else if(action.type==='event')check(typeof action.event==='string'&&eventName.test(action.event)&&(action.actor===undefined||actor(action.actor)),p,'Invalid scene event action.');
    else check(false,p,'Unknown behavior action.');
   }
@@ -61,6 +63,7 @@ export class BehaviorRuntime {
    else if(action.type==='event'){const next={...payload};if(action.actor)next.actor=action.actor;this.dispatch(action.event,next);}
    else if(action.type==='emitter'){this.emitterOverrides[action.emitter]={enabled:action.enabled};this.apply(action,payload);}
    else if(action.type==='input'){if(action.actor&&validBehaviorInput(this.document,action.actor,action.input,action.value))this.apply(action,payload);}
+   else if(action.type==='object')this.apply(action,payload);
    else if(action.type==='ensemble'){if(original.actor==='$actor'&&!action.actor)continue;this.apply(action,{...payload,...(action.actor?{actor:action.actor}:{})});}
   }
  }

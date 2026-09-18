@@ -165,3 +165,18 @@ A scene can declare `fluid` and the `bottle-fluid` capability. `posecraft/bottle
 ## Action variations and stats
 
 `behaviorGraph.activities` defines weighted clips, time windows, speed ranges, pose offsets and stat-dependent success. `variableBounds` limits numeric stats; `perform` and `add` actions run attempts and update values. Scene, worker and illustration players share seeded results. Frames expose `behavior.actions` and `behavior.variables`. See [action variations and stats](actions.md) for authoring, outcome timing and examples.
+
+
+## Shared objects, character decisions and additive motion
+
+See [shared props and Catch](shared-objects.md), [actor decision graphs](actor-behaviors.md) and [motion layers](motion-layers.md). Their validated scene fields are `objects`, `objectPhysics`, `objectGames`, `actorBehaviors` and `motionLayers`. Public modules use those same names (`scene-objects`, `prop-games`, `actor-behaviors`, `motion-layers`). Scene, worker and illustration controllers expose `objectCommand`, `dispatchActor` and `setActorVariable`; frames carry object ownership, passing-game statistics and independent character states.
+
+## Rendering, replay and website controls
+
+`renderer: 'svg' | 'canvas'` is saved per scene. [The renderer guide](renderers.md) describes the evaluated drawing contract, picking and explicit Canvas capability gates. Studio character/mesh guides remain SVG. Pointer and bottle controls work with either mounted renderer.
+
+[Replay checkpoints](checkpoints.md) cache supported state under an explicit memory budget. [Scroll bindings](scroll.md) save authored clip sampling or live input/variable mappings without replaying physics for each scroll event. Studio → Motion & website authors the primary binding and previews it; the data API supports multiple mappings. Browser, React and illustration mounts attach saved scroll configurations.
+
+## Semantic agent authoring
+
+`posecraft/agent-authoring` provides revision-safe inspect, diagnose, propose and apply operations. [The agent guide](agent-authoring.md) documents CLI commands, bounded simulation, actual PNG previews and the six-tool stdio MCP server (`posecraft-mcp`). Clip, contact and pointer builders expand to ordinary validated transactions. They do not execute code from scene documents.

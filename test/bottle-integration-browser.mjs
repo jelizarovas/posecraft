@@ -9,7 +9,7 @@ await fs.mkdir('test-results',{recursive:true});const root=await fs.mkdtemp(path
 const server=http.createServer(async(req,res)=>{try{const filename=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname+(req.url.endsWith('/')?'index.html':''));if(!filename.startsWith(root+path.sep))throw Error('Outside fixture');res.setHeader('Content-Type',filename.endsWith('.js')?'text/javascript':'text/html');res.end(await fs.readFile(filename));}catch{res.writeHead(404);res.end();}});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const browser=await chromium.launch({headless:true,channel:'msedge'}),page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
 try{
- await page.goto('http://127.0.0.1:5178/');
+ await page.goto((process.env.POSECRAFT_URL||'http://127.0.0.1:5178').replace(/\/$/,'')+'/');
  const result=await page.evaluate(async()=>{
   const [{createBottle},{SceneController},{IllustrationController},{BottleFluid},{WorkerSceneController}]=await Promise.all([import('/examples/bottle.js'),import('/src/scene.js'),import('/src/illustration.js'),import('/src/bottle-fluid.js'),import('/src/worker.js')]);
   const d=createBottle(),main=new SceneController(d),lite=new IllustrationController(d,{fluidFactory:BottleFluid}),worker=new WorkerSceneController(d);await worker.ready;

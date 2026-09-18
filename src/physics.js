@@ -64,6 +64,7 @@ export class PhysicalCharacter {
  }
  toScene(p){const t=this.actor.transform,a=t.rotation*RAD;return {x:t.x+(p.x*Math.cos(a)-p.y*Math.sin(a))*t.scale,y:t.y+(p.x*Math.sin(a)+p.y*Math.cos(a))*t.scale};}
  toLocal(p){const t=this.actor.transform,a=-t.rotation*RAD,x=p.x*UNIT-t.x,y=p.y*UNIT-t.y;return {x:(x*Math.cos(a)-y*Math.sin(a))/t.scale,y:(x*Math.sin(a)+y*Math.cos(a))/t.scale};}
+ applyObjectImpulse({joint,x,y,impulseX,impulseY}){const body=this.bodies.get(joint);if(body)body.applyLinearImpulse(Vec2(-clamp(impulseX,-1000,1000)/UNIT,-clamp(impulseY,-1000,1000)/UNIT),Vec2(x/UNIT,y/UNIT),true);}
  configure(config){this.config=behaviorConfig(config);for(const b of this.bodies.values())for(let f=b.getFixtureList();f;f=f.getNext())f.setRestitution(this.config.bounce);}
  translate(dx,dy){
   const turns=new Map();

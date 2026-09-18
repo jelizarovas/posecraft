@@ -117,10 +117,59 @@
     "./action-variations": {
       "types": "./src/action-variations.d.ts",
       "default": "./src/action-variations.js"
+    },
+    "./agent-authoring": {
+      "types": "./src/agent-authoring.d.ts",
+      "default": "./src/agent-authoring.js"
+    },
+    "./scene-objects": {
+      "types": "./src/scene-objects.d.ts",
+      "default": "./src/scene-objects.js"
+    },
+    "./prop-games": {
+      "types": "./src/prop-games.d.ts",
+      "default": "./src/prop-games.js"
+    },
+    "./motion-layers": {
+      "types": "./src/motion-layers.d.ts",
+      "default": "./src/motion-layers.js"
+    },
+    "./scroll-bindings": {
+      "types": "./src/scroll-bindings.d.ts",
+      "default": "./src/scroll-bindings.js"
+    },
+    "./replay-checkpoints": {
+      "types": "./src/replay-checkpoints.d.ts",
+      "default": "./src/replay-checkpoints.js"
+    },
+    "./render-evaluation": {
+      "types": "./src/render-evaluation.d.ts",
+      "default": "./src/render-evaluation.js"
+    },
+    "./canvas": {
+      "types": "./src/canvas.d.ts",
+      "default": "./src/canvas.js"
+    },
+    "./canvas-depth": {
+      "types": "./src/canvas-depth.d.ts",
+      "default": "./src/canvas-depth.js"
+    },
+    "./render-mount": {
+      "types": "./src/render-mount.d.ts",
+      "default": "./src/render-mount.js"
+    },
+    "./render-input": {
+      "types": "./src/render-input.d.ts",
+      "default": "./src/render-input.js"
+    },
+    "./actor-behaviors": {
+      "types": "./src/actor-behaviors.d.ts",
+      "default": "./src/actor-behaviors.js"
     }
   },
   "bin": {
-    "posecraft": "./tools/cli.mjs"
+    "posecraft": "./tools/cli.mjs",
+    "posecraft-mcp": "./tools/mcp-agent.mjs"
   },
   "files": [
     "src",
@@ -149,7 +198,19 @@
     "tools/compile-scene.mjs",
     "docs/live-scenes.md",
     "docs/fluids.md",
-    "docs/actions.md"
+    "docs/actions.md",
+    "tools/mcp-agent.mjs",
+    "tools/agent-service.mjs",
+    "tools/agent-runtime-worker.mjs",
+    "docs/agent-authoring.md",
+    "docs/scroll.md",
+    "docs/checkpoints.md",
+    "docs/renderers.md",
+    "docs/shared-objects.md",
+    "docs/actor-behaviors.md",
+    "docs/motion-layers.md",
+    "docs/implementation-2026-09-17.md",
+    "docs/architecture-review-2026-09-17.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -185,7 +246,18 @@
     "test:live-studio": "node test/live-studio-browser.mjs",
     "test:scene-export": "node test/scene-export-browser.mjs",
     "test:live-pointer": "node test/live-pointer-browser.mjs",
-    "test:bottle-fluid": "node test/bottle-fluid-browser.mjs"
+    "test:bottle-fluid": "node test/bottle-fluid-browser.mjs",
+    "test:agent-tools": "node test/agent-tools-browser.mjs",
+    "test:canvas": "node test/canvas-browser.mjs",
+    "test:scroll": "node test/scroll-bindings-browser.mjs",
+    "test:render-performance": "node test/render-performance.mjs",
+    "test:roadmap": "node test/roadmap-browser.mjs",
+    "test:actor-behaviors": "node test/actor-behaviors-browser.mjs",
+    "test:object-tools": "node test/object-tools-browser.mjs",
+    "test:catch-export": "node test/catch-export-browser.mjs",
+    "test:canvas-pointer": "node test/canvas-pointer-browser.mjs",
+    "test:actor-flow-tools": "node test/actor-flow-tools-browser.mjs",
+    "test:roadmap-release": "node test/roadmap-release-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

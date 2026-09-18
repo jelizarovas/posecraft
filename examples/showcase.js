@@ -1,3 +1,4 @@
+import {createCatch} from './catch.js';
 import {createBottle} from './bottle.js';
 import {createLoveseat} from './loveseat.js';
 import {createGym} from './gym.js';
@@ -11,6 +12,7 @@ import dummy from './characters/dummy.json' with {type:'json'};
 const library=structuredClone({ona,wwwzard,rusty,dummy});
 for(const id of ['ona','dummy']){addSpatialRig(library[id].packs[id],id,{studies:false});if(id==='ona')addOnaArmJoints(library[id].packs[id]);}
 export const demoCatalog=[
+ {id:'game-of-catch',title:'A game of catch',category:'Catch, miss and retrieve',description:'Two friends throw a shared ball, anticipate its flight and recover missed catches.',features:['Shared prop ownership','Procedural interception','Autonomous retrieval'],instruction:'An endless passing game. Open Studio → Scene → Objects to change throw variation, reaction time and skill, or edit the ball and its grips.',color:'#dbe9df',kind:'scene'},
  {id:'ship-in-a-bottle',title:'Ship in a bottle',category:'Water, buoyancy and wind',description:'Pick up a glass bottle. Water sloshes, the ship floats and rolls, and its sails respond to the wind.',features:['Contained water','Floating ship','Touch and phone motion'],instruction:'One finger lets the bottle hang and rotate; two fingers hold its angle. Shift-drag does the same with a mouse. Try Swirl water, change the wind, or enable phone motion and tilt or swing your phone.',color:'#b3cfc9',kind:'scene'},
  {id:'loveseat-stairs',title:'One more flight',category:'Two movers, one loveseat',description:'Two dummies haul a loveseat up an endless staircase. When one arm needs a break, the other hands carry the load.',features:['Shared hand contacts','Planted steps','Strain & rest'],instruction:'Review a step, weight transfer or arm rest at quarter speed. Open in Studio to edit the supporting grips and synchronized clips.',color:'#e6d9ca',kind:'scene'},
  {id:'gym-routine',title:'One more rep',category:'Effort, failure and recovery',description:'Every attempt changes Atlas’s fatigue and thirst. He varies his pace, struggles, rests and takes water breaks between stations.',features:['Action variations','Stat-driven outcomes','Water breaks'],instruction:'Try Tired or Thirsty to affect later attempts. Live workout keeps going; recorded routines let you review fixed animation beats. Edit the actions and stats in Studio.',color:'#d4dad8',kind:'scene'},
@@ -35,6 +37,7 @@ const shot=(id,name,set,actors,duration=4,view=camera())=>({id,name,scene:set,du
 const episode=(id,name,scenes,shots)=>({schemaVersion:1,kind:'episode',id,name,revision:0,fps:24,size:{width:1280,height:720},scenes,shots});
 const parkProps=()=>[rect('sky',400,200,800,500,'#d8e9e5'),rect('grass',400,425,800,110,'#a8c38c'),rect('path',400,415,800,32,'#ded1ac'),rect('tree-trunk',110,230,26,280,'#9b795f'),rect('tree-crown',100,104,165,155,'#89ae83',false,8),rect('tree-leaves',137,114,112,108,'#a1be90',false,30),rect('bench-seat',605,331,225,15,'#ac8c68'),rect('bench-back',605,287,225,60,'#bf9e76'),rect('bench-leg-a',520,368,14,60,'#897662'),rect('bench-leg-b',690,368,14,60,'#897662')];
 export function createDemo(id){
+ if(id==='game-of-catch')return createCatch();
  if(id==='ship-in-a-bottle')return createBottle();
  if(id==='loveseat-stairs')return createLoveseat();
  if(id==='gym-routine')return createGym();

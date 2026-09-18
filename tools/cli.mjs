@@ -8,7 +8,17 @@ import { renderSVG } from '../src/svg.js';
 const [command, filename, ...args] = process.argv.slice(2);
 const read = file => { if (!file || fs.statSync(file).size > 5000000) throw new Error('Expected a JSON file under 5 MB.'); return JSON.parse(fs.readFileSync(file, 'utf8')); };
 try {
-  if (['episode-inspect','episode-validate','episode-preview'].includes(command)) {
+  if(command?.startsWith('agent-')){
+    const {createAgentService}=await import('./agent-service.mjs'),service=await createAgentService(process.cwd());let result;
+    if(command==='agent-inspect')result=await service.inspect({file:filename});
+    else if(command==='agent-validate')result=await service.validate({file:filename,proposal:args[0]});
+    else if(command==='agent-propose')result=await service.propose({...read(args[0]),file:filename,output:args[1]});
+    else if(command==='agent-apply')result=await service.apply({file:filename,proposal:args[0],output:args[1]});
+    else if(command==='agent-simulate')result=await service.simulate({...read(args[0]),file:filename,proposal:args[1]});
+    else if(command==='agent-preview')result=await service.preview({file:filename,output:args[0],time:Number(args[1]||0),format:args[0]?.toLowerCase().endsWith('.png')?'png':'svg',proposal:args[2]});
+    else throw Error('Unknown agent command.');console.log(JSON.stringify(result,null,2));if(result.valid===false)process.exitCode=1;
+  }
+  else if (['episode-inspect','episode-validate','episode-preview'].includes(command)) {
     if(!filename||fs.statSync(filename).size>20000000)throw new Error('Expected an episode under 20 MB.');
     const project=assertEpisode(JSON.parse(fs.readFileSync(filename,'utf8')));
     if(command==='episode-inspect')console.log(JSON.stringify({id:project.id,revision:project.revision,fps:project.fps,size:project.size,duration:episodeDuration(project),scenes:Object.keys(project.scenes),shots:project.shots},null,2));
@@ -27,7 +37,7 @@ try {
         const request=read(args[0]); const result=store.transact(request.commands,request.expectedRevision);
         if(!Number.isSafeInteger(request.expectedRevision)) throw new Error('edit requires expectedRevision.');
         if(!args[1]) throw new Error('Supply a separate output JSON path.');
-        fs.writeFileSync(args[1],JSON.stringify(result,null,2)+'\n'); console.log(JSON.stringify({revision:result.revision,output:args[1]}));
+        fs.writeFileSync(args[1],JSON.stringify(result,null,2)+'\n',{flag:'wx'}); console.log(JSON.stringify({revision:result.revision,output:args[1]}));
       }
       if(command === 'preview') {
         const runtime = new SceneController(doc); const time=Number(args[1] || 0); runtime.seek(time);
@@ -43,5 +53,5 @@ try {
         console.log(JSON.stringify({engineVersion:'0.1.0',schemaVersion:doc.schemaVersion,revision:doc.revision,seed:0,fixedStep:STEP,frame:runtime.frame(),events},null,2));
       }
     }
-  } else console.log('Posecraft CLI\n  capabilities\n  inspect scene.json\n  validate scene.json\n  edit scene.json transaction.json output.json\n  preview scene.json output.svg [seconds]\n  simulate scene.json scenario.json\n  episode-validate episode.json\n  episode-inspect episode.json\n  episode-preview episode.json output.svg [seconds]');
+  } else console.log('Posecraft CLI\n  capabilities\n  inspect scene.json\n  validate scene.json\n  edit scene.json transaction.json output.json\n  preview scene.json output.svg [seconds]\n  simulate scene.json scenario.json\n  agent-inspect scene.json\n  agent-validate scene.json [proposal.json]\n  agent-propose scene.json request.json proposal.json\n  agent-apply scene.json proposal.json output.json\n  agent-simulate scene.json scenario.json [proposal.json]\n  agent-preview scene.json output.svg|png [seconds] [proposal.json]\n  episode-validate episode.json\n  episode-inspect episode.json\n  episode-preview episode.json output.svg [seconds]');
 } catch(error) { console.error(JSON.stringify({error:error.message,diagnostics:error.diagnostics})); process.exitCode=1; }

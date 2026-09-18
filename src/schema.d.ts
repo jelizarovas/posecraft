@@ -1,3 +1,11 @@
+import type {ActorBehavior} from './actor-behaviors.js';
+import type {ScrollConfig} from './scroll-bindings.js';
+import type {MotionLayer} from './motion-layers.js';
+export type {MotionLayer} from './motion-layers.js';
+import type {SceneObject,ObjectPhysics} from './scene-objects.js';
+import type {PropGame} from './prop-games.js';
+export type {SceneObject,ObjectOwner,ObjectCommand,ObjectPhysics} from './scene-objects.js';
+export type {PropGame,CatchParticipant} from './prop-games.js';
 import type {BottleFluidConfig} from './bottle-fluid.js';
 export type {BottleFluidConfig,FluidCommand} from './bottle-fluid.js';
 import type {BehaviorGraph} from './behaviors.js';
@@ -26,7 +34,7 @@ export interface SceneEmitter {id:string;name:string;type:'flame'|'smoke'|'ember
 export interface SceneContact {id:string;name:string;enabled:boolean;actor:string;chain:{upper:string;lower:string;end:string};target:{type:'point';x:number;y:number}|{type:'joint';actor:string;joint:string;offsetX?:number;offsetY?:number};bend:1|-1;weight:number;start:number;end:number;period?:number;clip?:string;keepOrientation?:boolean}
 export interface PointerBinding {id:string;actor:string;joint?:string;part?:string;gesture:'click'|'drag'|'hover-fast';response:'event'|'carry'|'resist';event:string;resistance:number;threshold?:number}
 export interface PointerCommand {binding:string;phase:'start'|'move'|'end'|'cancel'|'click'|'hover';x:number;y:number}
-export interface SceneDocument {poseBindings?:PoseBinding[];fluid?:BottleFluidConfig;interactions?:PointerBinding[];presentation?:'live'|'sequence';behaviorGraph?:BehaviorGraph;contacts?:SceneContact[];groups?:SceneGroup[];emitters?:SceneEmitter[];ensemble?:{type:'campfire';seed:number;members:string[];sky:string}; lighting?:SceneLighting; schemaVersion:1;kind:'scene';id:string;name:string;revision:number;bounds:{width:number;height:number};requiredFeatures?:string[];packs:Record<string,CharacterPack>;actors:Actor[];props?:SceneProp[] }
-export const capabilities: {schemaVersion:1;renderer:string;features:readonly string[];unavailable:readonly string[]};
+export interface SceneDocument {actorBehaviors?:ActorBehavior[];renderer?:'svg'|'canvas';scroll?:ScrollConfig;motionLayers?:MotionLayer[];objects?:SceneObject[];objectPhysics?:ObjectPhysics;objectGames?:PropGame[];poseBindings?:PoseBinding[];fluid?:BottleFluidConfig;interactions?:PointerBinding[];presentation?:'live'|'sequence';behaviorGraph?:BehaviorGraph;contacts?:SceneContact[];groups?:SceneGroup[];emitters?:SceneEmitter[];ensemble?:{type:'campfire';seed:number;members:string[];sky:string}; lighting?:SceneLighting; schemaVersion:1;kind:'scene';id:string;name:string;revision:number;bounds:{width:number;height:number};requiredFeatures?:string[];packs:Record<string,CharacterPack>;actors:Actor[];props?:SceneProp[] }
+export const capabilities: {schemaVersion:1;renderer:string;renderers:readonly ('svg'|'canvas')[];features:readonly string[];unavailable:readonly string[]};
 export function validateDocument(doc:unknown):{valid:boolean;errors:{path:string;message:string}[]};
 export function assertDocument(doc:unknown):SceneDocument;

@@ -13,6 +13,16 @@ export class LiquidWaves {
  constructor(){this.reset();}
  reset(){this.heights=new Float64Array(33);this.velocities=new Float64Array(33);this.next=new Float64Array(33);this.drops=[];this.serial=0;this.spawn=0;this.energy=0;}
  impulse(strength){for(let i=0;i<this.velocities.length;i++)this.velocities[i]=clamp(this.velocities[i]+strength*(.15*Math.cos(i/32*Math.PI)+1.8*Math.sin(i/32*Math.PI*4)),-85,85);}
+ /** Local exchange with a moving hull. The compensating mean keeps the bounded
+  * wave chain from accumulating a bulk translation; volume is solved separately. */
+ react(position,impulse){
+  if(!Number.isFinite(position)||!Number.isFinite(impulse)||Math.abs(impulse)<1e-8)return;
+  const center=clamp(position,0,1)*(this.velocities.length-1),strength=clamp(impulse,-2,2);let total=0;
+  for(let i=0;i<this.velocities.length;i++){const weight=Math.max(0,1-Math.abs(i-center)/2);this.next[i]=weight;total+=weight;}
+  if(!total)return;const mean=strength/this.velocities.length;
+  for(let i=0;i<this.velocities.length;i++)this.velocities[i]=clamp(this.velocities[i]+strength*this.next[i]/total-mean,-85,85);
+ }
+ velocityAt(position){const f=clamp(position,0,1)*(this.velocities.length-1),i=Math.min(this.velocities.length-2,Math.floor(f));return this.velocities[i]+(this.velocities[i+1]-this.velocities[i])*(f-i);}
  tick(dt,{force,turn,damping}){
   const h=this.heights,v=this.velocities,next=this.next,drive=clamp(force*.04+turn*1.1,-70,70);
   for(let i=0;i<h.length;i++){const left=h[Math.max(0,i-1)],right=h[Math.min(h.length-1,i+1)],u=i/(h.length-1);next[i]=clamp(v[i]+((left+right-2*h[i])*155-h[i]*2.4-v[i]*(1.2+damping*1.7)+drive*(.15*Math.cos(u*Math.PI)+1.4*Math.sin(u*4*Math.PI)+.25*Math.cos(u*7*Math.PI)))*dt,-85,85);}

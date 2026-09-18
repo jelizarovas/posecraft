@@ -21,19 +21,24 @@ export function removeSceneEntity(document,kind,id){
  const field={actor:'actors',prop:'props',emitter:'emitters'}[kind];if(!field)throw new Error('Unknown scene item.');
  const next=structuredClone(document);if(!next[field]?.some(n=>n.id===id))throw new Error('Missing scene item.');next[field]=next[field].filter(n=>n.id!==id);
  if(kind==='actor'){
+  if(next.motionLayers)next.motionLayers=next.motionLayers.filter(l=>l.actor!==id);
+  if(next.scroll){if(next.scroll.clips)next.scroll.clips=next.scroll.clips.filter(c=>c.actor!==id);if(next.scroll.bindings)next.scroll.bindings=next.scroll.bindings.filter(b=>b.target.actor!==id);}
+  if(next.actorBehaviors)next.actorBehaviors=next.actorBehaviors.filter(g=>g.actor!==id);
+  if(next.objectGames)next.objectGames=next.objectGames.filter(g=>!g.participants.some(p=>p.actor===id));
+  for(const object of next.objects||[])if(object.owner?.actor===id)delete object.owner;
   if(next.fluid&&(next.fluid.vessel===id||next.fluid.contents===id)){delete next.fluid;if(next.requiredFeatures)next.requiredFeatures=next.requiredFeatures.filter(feature=>feature!=='bottle-fluid');}
   if(next.poseBindings)next.poseBindings=next.poseBindings.filter(b=>b.actor!==id);
   if(next.interactions)next.interactions=next.interactions.filter(b=>b.actor!==id);
   if(next.contacts)next.contacts=next.contacts.filter(c=>c.actor!==id&&!(c.target.type==='joint'&&c.target.actor===id));
   if(next.emitters)next.emitters=next.emitters.filter(e=>e.actor!==id);
-  if(next.ensemble&&(next.ensemble.sky===id||next.ensemble.members.includes(id)))delete next.ensemble;
+  if(next.ensemble&&(next.ensemble.sky===id||next.ensemble.members.includes(id))){delete next.ensemble;if(next.actorBehaviors)next.actorBehaviors=next.actorBehaviors.filter(s=>![...(s.sensors||[]),...(s.outputs||[])].some(b=>b.source.startsWith('campfire.')));}
  }
- if(next.behaviorGraph){
-  if(kind==='actor'&&next.behaviorGraph.activities)for(const [key,activity]of Object.entries(next.behaviorGraph.activities))if(activity.actor===id)delete next.behaviorGraph.activities[key];
-  const keep=action=>!(action.type==='perform'&&!next.behaviorGraph.activities?.[action.activity])&&!(action.actor&&action.actor!=='$actor'&&!next.actors.some(a=>a.id===action.actor))&&!(action.type==='emitter'&&!next.emitters?.some(e=>e.id===action.emitter))&&!(action.type==='ensemble'&&!next.ensemble)&&!(action.type==='input'&&action.actor==='$actor'&&!next.actors.some(a=>validBehaviorInput(next,a.id,action.input,action.value)));
-  for(const state of Object.values(next.behaviorGraph.states))state.actions=state.actions.filter(keep);
-  for(const handler of next.behaviorGraph.handlers||[])handler.actions=handler.actions.filter(keep);
-  for(const activity of Object.values(next.behaviorGraph.activities||{})){for(const key of ['onStart','onSuccess','onFailure'])activity[key]=(activity[key]||[]).filter(keep);for(const variant of [...activity.variants,...activity.failureVariants||[]])if(variant.onSuccess)variant.onSuccess=variant.onSuccess.filter(keep);}
+ for(const graph of [next.behaviorGraph,...(next.actorBehaviors||[]).map(s=>s.graph)].filter(Boolean)){
+  if(kind==='actor'&&graph.activities)for(const [key,activity]of Object.entries(graph.activities))if(activity.actor===id)delete graph.activities[key];
+  const keep=action=>!(action.type==='object'&&(action.command.actor===id||action.command.from===id))&&!(action.type==='perform'&&!graph.activities?.[action.activity])&&!(action.actor&&action.actor!=='$actor'&&!next.actors.some(a=>a.id===action.actor))&&!(action.type==='emitter'&&!next.emitters?.some(e=>e.id===action.emitter))&&!(action.type==='ensemble'&&!next.ensemble)&&!(action.type==='input'&&action.actor==='$actor'&&!next.actors.some(a=>validBehaviorInput(next,a.id,action.input,action.value)));
+  for(const state of Object.values(graph.states))state.actions=state.actions.filter(keep);
+  for(const handler of graph.handlers||[])handler.actions=handler.actions.filter(keep);
+  for(const activity of Object.values(graph.activities||{})){for(const key of ['onStart','onSuccess','onFailure'])activity[key]=(activity[key]||[]).filter(keep);for(const variant of [...activity.variants,...activity.failureVariants||[]])if(variant.onSuccess)variant.onSuccess=variant.onSuccess.filter(keep);}
  }
  if(next.lighting?.emitter&&!next.emitters?.some(e=>e.id===next.lighting.emitter)){delete next.lighting.emitter;next.lighting.enabled=false;}
  return next;

@@ -1,3 +1,4 @@
+import {ActorBehaviorRuntime} from '../src/actor-behaviors.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -27,7 +28,7 @@ test('actor removal cleans recipes and all perform references without mutating s
 });
 test('explicit activities take priority over ensemble poses in both runtimes',()=>{
  const d=createCampfire();d.behaviorGraph.activities={greet:{actor:'camper-0',variants:[{id:'wave',clip:'wave',weight:1,speed:{min:1,max:1}}],success:{base:1,modifiers:[]},onStart:[],onSuccess:[],onFailure:[]}};d.behaviorGraph.states[d.behaviorGraph.initial].actions.push({type:'perform',activity:'greet'});
- for(const c of [new SceneController(d),new IllustrationController(d,{behaviorFactory:BehaviorRuntime,ensembleFactory:CampfireEnsemble,pointerFactory:ScenePointerInteraction})]){for(let i=0;i<6;i++)c.step(.1);const frame=c.frame().actors.find(a=>a.id==='camper-0');assert.equal(frame.activity,'greet');assert.equal(frame.clip,'wave');const graph=c.graph||c.behaviors;assert.equal(frame.pose['rightArm.rotation'],graph.actionPose('camper-0').pose['rightArm.rotation']);c.dispose();}
+ for(const c of [new SceneController(d),new IllustrationController(d,{behaviorFactory:BehaviorRuntime,actorBehaviorFactory:ActorBehaviorRuntime,ensembleFactory:CampfireEnsemble,pointerFactory:ScenePointerInteraction})]){for(let i=0;i<6;i++)c.step(.1);const frame=c.frame().actors.find(a=>a.id==='camper-0');assert.equal(frame.activity,'greet');assert.equal(frame.clip,'wave');const graph=c.graph||c.behaviors;assert.equal(frame.pose['rightArm.rotation'],graph.actionPose('camper-0').pose['rightArm.rotation']);c.dispose();}
 });
 test('action website persists definitions and compiles without physical simulation',async()=>{
  const d=actionFixture();assert.ok(inspectSceneFeatures(d).features.includes('action-variations'));assert.match(createSceneExport(d,{local:true}).html,/"failureVariants"/);await fs.mkdir('test-results',{recursive:true});const root=await fs.mkdtemp(path.resolve('test-results/actions-compile-')),manifest=await compileScene(d,path.join(root,'site')),modules=manifest.files.flatMap(f=>f.modules);assert.ok(modules.some(id=>id.endsWith('action-variations.js')));assert.ok(!modules.some(id=>/planck|\/physics\.js|\/scene\.js/.test(id)));d.presentation='sequence';assert.ok(!inspectSceneFeatures(d).features.includes('action-variations'));

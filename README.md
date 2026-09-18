@@ -15,6 +15,9 @@ Open the localhost address printed by Vite. `npm run build` creates the static G
 
 ## What works in 0.1
 
+- [A game of catch](https://jelizarovas.github.io/posecraft/demos.html#game-of-catch): shared ball ownership, catches, misses and retrieval. Author players, grips and skills in Studio.
+- [Character decision graphs](docs/actor-behaviors.md), [motion layers](docs/motion-layers.md), [scroll bindings](docs/scroll.md), [replay checkpoints](docs/checkpoints.md), [optional Canvas rendering](docs/renderers.md), and [agent CLI/MCP tools](docs/agent-authoring.md).
+
 - [Ship in a bottle](https://jelizarovas.github.io/posecraft/demos.html#ship-in-a-bottle), [One more flight](https://jelizarovas.github.io/posecraft/demos.html#loveseat-stairs), and [One more rep](https://jelizarovas.github.io/posecraft/demos.html#gym-routine): editable sailing, coordinated furniture carrying, and alternating pull-up/bench routines. Choose variations, scrub the whole scene, and open the same actors and clips in Studio.
 
 - [Campfire night](https://jelizarovas.github.io/posecraft/demos.html#campfire-night): four Ona looks, responsive sharing and eating, flickering point light, clouds and meteors. Download the editable scene.

@@ -1,19 +1,21 @@
+import {mountScrollBindings,assertScrollConfig} from './scroll-bindings.js';
 import {mountBottleControls} from './bottle-browser.js';
 import {mountScenePointers} from './pointer-browser.js';
 import { SceneController } from './scene.js';
-import { mountSVG } from './svg.js';
+import { mountRenderer } from './render-mount.js';
 import { WorkerSceneController } from './worker.js';
 
-export function mountScene(element, document, { host = element, reducedMotion = 'system', onEvent, onError, motion, label, autoplay = true, execution = 'worker' } = {}) {
+export function mountScene(element, document, { host = element, reducedMotion = 'system', onEvent, onError, motion, label, autoplay = true, execution = 'worker', scroll = document.scroll } = {}) {
+  if(scroll){const {source,...config}=scroll;assertScrollConfig(document,config);if(source!==undefined&&source!==globalThis&&!(source instanceof HTMLElement))throw Error('Scroll source must be a window or scrollable element.');}
   const media = matchMedia('(prefers-reduced-motion: reduce)');
   const Controller=execution==='main'||typeof Worker==='undefined'?SceneController:WorkerSceneController;
   const controller = new Controller(document, { reducedMotion: reducedMotion === 'system' ? media.matches : !!reducedMotion,onError });
-  const renderer = mountSVG(element, document, controller.frame(), { label });
+  const renderer = mountRenderer(element, document, controller.frame(), { label });
   if(controller instanceof WorkerSceneController)controller.onFrame=frame=>renderer.update(frame);
   const unsubscribe = onEvent ? controller.subscribe(onEvent) : () => {};
-  let disposed = false, raf = 0, last = null, visible = true;
+  let disposed = false, raf = 0, last = null, visible = true, scrollBinding;
   const resetClock = () => { last = null; controller.rebaseline(); };
-  const policy = () => { controller.reducedMotion = reducedMotion === 'system' ? media.matches : !!reducedMotion; resetClock(); renderer.update(controller.frame()); schedule(); };
+  const policy = () => { controller.reducedMotion = reducedMotion === 'system' ? media.matches : !!reducedMotion; resetClock(); scrollBinding?.refresh(); renderer.update(controller.frame()); schedule(); };
   const size = new ResizeObserver(entries => { const rect = entries[0].contentRect; controller.size = { width: rect.width, height: rect.height }; resetClock(); }); size.observe(element);
   const observer = new IntersectionObserver(entries => { visible = entries[0].isIntersecting; resetClock(); schedule(); }); observer.observe(element);
   function schedule() { if (!disposed && !raf && visible && !globalThis.document.hidden && controller.playing && !controller.reducedMotion) raf = requestAnimationFrame(tick); }
@@ -27,16 +29,19 @@ export function mountScene(element, document, { host = element, reducedMotion = 
     schedule();
   }
   const visibility = () => { resetClock(); schedule(); };
-  const scroll = () => resetClock();
+  const hostScroll = () => resetClock();
   globalThis.document.addEventListener('visibilitychange', visibility);
-  globalThis.addEventListener('scroll', scroll, true);
+  globalThis.addEventListener('scroll', hostScroll, true);
   media.addEventListener('change', policy);
   if (!autoplay) controller.pause();
-  const pointers=mountScenePointers(element,document,controller,{onInteract:()=>{controller.play();schedule();},onUpdate:()=>renderer.update(controller.frame())});
-  const bottle=mountBottleControls(element,document,controller,{onInteract:()=>{controller.play();schedule();},onUpdate:()=>renderer.update(controller.frame())});
+  const pointers=mountScenePointers(element,document,controller,{onInteract:()=>{if(scroll?.mode!=='authored'){controller.play();schedule();}},onUpdate:()=>renderer.update(controller.frame())});
+  const bottle=mountBottleControls(element,document,controller,{onInteract:()=>{if(scroll?.mode!=='authored'){controller.play();schedule();}},onUpdate:()=>renderer.update(controller.frame())});
+  scrollBinding=scroll?mountScrollBindings(element,document,controller,scroll,{onUpdate:frame=>renderer.update(frame),onError}):null;
   schedule();
   return {
     controller,
+    objectCommand(command){const result=controller.objectCommand(command);renderer.update(controller.frame());return result;},
+    refreshScroll(){scrollBinding?.refresh();},
     enableMotion:()=>bottle.enableMotion(),disableMotion:()=>bottle.disableMotion(),
     fluidInput(command){controller.fluidInput(command);renderer.update(controller.frame());},
     dispatch(event,payload){controller.dispatch(event,payload);renderer.update(controller.frame());},
@@ -46,10 +51,10 @@ export function mountScene(element, document, { host = element, reducedMotion = 
     setBehavior(actor,settings){controller.setBehavior(actor,settings);renderer.update(controller.frame());},
     interact(actor,type,strength){controller.interact(actor,type,strength);renderer.update(controller.frame());},
     setInput(actor, name, value) { controller.setInput(actor, name, value); if (controller.reducedMotion&&controller.tick) controller.tick(); renderer.update(controller.frame()); },
-    play() { controller.play(); resetClock(); schedule(); },
+    play() { if(scroll?.mode==='authored'){scrollBinding?.refresh();return;}controller.play(); resetClock(); schedule(); },
     pause() { controller.pause(); cancelAnimationFrame(raf); raf = 0; },
-    reset() { renderer.update(controller.reset()); resetClock(); },
+    reset() { renderer.update(controller.reset()); resetClock(); scrollBinding?.refresh(); },
     seek(time) { renderer.update(controller.seek(time)); resetClock(); },
-    dispose() { bottle.dispose();pointers.dispose(); disposed = true; cancelAnimationFrame(raf); size.disconnect(); observer.disconnect(); media.removeEventListener('change', policy); globalThis.document.removeEventListener('visibilitychange', visibility); globalThis.removeEventListener('scroll', scroll, true); unsubscribe(); controller.dispose(); renderer.dispose(); }
+    dispose() { scrollBinding?.dispose();bottle.dispose();pointers.dispose(); disposed = true; cancelAnimationFrame(raf); size.disconnect(); observer.disconnect(); media.removeEventListener('change', policy); globalThis.document.removeEventListener('visibilitychange', visibility); globalThis.removeEventListener('scroll', hostScroll, true); unsubscribe(); controller.dispose(); renderer.dispose(); }
   };
 }

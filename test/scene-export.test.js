@@ -1,3 +1,4 @@
+import {ActorBehaviorRuntime} from '../src/actor-behaviors.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -14,7 +15,7 @@ import {ScenePointerInteraction} from '../src/pointer-interactions.js';
 import {createEmitter} from '../src/scene-graph.js';
 import {compileScene} from '../tools/compile-scene.mjs';
 
-const options={ensembleFactory:CampfireEnsemble,behaviorFactory:BehaviorRuntime,contactSolver:applyContacts};
+const options={actorBehaviorFactory:ActorBehaviorRuntime,ensembleFactory:CampfireEnsemble,behaviorFactory:BehaviorRuntime,contactSolver:applyContacts};
 const equivalent=(a,b)=>{assert.equal(a.actors.length,b.actors.length);for(let i=0;i<a.actors.length;i++){assert.equal(a.actors[i].state,b.actors[i].state);for(const key of Object.keys(a.actors[i].pose))assert.ok(Math.abs(a.actors[i].pose[key]-b.actors[i].pose[key])<1e-8,`${a.actors[i].id}.${key} differs`);}};
 
 test('feature inspection uses active motion, not unused physics profiles or pointer resistance',()=>{

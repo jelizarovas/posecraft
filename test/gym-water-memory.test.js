@@ -1,3 +1,4 @@
+import {applyMotionLayers} from '../src/motion-layers.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGym} from '../examples/gym.js';
@@ -35,7 +36,7 @@ test('water breaks choose different destinations from every remembered location 
 });
 
 test('full and illustration playback leave one bottle in its new position during the next action',()=>{
- const doc=waterScene(941,1),controllers=[new SceneController(doc),new IllustrationController(doc,{behaviorFactory:BehaviorRuntime})];
+ const doc=waterScene(941,1),controllers=[new SceneController(doc),new IllustrationController(doc,{behaviorFactory:BehaviorRuntime,motionLayerSolver:applyMotionLayers})];
  try{
   for(const c of controllers){
    let frame;

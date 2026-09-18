@@ -1,3 +1,10 @@
+import {ActorBehaviorRuntime} from './actor-behaviors.js';
+import {actorBehaviorContext,tickActorBehaviors} from './actor-signals.js';
+import {applyMotionLayers} from './motion-layers.js';
+import {ReplayCheckpoints} from './replay-checkpoints.js';
+import {captureIllustrationState,restoreIllustrationState} from './illustration-checkpoint.js';
+import {SceneObjects,validateObjectCommand,objectEventPayload} from './scene-objects.js';
+import {PropGameRuntime} from './prop-games.js';
 import {BottleFluid} from './bottle-fluid.js';
 import {validateFluidCommand} from './bottle-validation.js';
 import {ScenePointerInteraction} from './pointer-interactions.js';
@@ -18,11 +25,13 @@ export function compilePack(pack) {
 }
 
 export class SceneController {
-  constructor(document, { reducedMotion = false } = {}) {
+  constructor(document, { reducedMotion = false, checkpoints } = {}) {
     this.document = structuredClone(assertDocument(document)); this.reducedMotion = reducedMotion;
+    this.checkpoints=new ReplayCheckpoints(checkpoints===false?{enabled:false}:checkpoints);this.checkpointRevision=this.document.revision;
     this.listeners = new Set(); this.log = []; this.playing = true; this.animationPlaying = true; this.reset();
   }
   reset() {
+    if(!this.replaying)this.checkpoints.clear();this.checkpointRevision=this.document.revision;
     this.log = [];
     this.actors = this.document.actors.map(actor => {
       const pack = this.document.packs[actor.pack], runtime = new AnimationController(compilePack(pack));
@@ -30,23 +39,30 @@ export class SceneController {
       runtime.subscribe(event => { if (!this.replaying) for (const fn of this.listeners) fn({ ...event, actor: actor.id }); });
       return { actor, pack, runtime, behavior:behaviorConfig(actor.behavior), response:{state:'calm',until:0}, physics:null,recovery:null,quiet:0, spring: { x: 0, y: 0, vx: 0, vy: 0 } };
     });
+    this.objects=this.document.objects?.length?new SceneObjects(this.document,{onEvent:e=>{if(e.type==='object-impact'&&e.actor)this.actors.find(a=>a.actor.id===e.actor)?.physics?.applyObjectImpulse(e);this.emit(e);this.graph?.dispatch(e.type,objectEventPayload(e));this.actorBehaviors?.dispatch(e.type,objectEventPayload(e));}}):null;
+    this.propGames=this.document.objectGames?.length&&this.objects?new PropGameRuntime(this.document,this.objects,{onEvent:e=>{this.emit(e);this.graph?.dispatch(e.type,objectEventPayload(e));this.actorBehaviors?.dispatch(e.type,objectEventPayload(e));}}):null;
     this.fluid=this.document.fluid?new BottleFluid(this.document):null;
     this.ensemble=this.document.ensemble?new CampfireEnsemble(this.document):null;
     this.time = 0; this.accumulator = 0; this.motion = { ax: 0, ay: 0 }; this.baseline = null;
     this.graph=null;this.graph=this.document.behaviorGraph&&this.document.presentation!=='sequence'?new BehaviorRuntime(this.document,{apply:(action,payload)=>this.applyGraphAction(action,payload)}):null;
+    this.actorBehaviors=this.document.actorBehaviors?.length&&this.document.presentation!=='sequence'?new ActorBehaviorRuntime(this.document,actorBehaviorContext(this)):null;
+    if(this.ensemble)this.ensemble.authoredCooking=new Set((this.actorBehaviors?this.document.actorBehaviors:[]).filter(s=>s.outputs?.some(b=>b.source==='campfire.heat')).map(s=>s.actor));
     this.pointers=new ScenePointerInteraction(this.document,{dispatch:(event,payload)=>this.dispatch(event,payload)});
     for(const a of this.actors)if(a.behavior.autoRecover&&a.behavior.mode!=='floating'&&a.behavior.mode!=='animated'){a.recovery=new RecoveryMotion(this.document,a.actor,a.pack,this.frame().actors.find(f=>f.id===a.actor.id),{walkX:a.actor.transform.x});a.recovery.tick(1);}
     return this.frame();
   }
+  objectCommand(command){if(!this.objects)throw Error('This scene has no shared objects.');const safe=validateObjectCommand(this.document,command),result=this.objects.command(safe,this.frame());if(!this.replaying)this.record({type:'object',command:safe});return result;}
   fluidInput(command){
     if(!this.fluid)throw new Error('This scene has no bottle fluid.');const safe=validateFluidCommand(command);this.frame();this.fluid.command(safe);
     const manualStep=this.replaying?!!this.replayFluidManualStep:this.reducedMotion||!this.playing||!this.animationPlaying;if(manualStep)this.fluid.tick(STEP);
-    if(!this.replaying){const previous=this.log.at(-1);if(['move','motion','wind'].includes(safe.type)&&previous?.type==='fluid'&&previous.time===this.time&&previous.command.type===safe.type&&!manualStep&&!previous.manualStep)previous.command=safe;else this.record({type:'fluid',command:safe,manualStep});}
+    if(!this.replaying){const previous=this.log.at(-1);if(['move','motion','wind'].includes(safe.type)&&previous?.type==='fluid'&&previous.time===this.time&&previous.command.type===safe.type&&!manualStep&&!previous.manualStep){this.checkpoints.invalidateFrom(this.time);previous.command=safe;}else this.record({type:'fluid',command:safe,manualStep});}
     return this.frame();
   }
   pointer(command){this.frame();this.applyingPointer=true;try{this.pointers.input(command);}finally{this.applyingPointer=false;}if(!this.replaying)this.record({type:'pointer',command:{...command}});}
-  applyGraphAction(action,payload){this.applyingGraph=true;try{if(action.type==='input')this.setInput(action.actor,action.input,action.value);else if(action.type==='ensemble')this.triggerEnsemble(action.event,payload);else if(action.type==='emitter')this.ensemble?.setEmitterEnabled?.(action.emitter,action.enabled);}finally{this.applyingGraph=false;}}
-  dispatch(event,payload={}){const safe=validateBehaviorEvent(this.document,event,payload);if(!this.graph)return false;if(!this.replaying)this.record({type:'dispatch',event,payload:safe});const accepted=this.graph.dispatch(event,safe);this.graph.tick(0);return accepted;}
+  applyGraphAction(action,payload){this.applyingGraph=true;try{if(action.type==='object')this.objectCommand(action.command);else if(action.type==='input')this.setInput(action.actor,action.input,action.value);else if(action.type==='ensemble')this.triggerEnsemble(action.event,payload);else if(action.type==='emitter')this.ensemble?.setEmitterEnabled?.(action.emitter,action.enabled);}finally{this.applyingGraph=false;}}
+  dispatch(event,payload={}){const safe=validateBehaviorEvent(this.document,event,payload);if(!this.graph&&!this.actorBehaviors)return false;if(!this.replaying)this.record({type:'dispatch',event,payload:safe});const scoped=this.actorBehaviors?.dispatch(event,safe)||false,accepted=this.graph?.dispatch(event,safe)||false;this.graph?.tick(0);return accepted||scoped;}
+  setActorVariable(actor,name,value){const spec=this.document.actorBehaviors?.find(s=>s.actor===actor);validateBehaviorVariable(spec?.graph,name,value);if(!this.actorBehaviors)return;this.actorBehaviors.setVariable(actor,name,value);this.record({type:'actor-variable',actor,name,value});}
+  dispatchActor(actor,event,payload={}){return this.dispatch(event,{...payload,actor});}
   setVariable(name,value){validateBehaviorVariable(this.document.behaviorGraph,name,value);if(!this.graph)return;if(!this.replaying)this.record({type:'variable',name,value});this.graph.setVariable(name,value);this.graph.tick(0);}
   triggerEnsemble(type,payload={}){payload=validateBehaviorEvent(this.document,type,payload);if(!this.ensemble||!ensembleEvents.includes(type))throw new Error('Unknown ensemble event.');this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));this.ensemble.trigger(type,payload);if(!this.replaying)this.record({type:'ensemble',event:type,payload});}
   subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
@@ -101,13 +117,16 @@ export class SceneController {
     if (!this.replaying&&previous!==value) this.record({ type: 'input', actor: actorId, name, value });
   }
   setAcceleration(ax, ay) {
-    if (![ax, ay].every(Number.isFinite)) throw new Error('Acceleration must be finite CSS pixels/s².');
+    if (![ax, ay].every(Number.isFinite)) throw new Error('Acceleration must be finite CSS pixels/sÂ².');
     const next = { ax: clamp(ax, -6000, 6000), ay: clamp(ay, -6000, 6000) };
     const changed = next.ax !== this.motion.ax || next.ay !== this.motion.ay;
     this.motion = next;
     if (!this.replaying && changed) this.record({ type: 'acceleration', ...this.motion });
   }
+  invalidateCheckpoints(){this.checkpoints.clear();}
+  checkpointStats(){return this.checkpoints.stats();}
   record(event) {
+    if(!this.replaying)this.checkpoints.invalidateFrom(this.time);
     if(this.applyingGraph||this.applyingPointer)return;
     if (this.time > 180) return;
     while (this.log.length && this.log.at(-1).time > this.time) this.log.pop();
@@ -141,9 +160,11 @@ export class SceneController {
   }
   tick() {
     this.time += STEP;
+    if(this.objects&&!this.reducedMotion&&this.animationPlaying){this.objects.tick(STEP,this.frame());this.propGames?.tick(STEP,this.frame());}
     if(this.fluid&&!this.reducedMotion&&this.animationPlaying)this.fluid.tick(STEP);
     if(this.graph&&this.ensemble){this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));if(this.ensemble.drainEvents)for(const {event,...payload} of this.ensemble.drainEvents())this.graph.dispatch(event,payload);}
     this.graph?.tick(this.reducedMotion||!this.animationPlaying?0:STEP);
+    tickActorBehaviors(this,this.reducedMotion||!this.animationPlaying?0:STEP,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated').map(a=>a.actor.id)));
     this.pointers?.step(STEP);
     for (const a of this.actors) {
       const directed=this.graph?.hasActivity(a.actor.id)||this.ensemble&&a.behavior.mode==='animated'&&!a.preview&&(a.actor.unlit||a.runtime.inputs.action==='campfire'&&a.runtime.layers[0].state==='campfire');
@@ -199,19 +220,26 @@ export class SceneController {
     let evaluated=this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
     if(this.fluid)evaluated=this.fluid.apply(evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
     if(this.graph){evaluated.behavior=this.graph.snapshot();evaluated.emitterOverrides={...this.graph.emitterOverrides,...evaluated.emitterOverrides};}
-    const constrained=applyContacts(this.document,this.pointers?.apply(evaluated)||evaluated);return this.graph?.bindFrame(constrained,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))})||constrained;
+    evaluated=applyMotionLayers(this.document,evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
+    if(this.actorBehaviors){evaluated.actorBehaviors=this.actorBehaviors.snapshot();evaluated.emitterOverrides={...evaluated.emitterOverrides,...this.actorBehaviors.emitterOverrides()};}
+    if(this.propGames)evaluated=this.propGames.apply(evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
+    const constrained=applyContacts(this.document,this.pointers?.apply(evaluated)||evaluated),bound=this.graph?.bindFrame(constrained,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))})||constrained;return this.objects?this.objects.apply(bound):bound;
   }
   seek(time) {
-    if (!Number.isFinite(time) || time < 0 || time > 180) throw new Error('Seek range is 0..180 seconds.');
-    const log = this.log.map(e => ({ ...e })), wasPlaying = this.playing, wasAnimating=this.animationPlaying, wasReduced=this.reducedMotion;
-    // Explicit scrubbing samples the requested moment even while playback is paused.
-    this.animationPlaying=true;this.reducedMotion=false;
-    this.replaying = true; this.reset(); let cursor = 0;
+    if(!Number.isFinite(time)||time<0||time>180)throw new Error('Seek range is 0..180 seconds.');
+    const log=structuredClone(this.log),wasPlaying=this.playing,wasAnimating=this.animationPlaying,wasReduced=this.reducedMotion,pool=this.checkpoints;
+    if(this.checkpointRevision!==this.document.revision)pool.clear();pool.syncHistory(log);const checkpoint=pool.enabled?pool.find(time):null;
+    this.animationPlaying=true;this.reducedMotion=false;this.replaying=true;this.reset();let cursor=0,lastCheckpoint=0,replayedTicks=0;
     try {
-      const apply = () => { while (cursor < log.length && log[cursor].time <= this.time + 1e-9) { const e = log[cursor++]; if(e.type==='fluid'){this.replayFluidManualStep=e.manualStep;this.fluidInput(e.command);this.replayFluidManualStep=false;}else if(e.type==='pointer')this.pointer(e.command);else if(e.type==='dispatch')this.dispatch(e.event,e.payload);else if(e.type==='variable')this.setVariable(e.name,e.value);else if(e.type==='ensemble')this.triggerEnsemble(e.event,e.payload);else if (e.type === 'input') this.setInput(e.actor, e.name, e.value); else if(e.type==='behavior')this.setBehavior(e.actor,e.value);else if(e.type==='walk')this.walkTo(e.actor,e.x);else if(e.type==='interaction')this.interact(e.actor,e.interaction,e.strength);else this.setAcceleration(e.ax, e.ay); } };
-      while (this.time + STEP <= time + 1e-9) { apply(); this.tick(); } apply();
-    } finally { this.log = log; this.replaying = false; this.playing = wasPlaying;this.animationPlaying=wasAnimating;this.reducedMotion=wasReduced; }
+      if(checkpoint){restoreIllustrationState(this,checkpoint.state);cursor=checkpoint.cursor;lastCheckpoint=checkpoint.time;}
+      const apply = () => { while (cursor < log.length && log[cursor].time <= this.time + 1e-9) { const e = log[cursor++]; if(e.type==='actor-variable')this.setActorVariable(e.actor,e.name,e.value);else if(e.type==='object')this.objectCommand(e.command);else if(e.type==='fluid'){this.replayFluidManualStep=e.manualStep;this.fluidInput(e.command);this.replayFluidManualStep=false;}else if(e.type==='pointer')this.pointer(e.command);else if(e.type==='dispatch')this.dispatch(e.event,e.payload);else if(e.type==='variable')this.setVariable(e.name,e.value);else if(e.type==='ensemble')this.triggerEnsemble(e.event,e.payload);else if (e.type === 'input') this.setInput(e.actor, e.name, e.value); else if(e.type==='behavior')this.setBehavior(e.actor,e.value);else if(e.type==='walk')this.walkTo(e.actor,e.x);else if(e.type==='interaction')this.interact(e.actor,e.interaction,e.strength);else this.setAcceleration(e.ax, e.ay); } };
+      while(this.time+STEP<=time+1e-9){apply();this.tick();replayedTicks++;if(pool.enabled&&this.time-lastCheckpoint>=pool.interval-1e-9){
+        // Planck bodies require solver/contact snapshots; never cache transforms alone.
+        if(this.actors.every(a=>a.behavior.mode==='animated'&&!a.physics&&!a.recovery)){try{pool.store(this.time,cursor,captureIllustrationState(this));}catch(error){pool.reason=error.message;}}else pool.reason='Physical solver states replay from the last animated checkpoint or zero.';
+        lastCheckpoint=this.time;
+      }}apply();
+    }finally{this.log=log;this.replaying=false;this.playing=wasPlaying;this.animationPlaying=wasAnimating;this.reducedMotion=wasReduced;pool.replayedTicks=replayedTicks;}
     return this.frame();
   }
-  dispose() { this.pause(); this.listeners.clear(); }
+  dispose() { this.pause(); this.listeners.clear(); this.checkpoints.clear(); }
 }

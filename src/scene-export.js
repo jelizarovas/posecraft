@@ -4,7 +4,12 @@ import {assertDocument} from './schema.js';
 export function inspectSceneFeatures(document) {
   const scene=assertDocument(document),packs=scene.actors.map(actor=>scene.packs[actor.pack]);
   const physical=scene.actors.filter(actor=>(actor.behavior?.mode||'animated')!=='animated');
-  const features=['clips','svg'];
+  const features=['clips',scene.renderer||'svg'];
+  if(scene.actorBehaviors?.length)features.push('actor-behaviors');
+  if(scene.motionLayers?.length)features.push('motion-layers');
+  if(scene.scroll)features.push('scroll-bindings');
+  if(scene.objects?.length)features.push('scene-objects');
+  if(scene.objectGames?.length)features.push('prop-games');
   if(packs.some(pack=>pack.spatial))features.push('spatial');
   if(scene.actors.some(actor=>actor.depth)||(scene.props||[]).some(prop=>prop.depth)||packs.some(pack=>pack.parts.some(part=>part.spatial?.sceneDepth)))features.push('scene-depth');
   if(packs.some(pack=>pack.parts.some(part=>part.spatial?.surfaceOf)))features.push('surface-decals');

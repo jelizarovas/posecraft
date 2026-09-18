@@ -2,6 +2,7 @@ import {sampleEmitters} from './emitters.js';
 import {nodeVisible} from './scene-graph.js';
 import {surfaceStopValues,sampleLighting,partLighting,actorAnchor,wallProjection,lightingConfig,surfaceStops,surfaceRamp,surfaceFocus,shadowProjection,contactShadow,lightingDefinitions} from './lighting.js';
 import {spatialParts} from './spatial.js';
+import {appearance,evaluateActorDrawing,evaluatedObjects} from './render-shared.js';
 import {sceneDepth,sortSceneDepth,scenePartGroups} from './scene-depth.js';
 let spatialInstance=0;
 import { assertDocument } from './schema.js';
@@ -9,10 +10,10 @@ const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', 
 const transform = w => `translate(${w.x} ${w.y}) rotate(${w.rotation})`;
 const spatialBone=j=>`matrix(${j.m[0]} ${j.m[3]} ${j.m[1]} ${j.m[4]} ${j.x} ${j.y})`;
 const placement = t => `${transform(t)} scale(${t.scale})`;
-const fragmentList=(pack,spatial)=>spatial?.fragmentOrder?spatial.fragmentOrder.map(id=>({id,view:spatial.fragments.get(id),part:pack.parts[spatial.fragments.get(id).index]})):(spatial?.order||pack.parts.map(p=>p.id)).map(id=>({id,view:spatial?.parts.get(id),part:pack.parts.find(p=>p.id===id)}));
 const meshGradient=(b,f)=>`gradientUnits="userSpaceOnUse" cx="${b.minX+(b.maxX-b.minX)*f.cx}" cy="${b.minY+(b.maxY-b.minY)*f.cy}" r="${Math.max(b.maxX-b.minX,b.maxY-b.minY)*.85}"`;
 const orderChildren=(parent,nodes)=>{let next=parent.firstElementChild;for(const node of nodes){if(node===next)next=next.nextElementSibling;else parent.insertBefore(node,next);}};
 const sameDepth=(a,b)=>a!==null&&b!==null&&Math.abs(a-b)<.001;
+const objectSVG=object=>`<g data-scene-unit="object:${object.id}" data-object="${object.id}" transform="${transform(object)}" display="${object.visible?'inline':'none'}"><title>${escape(object.name||object.id)}</title>${object.shape==='circle'?`<circle r="${object.radius}"`: `<rect x="${-object.width/2}" y="${-object.height/2}" width="${object.width}" height="${object.height}" rx="2"`} fill="${escape(object.fill)}" stroke="#454451" stroke-width="1.5"/></g>`;
 const fluidDescendants=new WeakMap();
 function fluidEffects(document,frame,actor,prefix){
  const config=document.fluid;if(config?.contents!==actor.id)return '';
@@ -29,11 +30,6 @@ function fluidView(frame,actor,pack,spatial){
 function cameraTransform(c,bounds){
  if(![c.x,c.y,c.rotation,c.zoom,c.width,c.height].every(Number.isFinite)||c.zoom<=0||c.width<=0||c.height<=0)throw new Error('Invalid camera.');
  return `translate(${c.width/2} ${c.height/2}) scale(${c.width/bounds.width*c.zoom}) rotate(${-c.rotation}) translate(${-c.x} ${-c.y})`;
-}
-function appearance(part, actor, evaluated, pack, spatial) {
-  const variant = part.variants?.[evaluated.inputs?.[part.variantInput]] || {};
-  const host=part.spatial?.surfaceOf&&pack?.parts.find(p=>p.id===part.spatial.surfaceOf),hostPaint=host?appearance(host,actor,evaluated):null,hostView=host&&spatial?.parts.get(host.id);
-  return { d: variant.d || part.d, fill: actor.appearance?.[part.channel] || part.fill, transform: `${variant.transform || ''} ${part.transform || ''}`.trim(), visible: variant.visible !== false && (!part.showWhen || evaluated.inputs?.[part.showWhen.input] === part.showWhen.equals)&&(!host||hostPaint.visible&&hostView?.visible!==false),opacity:host?(host.opacityChannel&&host.opacityChannel!==part.opacityChannel?(evaluated.pose[host.opacityChannel]??1):1)*(hostView?.opacity??1):1 };
 }
 function limitArc(joint, rotation) {
   const r = 18, angle = deg => deg * Math.PI / 180;
@@ -63,7 +59,7 @@ export function renderSVG(document, frame, { label = document.name, bones = fals
   const renderActor=actor=>{
     const pack = document.packs[actor.pack], evaluated = frame.actors.find(a => a.id === actor.id);
     if (!evaluated) throw new Error(`Missing evaluated actor ${actor.id}`);
-    const spatial=spatialParts(pack,evaluated),fragments=fragmentList(pack,spatial),depth=sceneDepth(actor.depth,actor,evaluated,spatial),groups=scenePartGroups(pack);actorDepths.set(actor.id,depth);
+    const {spatial,fragments}=evaluateActorDrawing(pack,actor,evaluated),depth=sceneDepth(actor.depth,actor,evaluated,spatial),groups=scenePartGroups(pack);actorDepths.set(actor.id,depth);
     const fluid=fluidView(frame,actor,pack,spatial);
     const masks=spatial?[...new Set(pack.parts.map(p=>p.spatial?.mask).filter(Boolean))]:[];
     const gradients=light.enabled&&!actor.unlit?pack.parts.map(part=>{const paint=appearance(part,actor,evaluated),surfaceLight=partLighting(light,actor,evaluated,part,spatial),ramp=surfaceRamp(paint.fill,surfaceLight);if(!ramp)return '';const focus=surfaceFocus(surfaceLight,(evaluated.placement||actor.transform).rotation,`${spatial?.parts.get(part.id).transform||transform(evaluated.world[part.joint])} ${paint.transform}`);return `<radialGradient data-surface="${part.id}" data-shading="${light.shading}" id="${prefix}-${actor.id}-${part.id}-surface" ${spatial?.parts.get(part.id).mesh?meshGradient(spatial.parts.get(part.id).mesh.bounds,focus):`cx="${focus.cx}" cy="${focus.cy}" r=".85"`}>${surfaceStops(ramp,surfaceLight)}</radialGradient>`;}).join(''):'';
@@ -81,15 +77,16 @@ export function renderSVG(document, frame, { label = document.name, bones = fals
 
   };
   const actorMarkup=new Map(document.actors.map(actor=>[actor.id,renderActor(actor)]));
-  const renderLayer=layer=>{const entries=[];for(const actor of document.actors.filter(a=>(a.layer||'characters')===layer)){entries.push({depth:actorDepths.get(actor.id),markup:`<g data-scene-unit="actor:${actor.id}">${actorMarkup.get(actor.id)}${emitterSamples.filter(s=>s.emitter.actor===actor.id).map(s=>emitterSVG(document,frame,s)).join('')}</g>`},...attachments.get(actor.id));}for(const prop of (document.props||[]).filter(p=>(p.layer||'background')===layer))entries.push({depth:prop.depth?.value??null,markup:`<g data-scene-unit="prop:${prop.id}">${renderProp(prop)}</g>`});return `<g data-scene-layer="${layer}">${sortSceneDepth(entries).map(e=>e.markup).join('')}${emitterSamples.filter(s=>!s.emitter.actor&&(s.emitter.layer||'characters')===layer).map(s=>emitterSVG(document,frame,s)).join('')}</g>`;};
+  const renderLayer=layer=>{const entries=[];for(const actor of document.actors.filter(a=>(a.layer||'characters')===layer)){entries.push({depth:actorDepths.get(actor.id),markup:`<g data-scene-unit="actor:${actor.id}">${actorMarkup.get(actor.id)}${emitterSamples.filter(s=>s.emitter.actor===actor.id).map(s=>emitterSVG(document,frame,s)).join('')}</g>`},...attachments.get(actor.id));}for(const prop of (document.props||[]).filter(p=>(p.layer||'background')===layer))entries.push({depth:prop.depth?.value??null,markup:`<g data-scene-unit="prop:${prop.id}">${renderProp(prop)}</g>`});if(layer==='characters')for(const object of evaluatedObjects(document,frame))entries.push({depth:object.depth??object.y,markup:objectSVG(object)});return `<g data-scene-layer="${layer}">${sortSceneDepth(entries).map(e=>e.markup).join('')}${emitterSamples.filter(s=>!s.emitter.actor&&(s.emitter.layer||'characters')===layer).map(s=>emitterSVG(document,frame,s)).join('')}</g>`;};
   return `<svg data-scene-time="${frame.time}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${camera?.width||document.bounds.width} ${camera?.height||document.bounds.height}" role="img" aria-label="${escape(label)}" width="100%" height="100%">${camera?`<g data-camera="" transform="${cameraTransform(camera,document.bounds)}">`:''}${lightingDefinitions(light,document.bounds,prefix)}${renderLayer('background')}${effects}${renderLayer('characters')}${renderLayer('foreground')}${light.enabled&&light.type==='point'&&(light.showSource||light.emitter&&document.lighting?.showSource)?`<g visibility="${light.showSource?'visible':'hidden'}" data-light-source="" transform="translate(${light.pointX} ${light.pointY})" pointer-events="none"><circle r="10" fill="${light.color}" stroke="#fff"/><circle r="18" fill="none" stroke="${light.color}" stroke-dasharray="2 4"/></g>`:''}${physicsDebug?`<g data-physics-debug="" pointer-events="none">${physicsOverlay(frame,document)}</g>`:''}${camera?'</g>':''}</svg>`;
 }
 export function mountSVG(element, document, frame, options) {
   element.innerHTML = renderSVG(document, frame, options);
   let previous;const baseLight=lightingConfig(document,frame);
   const emitterBindings=new Map((document.emitters||[]).map(e=>{const node=element.querySelector(`[data-emitter="${e.id}"]`);return [e.id,{node,particles:node?[...node.querySelectorAll('[data-particle]')]:[]}];}));
-  const layerBindings=[...element.querySelectorAll('[data-scene-layer]')].map(node=>{const layer=node.dataset.sceneLayer,keys=document.actors.filter(a=>(a.layer||'characters')===layer).flatMap(a=>['actor:'+a.id,...scenePartGroups(document.packs[a.pack]).map(g=>`part:${a.id}:${g.id}`)]).concat((document.props||[]).filter(p=>(p.layer||'background')===layer).map(p=>'prop:'+p.id)),nodes=new Map([...node.children].filter(n=>n.dataset.sceneUnit).map(n=>[n.dataset.sceneUnit,n]));return {node,units:new Map(keys.map(key=>[key,nodes.get(key)]))};});
+  const layerBindings=[...element.querySelectorAll('[data-scene-layer]')].map(node=>{const layer=node.dataset.sceneLayer,keys=document.actors.filter(a=>(a.layer||'characters')===layer).flatMap(a=>['actor:'+a.id,...scenePartGroups(document.packs[a.pack]).map(g=>`part:${a.id}:${g.id}`)]).concat((document.props||[]).filter(p=>(p.layer||'background')===layer).map(p=>'prop:'+p.id),layer==='characters'?(document.objects||[]).map(p=>'object:'+p.id):[]),nodes=new Map([...node.children].filter(n=>n.dataset.sceneUnit).map(n=>[n.dataset.sceneUnit,n]));return {node,units:new Map(keys.map(key=>[key,nodes.get(key)]))};});
   const propBindings=(document.props||[]).map(p=>({prop:p,node:element.querySelector(`[data-prop="${p.id}"]`)}));
+  const objectBindings=new Map((document.objects||[]).map(p=>[p.id,element.querySelector(`[data-object="${p.id}"]`)]));
   const attribute=(node,key,value)=>{if(node.getAttribute(key)!==String(value))node.setAttribute(key,value);};
   const bindings = document.actors.map(actor => {
     const root = element.querySelector(`[data-actor="${actor.id}"]`),effects=element.querySelector(`[data-light-effects="${actor.id}"]`);
@@ -103,6 +100,7 @@ export function mountSVG(element, document, frame, options) {
       for(const {prop,node} of propBindings){attribute(node,'visibility',nodeVisible(document,prop)?'visible':'hidden');attribute(node,'display',nodeVisible(document,prop)?'inline':'none');}
       if(next.camera){const node=element.querySelector('[data-camera]');if(node)attribute(node,'transform',cameraTransform(next.camera,document.bounds));}
       const depths=new Map(propBindings.map(({prop})=>['prop:'+prop.id,prop.depth?.value??null]));
+      for(const object of evaluatedObjects(document,next)){const node=objectBindings.get(object.id);if(!node)continue;depths.set('object:'+object.id,object.depth??object.y);attribute(node,'transform',transform(object));attribute(node,'display',object.visible?'inline':'none');const shape=node.lastElementChild;attribute(shape,'fill',object.fill);if(object.shape==='circle')attribute(shape,'r',object.radius);else for(const [key,value]of Object.entries({x:-object.width/2,y:-object.height/2,width:object.width,height:object.height}))attribute(shape,key,value);}
       for (const b of bindings) {
         const visible=nodeVisible(document,b.actor);attribute(b.root,'visibility',visible?'visible':'hidden');attribute(b.root,'display',visible?'inline':'none');if(b.effects){attribute(b.effects,'visibility',visible?'visible':'hidden');attribute(b.effects,'display',visible?'inline':'none');}
         const evaluated = next.actors.find(a => a.id === b.actor.id),pack=document.packs[b.actor.pack],spatial=spatialParts(pack,evaluated),fluid=fluidView(next,b.actor,pack,spatial);
