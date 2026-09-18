@@ -16,16 +16,22 @@ try{
  await page.locator('[data-section=bench]').click();
  await edit('bench-position-0',.3);await edit('bench-position-2',-.25);await edit('bench-yaw',35);
  await page.locator('[data-view=three]').click();await idle();
+ const reports=[];for(const asset of ['athlete','regular']){
+ await page.locator('[data-section=character]').click();await page.locator('#character-asset').selectOption(asset);await idle();
  const initial=await snapshot(),samples=[];
+ assert.equal(initial.project.character.asset,asset);
+ assert.ok(initial.beats.length>0);
+ const phaseIds=initial.beats.map(b=>b.id);for(const id of ['scoot-back','sit-up','scoot-forward','stand'])assert.ok(phaseIds.includes(id),'missing authored phase '+id);
  for(const beat of initial.beats){
   const time=Number(((beat.start+beat.end)/2).toFixed(2));
   await page.locator('#time').fill(String(time));await page.locator('#time').dispatchEvent('input');
   await page.waitForFunction(t=>Math.abs(posecraftNativeStudio.snapshot().time-t)<.015&&Math.abs(posecraftNativeStudio.snapshot().frame.time-t)<.015,time);
   const state=await snapshot();assert.ok(state.frame);assert.equal(state.frame.valid,true,beat.id+' has unreachable constraints');
   for(const diagnostic of state.frame.diagnostics){assert.ok(diagnostic.error<.003,`${beat.id} ${diagnostic.id} misses contact`);assert.equal(diagnostic.maxStretch,1);}
-  samples.push({time,phase:state.frame.phase,world:state.frame.world,bar:state.frame.bar});
-  await page.screenshot({path:`test-results/native-motion-${beat.id}.png`});
+  samples.push({id:beat.id,time,phase:state.frame.phase,world:state.frame.world,bar:state.frame.bar});
+  await page.screenshot({path:`test-results/native-motion-${asset}-${beat.id}.png`});
  }
+ for(const camera of ['front','side']){await page.locator('[data-view='+camera+']').click();await idle();for(const sample of samples){await page.locator('#time').fill(String(sample.time));await page.locator('#time').dispatchEvent('input');await page.waitForFunction(t=>Math.abs(posecraftNativeStudio.snapshot().frame.time-t)<.015,sample.time);assert.deepEqual((await snapshot()).frame.world,sample.world,'camera altered '+sample.phase);await page.locator('#native-canvas').screenshot({path:`test-results/native-motion-${asset}-${camera}-${sample.id}.png`});}}
  const cameraBefore=(await snapshot()).frame;
  await page.locator('[data-view=side]').click();await idle();
  const cameraAfter=(await snapshot()).frame;assert.deepEqual(cameraAfter.world,cameraBefore.world,'camera changed skeleton');assert.deepEqual(cameraAfter.bar,cameraBefore.bar,'camera changed bar');
@@ -33,7 +39,7 @@ try{
  await page.locator('#time').fill(String(reviewTime));await page.locator('#time').dispatchEvent('input');await page.waitForFunction(t=>Math.abs(posecraftNativeStudio.snapshot().time-t)<.015&&Math.abs(posecraftNativeStudio.snapshot().frame.time-t)<.015,reviewTime);
  const beforeExport=await snapshot();
  const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;
- const html=await fs.readFile(await download.path(),'utf8');await fs.writeFile('test-results/native-export.html',html);
+ const html=await fs.readFile(await download.path(),'utf8');await fs.writeFile(`test-results/native-export-${asset}.html`,html);
  assert.ok(html.includes('data:model/gltf-binary;base64,'));assert.ok(!/https?:\/\/[^<\s"']+\.glb/.test(html));
  const exported=await browser.newPage({viewport:{width:1100,height:800},reducedMotion:'reduce'}),network=[];
  exported.on('pageerror',e=>errors.push(e.message));
@@ -47,10 +53,11 @@ try{
   const frame=await exported.evaluate(time=>posecraft.seek(time),sample.time);
   assert.deepEqual(frame.world,sample.world,'export skeleton differs in '+sample.phase);
   assert.deepEqual(frame.bar,sample.bar,'export bar differs in '+sample.phase);
+  await exported.evaluate(time=>{posecraft.view.render(0);posecraft.view.renderAsync(time);},sample.time);await exported.waitForFunction(time=>Math.abs(posecraft.view.frame.time-time)<1e-8,sample.time);const workerFrame=await exported.evaluate(()=>posecraft.view.frame);assert.deepEqual(workerFrame.world,sample.world,'worker skeleton differs in '+sample.phase);assert.deepEqual(workerFrame.bar,sample.bar,'worker bar differs in '+sample.phase);
  }
  assert.ok(network.every(url=>url==='http://native-export.test/'||url.endsWith('/favicon.ico')),'export made external runtime/asset requests');
  await exported.evaluate(time=>posecraft.seek(time),reviewTime);
- await exported.screenshot({path:'test-results/native-export-press.png'});
+ await exported.screenshot({path:`test-results/native-export-${asset}-press.png`});
  // Browser restart and document reload must reproduce the same pose, too.
  await page.reload();await idle();assert.deepEqual((await snapshot()).project,beforeExport.project);
  await page.locator('#time').fill(String(reviewTime));await page.locator('#time').dispatchEvent('input');await page.waitForFunction(t=>Math.abs(posecraftNativeStudio.snapshot().time-t)<.015&&Math.abs(posecraftNativeStudio.snapshot().frame.time-t)<.015,reviewTime);
@@ -60,6 +67,7 @@ try{
  await page.waitForFunction(()=>Math.abs(posecraftNativeStudio.snapshot().frame.time-7.6)<.015);
  assert.equal((await snapshot()).stats.geometries,geometries,'playback allocated extra geometry');
  assert.deepEqual(errors,[]);
- await fs.writeFile('test-results/native-export-report.json',JSON.stringify({passed:true,phases:samples.length,bytes:Buffer.byteLength(html),externalDependencies:0,stats:beforeExport.stats,browser:await browser.version()},null,2));
- console.log(JSON.stringify({passed:true,phases:samples.length,exportBytes:Buffer.byteLength(html)}));
+ reports.push({asset,phases:samples.length,bytes:Buffer.byteLength(html),externalDependencies:0,stats:beforeExport.stats});await exported.close();
+ }
+ await fs.writeFile('test-results/native-export-report.json',JSON.stringify({passed:true,characters:reports,browser:await browser.version()},null,2));console.log(JSON.stringify({passed:true,characters:reports}));
 }finally{await browser.close();}

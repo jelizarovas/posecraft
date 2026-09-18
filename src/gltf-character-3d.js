@@ -123,6 +123,32 @@ export function createCharacter3D(gltf, options = {}) {
     const wristRotation=new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(new Vector3(0,sign,0),new Vector3(0,0,-1),new Vector3(-sign,0,0)));
     const knuckle=joints.find(j=>j.id===`middle_01_${suffix}`).position;
     grips[side]={joint:roles[side+'Wrist'],position:[sign*(Math.abs(knuckle[0])+.021*normalizationScale),knuckle[1]-.015*normalizationScale,knuckle[2]*.4],rotation:wristRotation.invert().toArray(),fingers:fingerIds.filter(f=>byName.has(f.joint))};
+    const supportFingers=[],fingerFrames=new Map([[roles[side+'Wrist'],new Quaternion()]]);
+    for(const name of ['thumb','index','middle','ring','pinky'])for(let segment=1;segment<=3;segment++){
+      const joint=joints.find(j=>j.id===`${name}_0${segment}_${suffix}`),child=joint&&joints.find(j=>j.parent===joint.id);
+      if(!joint||!child)continue;
+      const parent=fingerFrames.get(joint.parent);if(!parent)continue;
+      const current=parent.clone().multiply(new Quaternion().fromArray(joint.rotation)),direction=new Vector3().fromArray(child.position).applyQuaternion(current).normalize(),flat=direction.clone();flat.x=0;
+      if(flat.lengthSq()<1e-8)flat.set(0,1,0);else flat.normalize();
+      const corrected=new Quaternion().setFromUnitVectors(direction,flat).multiply(current).normalize();
+      supportFingers.push({joint:joint.id,rotation:parent.clone().invert().multiply(corrected).normalize().toArray()});fingerFrames.set(joint.id,corrected);
+    }
+    grips[side].supportFingers=supportFingers;
+    // Measure the open palm separately from the calibrated closed bar grip.
+    // The declared hand frame supplies its normal; skin supplies its thickness.
+    const wrist=rest[roles[side+'Wrist']],inverseWrist=new Quaternion().fromArray(wrist.rotation).invert(),origin=new Vector3().fromArray(wrist.position),vertex=new Vector3();
+    let supportHeight=0;
+    for(const mesh of skins){
+      const boneIndex=mesh.skeleton.bones.findIndex(bone=>bone.name===roles[side+'Wrist']),indices=mesh.geometry.attributes.skinIndex,weights=mesh.geometry.attributes.skinWeight;
+      if(boneIndex<0)continue;
+      for(let i=0;i<indices.count;i++){
+        let influence=0;for(let component=0;component<4;component++)if(indices.getComponent(i,component)===boneIndex)influence+=weights.getComponent(i,component);
+        if(influence<.6)continue;
+        mesh.getVertexPosition(i,vertex).applyMatrix4(mesh.matrixWorld).sub(origin).applyQuaternion(inverseWrist);
+        if(vertex.y>knuckle[1]*.25&&vertex.y<knuckle[1]*.8&&Math.abs(vertex.z)<knuckle[1]*.3)supportHeight=Math.max(supportHeight,sign*vertex.x);
+      }
+    }
+    if(supportHeight>0)grips[side].supportHeight=supportHeight;
   }
   let disposed=false;
   const metadata={height,sourceHeight,normalizationScale,facingYaw:yaw,bones:bones.length,skinnedMeshes:skins.length,triangles:skins.reduce((sum,mesh)=>sum+(mesh.geometry.index?.count??mesh.geometry.attributes.position.count)/3,0),morphTargets:skins.reduce((sum,mesh)=>sum+(mesh.morphTargetInfluences?.length??0),0),animations:animations.length};
@@ -139,6 +165,27 @@ export function createCharacter3D(gltf, options = {}) {
     }
     root.updateMatrixWorld(true);for(const mesh of skins)mesh.skeleton.update();
     return world;
+  }
+  // Include finger and thumb skin in the final support clearance. This is
+  // evaluated once at import, using the same deformation as the renderer.
+  const supportPose={};for(const grip of Object.values(grips))for(const finger of grip.supportFingers??[])supportPose[finger.joint]={rotation:finger.rotation};
+  if(Object.keys(supportPose).length){
+    apply(supportPose);
+    for(const [side,sign]of [['left',1],['right',-1]]){
+      const grip=grips[side];if(!grip)continue;
+      const handJoints=new Set([grip.joint]);for(const joint of joints)if(handJoints.has(joint.parent))handJoints.add(joint.id);
+      const origin=new Vector3().fromArray(rest[grip.joint].position),inverse=new Quaternion().fromArray(rest[grip.joint].rotation).invert(),vertex=new Vector3();
+      for(const mesh of skins){
+        const indices=mesh.geometry.attributes.skinIndex,weights=mesh.geometry.attributes.skinWeight;
+        for(let i=0;i<indices.count;i++){
+          let influence=0;for(let c=0;c<4;c++)if(handJoints.has(mesh.skeleton.bones[indices.getComponent(i,c)]?.name))influence+=weights.getComponent(i,c);
+          if(influence<.6)continue;
+          mesh.getVertexPosition(i,vertex).applyMatrix4(mesh.matrixWorld).sub(origin).applyQuaternion(inverse);
+          grip.supportHeight=Math.max(grip.supportHeight??0,sign*vertex.x);
+        }
+      }
+    }
+    apply();
   }
   return {root,rig,compiledRig:compiled,roles,grips,rest,animations,metadata,apply,dispose(){if(disposed)return;disposed=true;disposeScene(scene);root.removeFromParent();root.clear();}};
 }

@@ -8,7 +8,7 @@ September 18, 2026.
 
 The Quaternius Superhero Male and Female use their original mesh topology, skin weights and inverse bind matrices. They are separate authored bodies, with different hand and limb proportions. Texture sizes were reduced for delivery. The creator, original CC0 license, download location, processing and hashes are retained beside the assets.
 
-The action measures the supplied rig and uses the bench's frame and rack height. Its sequence covers approach, stepped turn, sit, recline, grasp, unrack, variable-duration repetitions, rerack, release and rise. Named palm frames provide wrist targets; authored finger rotations close the hands. Both supported grips remain attached to the same rigid bar. A fit outside the rig's reach produces a diagnostic or rejects the edit.
+The action measures the supplied rig and uses the bench's frame and rack height. Its sequence covers approach, stepped turn, sit, supported scoots, recline, grasp, unrack, variable-duration repetitions, rerack, release, sit up, forward scoots and stand. Named palm frames provide wrist targets; authored finger rotations close the hands. Both supported grips remain attached to the same rigid bar. A fit outside the rig's reach produces a diagnostic or rejects the edit.
 
 The editor exposes character selection and height, furniture placement/scale/rack height, camera placement, repetitions, effort, tempo and elbow/knee bend maxima. Undo, JSON save/reopen and autosave preserve these settings. Safe finishing completes the held segment before reracking; it is a playback choice, not a saved event graph.
 
@@ -19,6 +19,14 @@ The first valid numeric poses still failed visual inspection. The knees crossed 
 Follow-up pose reviews covered approach, seated transition, reclining, gripping, pressing, release and rising from the three-quarter, side and front views. Hand close-ups included the opposite and overhead views, both male hands and the smaller female hand. The initial finger loop was too loose, so its closure and palm frame were recalibrated. This remains an authored hand pose, not a finger collision simulation.
 
 These reviews establish a usable engineering study. They do not establish final Atlas art direction, animator approval of every transition, or competitive superiority. The source bodies have no facial morph targets or supplied motion clips. The procedural sequence still needs professional movement review before being treated as a production animation reference.
+
+## Elbow and scoot correction
+
+The relaxed-arm pole now stays behind the shoulder-to-wrist line, including walking turns, so the elbow bends in the anatomical direction. It preserves the imported wrist orientation and fixed arm lengths.
+
+Bench entry and exit use short support cycles: plant open palms and feet, lean forward, lift the pelvis, shift, settle and reposition. Open palms use support heights measured from each imported skin. Seated hands rest above the thighs and lift over the cushion when planting, repositioning or releasing. The pelvis moves along the bench only during the lifted shift; actual wrists and ankles stay fixed throughout each push. Reclining and sitting up keep the pelvis in place. Step count and reach derive from limb measurements. This is authored kinematic support, not a physical muscle simulation.
+
+Regression checks sample both authored bodies at 60 Hz for support drift, seat clearance, foot resets and reachable goals. Hand clearance uses the actual skinned palm and finger vertices against the cushion volume, rather than wrist positions alone. Whole-skeleton continuity is checked at every phase join, including wrist velocity and safe completion. The same sampler runs in Studio, its worker and the exported player.
 
 ## Reproducible checks
 

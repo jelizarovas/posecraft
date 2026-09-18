@@ -5,7 +5,7 @@ import {AnimationClip,Float32BufferAttribute,Group,Quaternion,Texture,Vector3} f
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createCharacter3D,loadCharacter3D} from '../src/gltf-character-3d.js';
 import {solveTwoBone3D} from '../src/rig-3d.js';
-import {applyGripPose3D,wristTargetForGrip3D} from '../src/grip-3d.js';
+import {applyGripPose3D,applySupportPose3D,wristTargetForGrip3D} from '../src/grip-3d.js';
 
 // Node has no image decoder. This replaces only texture decoding; the official
 // GLTFLoader still parses the real embedded geometry, skin and inverse binds.
@@ -101,4 +101,35 @@ test('declared palm frames meet the bar target and finger closure uses retained 
     verifyBones(character,character.apply(closed));
   }
   character.dispose();
+});
+
+test('open palm support height follows actual skin and character scale',async()=>{
+  const measured=[];
+  for(const name of ['athlete','regular']){
+    const character=createCharacter3D(await asset(name),{height:1.75});
+    measured.push(character.grips.left.supportHeight);
+    for(const side of ['left','right']){
+      const grip=character.grips[side],joint=character.rig.joints.find(j=>j.id===grip.joint),parentQ=new Quaternion().fromArray(character.rest[joint.parent].rotation);
+      const flatQ=new Quaternion().setFromAxisAngle(new Vector3(1,0,0),Math.PI).multiply(new Quaternion().fromArray(grip.rotation).invert());
+      const initial={[joint.id]:{rotation:parentQ.invert().multiply(flatQ).toArray()}},supported=applySupportPose3D(character.rig,initial,grip,1);
+      assert.equal(grip.supportFingers.length,15);assert.equal(Object.keys(initial).length,1);
+      character.apply(supported);
+      const handJoints=new Set([joint.id]);for(const j of character.rig.joints)if(handJoints.has(j.parent))handJoints.add(j.id);
+      const wrist=character.root.getObjectByName(joint.id).getWorldPosition(new Vector3());let lowest=Infinity;
+      character.root.traverse(mesh=>{
+        if(!mesh.isSkinnedMesh)return;
+        const indices=mesh.geometry.attributes.skinIndex,weights=mesh.geometry.attributes.skinWeight;
+        for(let i=0;i<indices.count;i++){
+          let influence=0;for(let c=0;c<4;c++)if(handJoints.has(mesh.skeleton.bones[indices.getComponent(i,c)]?.name))influence+=weights.getComponent(i,c);
+          if(influence>.6)lowest=Math.min(lowest,mesh.getVertexPosition(i,new Vector3()).applyMatrix4(mesh.matrixWorld).y-wrist.y);
+        }
+      });
+      assert.ok(grip.supportHeight>.015&&grip.supportHeight<.045);
+      assert.ok(Math.abs(lowest+grip.supportHeight)<.001,`${name} ${side} actual flat palm clearance`);
+    }
+    const smaller=createCharacter3D(await asset(name),{height:1.4});
+    assert.ok(Math.abs(smaller.grips.left.supportHeight/character.grips.left.supportHeight-.8)<1e-6);
+    character.dispose();smaller.dispose();
+  }
+  assert.ok(measured[0]-measured[1]>.005,'different authored palm thickness is retained');
 });

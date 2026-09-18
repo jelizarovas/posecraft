@@ -329,7 +329,7 @@
     "test:markers": "node test/markers-studio-browser.mjs",
     "test:retiming-export": "node test/retiming-export-browser.mjs",
     "test:atlas-three": "node test/atlas-three-browser.mjs",
-    "test:native-3d": "node --test test/rig-3d.test.js test/scene-3d-schema.test.js test/scene-3d.test.js test/bench-action-3d.test.js test/bench-project-3d.test.js test/gltf-character-3d.test.js test/native-action-worker-client.test.js",
+    "test:native-3d": "node --test test/arm-pose-3d.test.js test/rig-3d.test.js test/scene-3d-schema.test.js test/scene-3d.test.js test/bench-action-3d.test.js test/bench-project-3d.test.js test/gltf-character-3d.test.js test/native-action-worker-client.test.js",
     "test:native-studio": "node test/native-studio-browser.mjs",
     "test:native-export": "node test/native-export-browser.mjs",
     "test:native-worker": "node test/native-action-worker-browser.mjs",
