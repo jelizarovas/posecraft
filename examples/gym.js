@@ -1,4 +1,5 @@
 import {clamp} from '../src/index.js';
+import {addGymPreparation} from './gym-preparation.js';
 const rad=Math.PI/180,lerp=(a,b,t)=>a+(b-a)*t,ease=t=>{t=clamp(t,0,1);return t*t*(3-2*t);},mix=(a,b,t)=>({x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t)}),between=(t,a,b)=>ease((t-a)/(b-a));
 export const gymModes=['workout','full-set','fail-six','fail-seven'];
 export const gymTiming={round:60,preparation:0,reach:4,grab:6,pullEnd:24,release:25,recover:26.5,walkToBench:29,sit:36,lieDown:38,grasp:40,benchStart:41,benchEnd:48,rack:48,sitUp:49,stand:51,returnStart:52.5,home:59,repDurations:[1.65,1.8,1.95,2.1,2.3,2.5,2.7,3]};
@@ -10,6 +11,17 @@ export function gymPhase(time,mode='workout'){
  return {cycle,outcome,completed,rep:t>=6&&t<24?Math.min(completed+1,outcome+1):0,failed:outcome<8&&t>=24,phaseKey:failing?'failed-attempt':range[0],phase:failing?'last rep stalls':range[3],start:failing?repEnds[outcome-1]:range[1],end:range[2],benchReps:[43.05,45.35,48].filter(end=>t>=end-1e-7).length};
 }
 function solve(shoulder,target,length,bend=1){const dx=target.x-shoulder.x,dy=target.y-shoulder.y,d=Math.max(.001,Math.hypot(dx,dy)),reach=Math.min(d,length*2-.06),end={x:shoulder.x+dx/d*reach,y:shoulder.y+dy/d*reach},height=Math.sqrt(Math.max(0,length*length-reach*reach/4)),elbow={x:(shoulder.x+end.x)/2-dy/d*height*bend,y:(shoulder.y+end.y)/2+dx/d*height*bend},upper=Math.atan2(elbow.y-shoulder.y,elbow.x-shoulder.x)/rad,lower=Math.atan2(end.y-elbow.y,end.x-elbow.x)/rad;return {upper,lower:((lower-upper+540)%360)-180,wrist:((540-lower)%360)-180,end};}
+// Swivel a bent chain toward the viewer while preserving its screen-space
+// endpoint. This authors ordinary joint yaw/rotation tracks, not a render trick.
+function limbMatrix(rotation,yaw=0){const a=rotation*rad,b=yaw*rad,c=Math.cos(a),s=Math.sin(a),cy=Math.cos(b),sy=Math.sin(b);return [c*cy,-s,c*sy,s*cy,c,s*sy,-sy,0,cy];}
+const matrixVector=(m,v)=>[m[0]*v[0]+m[1]*v[1]+m[2]*v[2],m[3]*v[0]+m[4]*v[1]+m[5]*v[2],m[6]*v[0]+m[7]*v[1]+m[8]*v[2]];
+function limbDepth(pose,name,leg,swivel){
+ const upper=name+(leg?'Thigh':'Upper'),lower=name+(leg?'Calf':'Lower'),end=name+(leg?'Foot':'Hand'),side=name==='left'?-1:1,L=leg?36:40;
+ const origin={x:side*(leg?16:34)+(pose[upper+'.x']||0),y:(leg?12:-68)+(pose[upper+'.y']||0)},target=jointEndpoint(pose,side,leg),dx=target.x-origin.x,dy=target.y-origin.y,d=Math.max(.001,Math.hypot(dx,dy)),height=Math.sqrt(Math.max(0,L*L-d*d/4)),branch=Math.sign(Math.sin((pose[lower+'.rotation']||0)*rad))||1,angle=Math.min(swivel*rad,Math.asin(clamp(L*.6/Math.max(.001,height),0,1)));
+ const elbow=[dx/2+dy/d*height*branch*Math.cos(angle),dy/2-dx/d*height*branch*Math.cos(angle),height*Math.sin(angle)],u=Math.atan2(elbow[1],elbow[0])/rad,y=-Math.asin(clamp(elbow[2]/L,-1,1))/rad,m=limbMatrix(u,y),v=[dx-elbow[0],dy-elbow[1],-elbow[2]],local=[m[0]*v[0]+m[3]*v[1]+m[6]*v[2],m[1]*v[0]+m[4]*v[1]+m[7]*v[2],m[2]*v[0]+m[5]*v[1]+m[8]*v[2]],r=Math.atan2(local[1],local[0])/rad,ly=-Math.asin(clamp(local[2]/L,-1,1))/rad,lm=limbMatrix(r,ly),axis=matrixVector(m,[lm[0],lm[3],lm[6]]),cross=matrixVector(m,[lm[1],lm[4],lm[7]]);
+ let wrist=Math.atan2(-axis[1],cross[1]);if(axis[0]*Math.cos(wrist)+cross[0]*Math.sin(wrist)<0)wrist+=Math.PI;
+ pose[upper+'.rotation']=u;pose[upper+'.yaw']=y;pose[lower+'.rotation']=r;pose[lower+'.yaw']=ly;pose[end+'.rotation']=((wrist/rad+540)%360)-180;
+}
 const bar={x:180,y:150,grip:43},bench={x:650,y:330,barX:585,barY:270,grip:40};
 // Alternate world-space support anchors. Only the swinging foot moves; its
 // partner remains planted while the pelvis passes over it.
@@ -34,17 +46,20 @@ export function gymPose(time,mode='workout'){
  if(t>=6&&t<24){const index=repEnds.findIndex(end=>t<end),start=index?repEnds[index-1]:6,duration=gymTiming.repDurations[index];if(index<outcome){const q=(t-start)/duration;lift=q<.52?ease(q/.52):q<.62?1:1-ease((q-.62)/.38);effort=lift*(.55+index*.065);shake=index>4?Math.sin(t*22)*.6*lift:0;}else{const start=repEnds[outcome-1],q=(t-start)/(24-start),up=ease(q/.28),down=1-ease((q-.76)/.24);lift=.56*up*down;effort=up*down;shake=Math.sin(t*28)*1.5*up*down;}}
  y-=4*hang+70*lift+shake;y=lerp(y,326,sit);y=lerp(y,330,lying);
  const tired=(outcome<8?1:.45)*between(t,25,26.5)*(1-between(t,28.3,29)),anticipation=(outcome<8?.7:.3)*Math.sin(Math.PI*clamp(t/4,0,1))**2,breath=Math.sin(t*3.2)*1.3*(tired+anticipation);
- pose['root.x']=x;pose['root.y']=y;pose['torso.x']=-52*lying;pose['torso.y']=48*lying+breath;pose['torso.rotation']=-90*lying-15*tired-7*anticipation;pose['torso.yaw']=(walking?.direction||1)*40*(walking?.blend||0);pose['head.rotation']=20*lying+8*tired;pose['head.yaw']=48*lying+(walking?.direction||1)*10*(walking?.blend||0);pose['head.pitch']=-10*effort+12*tired+7*anticipation;
+ const reclineAngle=lying*Math.PI/2,torsoX=-(48+4*lying)*Math.sin(reclineAngle),torsoY=48-(48+4*lying)*Math.cos(reclineAngle);
+ pose['root.x']=x;pose['root.y']=y;pose['torso.x']=torsoX;pose['torso.y']=torsoY+breath;pose['torso.rotation']=-90*lying-15*tired-7*anticipation;pose['torso.yaw']=(walking?.direction||1)*40*(walking?.blend||0)+60*lying;pose['pelvis.rotation']=-90*lying;pose['pelvis.yaw']=(walking?.direction||1)*30*(walking?.blend||0)+60*lying;pose['head.rotation']=20*lying+8*tired;pose['head.yaw']=-12*lying+(walking?.direction||1)*10*(walking?.blend||0);pose['head.pitch']=-10*effort+12*tired+7*anticipation;
  let weightY=bench.barY,pressEffort=0;const benchEnds=[43.05,45.35,48];if(t>=41&&t<48){const index=benchEnds.findIndex(end=>t<end),start=index?benchEnds[index-1]:41,q=(t-start)/(benchEnds[index]-start);pressEffort=q<.42?ease(q/.42):q<.55?1:1-ease((q-.55)/.45);weightY+=32*pressEffort+(index===2?Math.sin(t*24)*.7*pressEffort:0);}
  pose['barbell.x']=bench.barX-x;pose['barbell.y']=weightY-y;pose['barbell.z']=-.3*(1-between(t,40,41)*(1-between(t,48,49)));pose['pullbar.x']=bar.x-x;pose['pullbar.y']=bar.y-y;pose['pullbar.z']=10;
  const hesitation=outcome<8&&t<4?.24*Math.sin(Math.PI*clamp((t-.6)/2.8,0,1))**2:0,grip=between(t,4,6)*(1-between(t,25,26.5))+hesitation,reachBench=between(t,40,41)*(1-between(t,48,49));
  for(const [name,side] of [['left',-1],['right',1]]){
-  const shoulder=mix({x:side*lerp(34,25,walking?.blend||0),y:-68+breath},{x:side<0?-70:-60,y:side<0?-8:8},lying);pose[name+'Upper.x']=shoulder.x-side*34;pose[name+'Upper.y']=shoulder.y+68;pose[name+'Upper.z']=side<0&&lying>.5?-1:15;
+  const shoulder=mix({x:side*lerp(34,25,walking?.blend||0),y:-68+breath},{x:side<0?-70:-60,y:side<0?-8:8},lying);shoulder.x+=torsoX+52*lying;shoulder.y+=torsoY-48*lying;pose[name+'Upper.x']=shoulder.x-side*34;pose[name+'Upper.y']=shoulder.y+68;pose[name+'Upper.z']=side<0&&lying>.5?-1:15;
   const stride=walking?clamp((walking.feet[name].x-x-side*5)/32,-1,1):0,resting={x:side*43-stride*9,y:5+stride*4};let hand=mix(resting,{x:bar.x+side*bar.grip-x,y:bar.y-y},grip);
   hand=mix(hand,{x:side*30,y:12},Math.max(sit,tired*.6));if(lying>0)hand=mix(hand,{x:side<0?-48:-18,y:22},lying);if(reachBench>0)hand=mix(hand,{x:bench.barX+side*bench.grip-x,y:weightY-y},reachBench);
   const arm=solve(shoulder,hand,40,side<0?-1:1);pose[name+'Upper.rotation']=arm.upper;pose[name+'Lower.rotation']=arm.lower;pose[name+'Hand.rotation']=arm.wrist;pose[name+'Hand.z']=12;
-  const hip={x:lerp(side*16,side*5,walking?.blend||0),y:12},homeFoot={x:side*18,y:83-3*hang},seatedFoot={x:(side<0?692:728)-x,y:383-y},target=t>=36&&t<52.5?seatedFoot:homeFoot,foot=walking?{x:walking.feet[name].x-x,y:walking.feet[name].y-y}:target;
-  const bend=walking?walking.direction>0?-1:1:sit>.01?-1:side<0?1:-1,leg=solve(hip,foot,36,bend);pose[name+'Thigh.x']=hip.x-side*16;pose[name+'Thigh.y']=0;pose[name+'Thigh.rotation']=leg.upper;pose[name+'Calf.rotation']=leg.lower;pose[name+'Foot.rotation']=leg.wrist+(walking?.feet[name].rotation||0);pose[name+'Foot.yaw']=walking?.direction<0?180*walking.blend:0;pose[name+'Thigh.z']=side<0?.008:.012;
+  const hip={x:lerp(lerp(side*16,side*5,walking?.blend||0),24,lying),y:lerp(12,-side*9,lying)},homeFoot={x:side*18,y:83-3*hang},seatedFoot={x:(side<0?692:728)-x,y:383-y},target=t>=36&&t<52.5?seatedFoot:homeFoot,foot=walking?{x:walking.feet[name].x-x,y:walking.feet[name].y-y}:target;
+  const bend=walking?walking.direction>0?-1:1:sit>.01?-1:side<0?1:-1,leg=solve(hip,foot,36,bend);pose[name+'Thigh.x']=hip.x-side*16;pose[name+'Thigh.y']=hip.y-12;pose[name+'Thigh.rotation']=leg.upper;pose[name+'Calf.rotation']=leg.lower;pose[name+'Foot.rotation']=leg.wrist+(walking?.feet[name].rotation||0);pose[name+'Foot.yaw']=walking?.direction<0?180*walking.blend:0;pose[name+'Thigh.z']=side<0?.008:.012;
+  limbDepth(pose,name,false,82*(1-grip)*(1-reachBench)*(1-.65*lying));limbDepth(pose,name,true,lerp(lerp(75,40,walking?.blend||0),30,lying));
+  pose[name+'Foot.rotation']+=walking?.feet[name].rotation||0;pose[name+'Foot.pitch']=walking?-14*clamp((383-walking.feet[name].y)/12,0,1):0;pose[name+'Foot.yaw']=(walking?.direction<0?155:25)*(walking?.blend||0);
  }
  const faceTurn=clamp(pose['head.yaw']/50,-1,1);for(const name of ['face','face-neutral','face-effort','face-blink']){pose[name+'.x']=8*faceTurn;pose[name+'.z']=Math.abs(8*faceTurn)+.2;}
  const pressing=t>=41&&t<48,blink=((t+.8)%3.7)<.13;pose['face-neutral.opacity']=effort>.5||pressing||blink?0:1;pose['face-effort.opacity']=effort>.5||pressing?1:0;pose['face-blink.opacity']=blink&&effort<=.5&&!pressing?1:0;pose['sweat.opacity']=outcome<8&&t>18&&t<29?.9:pressing?.6:0;pose['effort-lines.opacity']=outcome<8&&t>=repEnds[outcome-1]&&t<24?.7+.25*Math.sin(t*16):0;
@@ -57,7 +72,7 @@ const joint=(id,parent,x=0,y=0,length=0)=>({id,parent,x,y,length,rotation:0,min:
 const part=(id,jointId,d,fill,extra={})=>({id,joint:jointId,d,fill,stroke:'#292c38',strokeWidth:2,spatial:{order:0},...extra});
 const circle=(x,y,r)=>`M${x-r} ${y}a${r} ${r} 0 1 0 ${r*2} 0a${r} ${r} 0 1 0 ${-r*2} 0Z`;
 function lifter(){
- const joints=[joint('root',null),joint('torso','root',0,-48),joint('head','torso',0,-58),...['face','face-neutral','face-effort','face-blink','sweat','effort-lines'].map(id=>joint(id,'head'))];
+ const joints=[joint('root',null),joint('torso','root',0,-48),joint('pelvis','root'),joint('head','torso',0,-58),...['face','face-neutral','face-effort','face-blink','sweat','effort-lines'].map(id=>joint(id,'head'))];
  for(const [name,side] of [['left',-1],['right',1]])joints.push(joint(name+'Upper','root',side*34,-68,40),joint(name+'Lower',name+'Upper',40,0,40),joint(name+'Hand',name+'Lower',40),joint(name+'Thigh','root',side*16,12,36),joint(name+'Calf',name+'Thigh',36,0,36),joint(name+'Foot',name+'Calf',36));
  joints.push(joint('barbell','root'),joint('pullbar','root'),joint('water-bottle','root'));
  const skin='#c98159',highlight='#e6a67b',shadow='#a65f46',parts=[];
@@ -68,10 +83,10 @@ function lifter(){
   parts.push(part(name+'biceps',name+'Upper','M4-8Q19-15 31-6Q20-8 11 1Z',highlight,{stroke:'none',strokeWidth:0,spatial:{order:35}}));
   parts.push(part(name+'grip',name+'Hand','M-7-5Q-3-10 5-8L10-3V6Q3 10-6 5Z',skin,{spatial:{order:105}}));
  }
- parts.push(part('trunk','torso','M-38-25Q-29-37-15-33Q0-25 15-33Q30-37 38-25L31 4Q24 18 22 38Q0 46-22 38Q-24 18-31 4Z',skin,{spatial:{order:20}}));
+ parts.push(part('trunk','torso','M-38-25Q-29-37-15-33Q0-25 15-33Q30-37 38-25L31 4Q24 18 22 38Q0 46-22 38Q-24 18-31 4Z',skin,{spatial:{order:20,thickness:.3,axis:'x'}}));
  parts.push(part('left-pec','torso','M-31-23Q-15-32-2-17L-2-2Q-20 7-32-4Z',highlight,{stroke:shadow,strokeWidth:1.5,spatial:{order:21}}),part('right-pec','torso','M31-23Q15-32 2-17L2-2Q20 7 32-4Z',highlight,{stroke:shadow,strokeWidth:1.5,spatial:{order:21}}));
  parts.push(part('abs','torso','M-12 9Q0 4 12 9M-12 19Q0 14 12 19M-10 29Q0 24 10 29M0 5V34','none',{stroke:shadow,strokeWidth:2,spatial:{order:22}}));
- parts.push(part('shorts','root','M-25-10Q0-4 25-10L29 28L5 30L0 13L-5 30L-29 28Z','#33465f',{spatial:{order:32}}),part('shorts-stripe','root','M-24-5L-20 24M24-5L20 24','none',{stroke:'#93d2be',strokeWidth:4,spatial:{order:33}}));
+ parts.push(part('shorts','pelvis','M-25-10Q0-4 25-10L29 28L5 30L0 13L-5 30L-29 28Z','#33465f',{spatial:{order:32}}),part('shorts-stripe','pelvis','M-24-5L-20 24M24-5L20 24','none',{stroke:'#93d2be',strokeWidth:4,spatial:{order:33}}));
  parts.push(part('head-shape','head','M-24-16Q-22-31 0-32Q23-31 24-16L21 14Q11 28 0 28Q-11 28-21 14Z',skin,{spatial:{order:40,thickness:.65,axis:'x'}}));
  parts.push(part('hair','head','M-24-9L-25-24Q-15-36 0-36Q15-39 25-25L23-7L16-22Q6-16-8-24L-18-20Z','#40332e',{spatial:{order:43}}),part('beard','face','M-21 9L-12 13L-7 8Q0 5 7 8L12 13L21 9Q18 27 0 29Q-18 27-21 9Z','#534037',{strokeWidth:1.5,spatial:{order:44}}));
  parts.push(part('eyes','face-neutral',circle(-9,-5,3)+circle(9,-5,3),'#252b36',{opacityChannel:'face-neutral.opacity',strokeWidth:0,spatial:{order:50}}),part('eyebrows','face','M-16-13L-5-15M5-15L16-13','none',{stroke:'#45332e',strokeWidth:3,spatial:{order:51}}));
@@ -98,9 +113,9 @@ function drinkPose(t,atBench){
  // angles keeps the resting bend continuous instead of flipping IK branches.
  const drinking=solve({x:34,y:-68},{x:18,y:-80},40,-1);
  for(const [joint,value]of [['rightUpper',drinking.upper],['rightLower',drinking.lower],['rightHand',drinking.wrist]])pose[joint+'.rotation']=lerp(pose[joint+'.rotation'],value,raise);
- const upper=pose['rightUpper.rotation']*rad,lower=upper+pose['rightLower.rotation']*rad;
+ pose['rightUpper.yaw']*=1-raise;pose['rightLower.yaw']*=1-raise;const wrist=jointEndpoint(pose,1);
  pose['rightUpper.z']=25;pose['rightHand.z']=30;pose['head.rotation']=-5*sip;pose['head.pitch']=-8*sip;pose['face-neutral.opacity']=1;pose['face-effort.opacity']=0;pose['face-blink.opacity']=0;pose['sweat.opacity']=.15*(1-sip);
- pose['water-bottle.x']=34+40*Math.cos(upper)+40*Math.cos(lower);pose['water-bottle.y']=-68+40*Math.sin(upper)+40*Math.sin(lower);pose['water-bottle.rotation']=-65*sip;pose['water-bottle.opacity']=between(t,0,.2)*(1-between(t,4.6,5));pose['water-bottle.z']=35;
+ pose['water-bottle.x']=wrist.x;pose['water-bottle.y']=wrist.y;pose['water-bottle.rotation']=-65*sip;pose['water-bottle.opacity']=between(t,0,.2)*(1-between(t,4.6,5));pose['water-bottle.z']=35;
  return pose;
 }
 export const gymGripReviews=[
@@ -109,7 +124,7 @@ export const gymGripReviews=[
  {id:'release-one-hand',label:'One-hand release',clip:'release-one-hand',duration:5.6,hold:1.5},
  {id:'release-cheer',label:'One-hand hang / small cheer',clip:'release-cheer',duration:5.6,hold:1.5}
 ];
-function jointEndpoint(pose,side,leg=false){const name=side<0?'left':'right',upper=name+(leg?'Thigh':'Upper'),lower=name+(leg?'Calf':'Lower'),a=pose[upper+'.rotation']*rad,b=a+pose[lower+'.rotation']*rad,length=leg?36:40;return {x:side*(leg?16:34)+(pose[upper+'.x']||0)+length*(Math.cos(a)+Math.cos(b)),y:(leg?12:-68)+(pose[upper+'.y']||0)+length*(Math.sin(a)+Math.sin(b))};}
+function jointEndpoint(pose,side,leg=false){const name=side<0?'left':'right',upper=name+(leg?'Thigh':'Upper'),lower=name+(leg?'Calf':'Lower'),length=leg?36:40,m=limbMatrix(pose[upper+'.rotation'],pose[upper+'.yaw']||0),l=limbMatrix(pose[lower+'.rotation'],pose[lower+'.yaw']||0),v=matrixVector(m,[length*(1+l[0]),length*l[3],length*l[6]]);return {x:side*(leg?16:34)+(pose[upper+'.x']||0)+v[0],y:(leg?12:-68)+(pose[upper+'.y']||0)+v[1]};}
 function gripPose(t,first=-1,releasing=false,cheer=false){
  const duration=5.6,start=gymPose(releasing?24:0,'full-set'),end=gymPose(releasing?29:6,'full-set'),progress=between(t,0,duration),pose=Object.fromEntries(Object.keys(start).map(key=>[key,lerp(start[key],end[key],progress)]));
  let x=180,y,flight,reach,drop=0;
@@ -131,11 +146,12 @@ function gripPose(t,first=-1,releasing=false,cheer=false){
    const release=between(t,.2,.65),celebrate=cheer?between(t,.6,1)*(1-between(t,2,2.4)):0,free=mix({x:48,y:5},{x:54,y:-69-7*Math.sin((t-.7)*Math.PI*3)},celebrate);
    hand=mix(grip,free,release);hand.x+=side*36*Math.sin(Math.PI*release);hand=mix(hand,final,between(t,2.4,3.5));
   }
-  const arm=solve(shoulder,hand,40,side<0?-1:1);pose[name+'Upper.x']=0;pose[name+'Upper.y']=0;pose[name+'Upper.rotation']=arm.upper;pose[name+'Lower.rotation']=arm.lower;pose[name+'Hand.rotation']=arm.wrist;
+  const arm=solve(shoulder,hand,40,side<0?-1:1);pose[name+'Upper.yaw']=0;pose[name+'Lower.yaw']=0;pose[name+'Thigh.yaw']=0;pose[name+'Calf.yaw']=0;pose[name+'Upper.x']=0;pose[name+'Upper.y']=0;pose[name+'Upper.rotation']=arm.upper;pose[name+'Lower.rotation']=arm.lower;pose[name+'Hand.rotation']=arm.wrist;
   const initialFoot=jointEndpoint(start,side,true),finalFoot=jointEndpoint(end,side,true),ground={x:180+initialFoot.x-x,y:383-y};let foot;
   if(!releasing){const air=mix({x:side*18,y:69},finalFoot,between(t,3.25,duration));foot=mix(ground,air,flight);}
   else{const air={x:initialFoot.x,y:initialFoot.y};foot=mix(ground,air,flight);foot=mix(foot,finalFoot,between(t,3.6,duration));}
   const leg=solve({x:side*16,y:12},foot,36,side<0?1:-1);pose[name+'Thigh.x']=0;pose[name+'Thigh.y']=0;pose[name+'Thigh.rotation']=leg.upper;pose[name+'Calf.rotation']=leg.lower;pose[name+'Foot.rotation']=leg.wrist;pose[name+'Foot.yaw']=0;
+  const attached=!releasing?(side===first?reach:between(t,2.35,3.1)):side<0?reach:1-between(t,.2,.65);limbDepth(pose,name,false,82*(1-attached));limbDepth(pose,name,true,75);
  }
  pose['face-neutral.opacity']=1;pose['face-effort.opacity']=0;pose['face-blink.opacity']=0;pose['sweat.opacity']=releasing?.3*(1-between(t,3.5,duration)):0;pose['effort-lines.opacity']=0;
  return pose;
@@ -170,7 +186,7 @@ function addLiveGym(scene){
   scene.contacts.push({id:review.id+'-'+side,name:review.label+' / '+side+' grip',enabled:true,actor:'atlas',chain:{upper:side+'Upper',lower:side+'Lower',end:side+'Hand'},target:{type:'joint',actor:'gym',joint:'root',offsetX:180+43*sign,offsetY:150},bend:sign<0?1:-1,weight:1,start:jump?(sign===first?1.2:3.1):0,end:jump?5.6:(sign<0?2.4:.2),clip:review.clip});
  }
  for(const [side,i]of [['left',0],['right',1]])scene.contacts.push({id:side+'-failed-bench',name:side+' hand / stalled bench press',enabled:true,actor:'atlas',chain:{upper:side+'Upper',lower:side+'Lower',end:side+'Hand'},target:{type:'joint',actor:'atlas',joint:'barbell',offsetX:i?40:-40,offsetY:0},bend:i?-1:1,weight:1,start:0,end:4.4,clip:'bench-failed'});
- return scene;
+ return addGymPreparation(scene,{poseAt:gymPose,makeClip:authoredClip});
 }
 
 function equipment(){const joints=[joint('root',null)],parts=[part('wall','root','M0 0H800V390H0Z','#e5e7e5',{strokeWidth:0}),part('floor','root','M0 390H800V450H0Z','#9cafb4',{strokeWidth:0}),part('wall-panels','root','M0 115H800M0 235H800M400 0V390','none',{stroke:'#d2d9d7',strokeWidth:2}),part('window','root','M318 30H470V169H318Z','#a2c3c8',{stroke:'#718f99',strokeWidth:7}),part('window-bars','root','M394 31V168M319 99H469','none',{stroke:'#e1eeea',strokeWidth:5}),part('pullup-frame','root','M86 390V150Q86 122 112 122H248Q274 122 274 150V390M74 390H110M252 390H287','none',{stroke:'#3c5265',strokeWidth:12}),part('pullup-grip','root','M105 150H255','none',{stroke:'#233445',strokeWidth:9}),part('rubber-mat','root','M77 396H286V406H77Z','#506777',{strokeWidth:0}),part('bench-mat','root','M487 396H738V406H487Z','#506777',{strokeWidth:0}),part('bench-legs','root','M537 355L524 390M682 355L697 390M514 390H543M682 390H710','none',{stroke:'#456275',strokeWidth:9}),part('bench-pad','root','M510 347Q509 340 517 340H706Q715 341 713 355H510Z','#31505f',{stroke:'#203d4b',strokeWidth:2}),part('bench-rack','root','M501 390V260H516M669 390V260H654','none',{stroke:'#58788b',strokeWidth:8}),part('wall-line','root','M320 364H463','none',{stroke:'#b5c3c4',strokeWidth:4})];return {name:'Gym stations',spatial:true,joints,parts,clips:{still:{duration:1,loop:true,tracks:{}}},inputs:{},initial:'still',states:{still:{clip:'still'}},provenance:{source:'Original Posecraft gym artwork',license:'MIT'}};}

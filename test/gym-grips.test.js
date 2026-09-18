@@ -55,6 +55,6 @@ test('release cheer keeps one real grip, raises the free fist and lands softly a
 
 test('weighted entries are seeded and failure alone routes to the cheer recovery recipe',()=>{
  const d=createGym(),g=d.behaviorGraph;assert.equal(g.edges.find(e=>e.event==='pull-failed').to,'recover-failed');assert.ok(g.activities['recover-failed'].variants.some(v=>v.clip==='release-cheer'));assert.ok(g.activities.recover.variants.every(v=>v.clip!=='release-cheer'));
- const selected=new Set();for(let seed=1;seed<=20;seed++){const copy={...d,behaviorGraph:{...g,seed}},a=new BehaviorRuntime(copy),b=new BehaviorRuntime(copy);assert.deepEqual(a.snapshot(),b.snapshot());selected.add(a.snapshot().actions.atlas.variant);}
+ const selected=new Set();for(let seed=1;seed<=20;seed++){const copy={...d,behaviorGraph:{...g,seed}},a=new BehaviorRuntime(copy),b=new BehaviorRuntime(copy);a.tick(0);b.tick(0);assert.deepEqual(a.snapshot(),b.snapshot());selected.add(a.snapshot().actions.atlas.variant);}
  assert.deepEqual([...selected].sort(),['jump-left','jump-right','reach-bar']);
 });

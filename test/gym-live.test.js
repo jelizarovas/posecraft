@@ -12,7 +12,7 @@ const world=(pack,clip,time)=>spatialKinematics(pack,sampleClip({...pack.clips[c
 test('live gym is portable authored activities, bounded stats and complementary decisions',()=>{
  const d=assertDocument(JSON.parse(JSON.stringify(createGym()))),g=d.behaviorGraph;
  assert.equal(d.presentation,'live');assert.ok(d.requiredFeatures.includes('action-variations'));
- assert.equal(Object.keys(g.activities).length,11);
+ assert.equal(Object.keys(g.activities).length,12);
  for(const activity of Object.values(g.activities))for(const v of [...activity.variants,...activity.failureVariants||[]]){
   assert.ok(d.packs.atlas.clips[v.clip]);assert.ok(v.start<v.end);
   assert.ok(Object.keys(v.offsets||{}).every(key=>key.startsWith('head.')),'variation cannot move a planted limb');

@@ -82,6 +82,11 @@ The three new demos export their chosen action variant in project JSON. They use
 
 Use **Review**, **Speed**, **Loop action**, and the frame-step button on the gym and staircase to inspect transitions. Studio provides **Scene → actor → Contacts & grips** for saved hand and foot targets. Read [contact authoring](contacts.md) for timing, limits and the runtime API.
 
-### Gym grip variations
+### Gym action variations
 
-In One more rep, choose **Grip variations** to preview the left- or right-hand jump catch, one-hand release, or small celebration before dropping. Each preview has slow playback, frame stepping and a loop control. In the live workout, weighted prepare/recovery recipes choose these clips. Only failed pull-ups can select the celebration recovery. Holding-hand contacts use clip-local time, so changes to playback speed keep the grip attached. All four clips and their contact windows are editable in Studio and included in scene downloads and website exports.
+In One more rep, choose **Action variations** to preview the left- or right-hand jump catch, one-hand release, or small celebration before dropping. Each preview has slow playback, frame stepping and a loop control. In the live workout, weighted prepare/recovery recipes choose these clips. Only failed pull-ups can select the celebration recovery. Holding-hand contacts use clip-local time, so changes to playback speed keep the grip attached. All four clips and their contact windows are editable in Studio and included in scene downloads and website exports.
+
+
+**Tired breaths** previews three deliberate breath-outs over 4.8 seconds before pull-up preparation. Mouth and chest movement are editable in the `tired-breaths` clip. It uses the same slow playback, frame stepping and loop controls as the grip studies, without holding the hands to the bar. When fatigue reaches 40, the live scene can choose this preparation before reaching for the bar. Its branch weights and fatigue threshold are editable in Studio. Breathing does not award reps or reduce the fatigue stat.
+
+The gym clips use joint yaw to fold elbows and knees toward the viewer while preserving hand and foot targets. Walking includes ankle turns and flexion. The chest and pelvis turn together during the bench recline; shorts and stripes attach to the pelvis. These are ordinary editable pose tracks, available in Studio and exported scene files. Use quarter-speed playback to inspect the walk, sit, recline and return to standing.
