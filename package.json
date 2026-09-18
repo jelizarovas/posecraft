@@ -78,6 +78,10 @@
       "types": "./src/scene-graph.d.ts",
       "default": "./src/scene-graph.js"
     },
+    "./support-balance": {
+      "types": "./src/support-balance.d.ts",
+      "default": "./src/support-balance.js"
+    },
     "./contacts": {
       "types": "./src/contacts.d.ts",
       "default": "./src/contacts.js"

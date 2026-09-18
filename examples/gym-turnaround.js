@@ -6,7 +6,12 @@ const outline=p=>'M'+point(p[0].map((v,i)=>(v+p.at(-1)[i])/2))+p.map((v,i)=>'Q'+
 const ellipse=(x,y,rx,ry)=>outline(Array.from({length:8},(_,i)=>[x+rx*Math.cos(i*Math.PI/4),y+ry*Math.sin(i*Math.PI/4)]));
 const direction=a=>{const signed=a>180?a-360:a;return {a:Math.abs(signed),side:signed<0?-1:1,s:Math.sin(Math.abs(signed)*radians),c:Math.cos(Math.abs(signed)*radians)};};
 const front=a=>clamp((105-a)/15,0,1),back=a=>clamp((a-85)/35,0,1);
-function landmarks(anchors,angle){const {a,side}=direction(angle),keys=Object.keys(anchors).map(Number).sort((a,b)=>a-b),lo=keys.filter(v=>v<=a).at(-1),hi=keys.find(v=>v>=a),t=hi===lo?0:(a-lo)/(hi-lo);return anchors[lo].map((p,i)=>[side*mix(p[0],anchors[hi][i][0],t),mix(p[1],anchors[hi][i][1],t)]);}
+const mirrorCorrespondence=new WeakMap();
+function landmarks(anchors,angle){const {a,side}=direction(angle),keys=Object.keys(anchors).map(Number).sort((a,b)=>a-b),lo=keys.filter(v=>v<=a).at(-1),hi=keys.find(v=>v>=a),t=hi===lo?0:(a-lo)/(hi-lo),points=anchors[lo].map((p,i)=>[side*mix(p[0],anchors[hi][i][0],t),mix(p[1],anchors[hi][i][1],t)]);if(side>0)return points;
+ let shift=mirrorCorrespondence.get(anchors);if(shift===undefined){let best=Infinity;for(let offset=0;offset<points.length;offset++){let score=0;for(const angle of [0,180]){const reference=anchors[angle];for(let i=0;i<points.length;i++){const reflected=reference[(offset-i+points.length)%points.length];score+=(reference[i][0]+reflected[0])**2+(reference[i][1]-reflected[1])**2;}}if(score<best){best=score;shift=offset;}}mirrorCorrespondence.set(anchors,shift);}
+ // Reflection reverses winding. Keep vertex identities around the contour so
+ // neighboring rear/front views cannot interpolate through a collapsed shape.
+ return points.map((_,i)=>points[(shift-i+points.length)%points.length]);}
 const head={
  0:[[0,-32],[12,-31],[22,-24],[24,-15],[24,-6],[24,1],[23,7],[21,15],[14,23],[5,27],[-5,27],[-14,23],[-22,14],[-24,0],[-22,-20],[-12,-30]],
  30:[[1,-33],[14,-31],[23,-24],[25,-15],[26,-7],[29,0],[26,6],[23,15],[15,23],[6,27],[-5,26],[-15,21],[-22,11],[-23,-2],[-21,-21],[-11,-31]],
@@ -52,7 +57,7 @@ export function addGymTurnaround(pack){
  if(pack.parts.some(part=>part.id==='back-scapula-left'))return pack;
  const find=id=>pack.parts.find(part=>part.id===id),install=(id,draw)=>{const p=find(id);if(p)view(p,draw);};
  install('head-shape',a=>outline(landmarks(head,a)));install('hair',a=>polygon(landmarks(hair,a)));install('trunk',a=>outline(landmarks(torso,a)));install('shorts',a=>polygon(landmarks(shorts,a)));
- for(const name of ['left','right'])install(name+'shoe',a=>{const q=direction(a),toe=q.s,heel=Math.max(0,-q.c),points=[[-10,-7],[-4,-9],[5,-4],[mix(10,19,toe),mix(0,-1,toe)],[mix(12,21,toe),5],[mix(9,18,toe),7],[-11,7],[-13,2]];return outline(points.map(([x,y])=>[q.side*x*(1-.08*heel),y]));});
+ for(const name of ['left','right'])install(name+'shoe',a=>{const turn=Math.sin(a*radians),heel=Math.max(0,-Math.cos(a*radians)),left=(12+10*Math.max(0,-turn))*(1-.05*heel),right=(12+10*Math.max(0,turn))*(1-.05*heel);return outline([[-left,-4],[-left*.55,-8],[right*.35,-7],[right,-1],[right,5],[right*.7,7],[-left*.85,7],[-left,2]]);});
  install('eyes',a=>eyes(a));install('blink',a=>eyes(a,true));
  install('eyebrows',a=>{const q=direction(a),f=front(q.a);return [-1,1].map(side=>{const near=side===q.side?1:clamp((80-q.a)/35,0,1),[x,y]=facePoint(a,side*q.side*9,-13),r=f*near;return 'M'+point([x-6*r,y])+'Q'+point([x,y-2*r])+' '+point([x+5*r,y]);}).join('');});
  install('nose',a=>{const q=direction(a),f=front(q.a),x=q.side*24*q.s;return polygon([[x*f,-2*f],[(x+q.side*(6+3*q.s))*f,4*f],[x*f,6*f]]);});

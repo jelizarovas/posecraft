@@ -113,3 +113,7 @@ import type {ActivityRecipe,ActionSummary} from "posecraft/action-variations";
 const recipe:ActivityRecipe={actor:"ona",variants:[{id:"wave",clip:"wave",weight:1,speed:{min:.8,max:1.2}}],success:{base:.9,modifiers:[{variable:"fatigue",weight:-.005}]},onStart:[{type:"add",variable:"fatigue",value:2}],onSuccess:[],onFailure:[]};
 const summary:ActionSummary={activity:"wave",variant:"wave",speed:1,success:true,progress:.5,active:true};
 void recipe;void summary;
+
+import {sampleSuspendedSupport} from "posecraft/support-balance";
+const supported=sampleSuspendedSupport({anchor:{x:0,y:0},restCenter:{x:10,y:100},resistance:.7,load:1});
+const supportRoll:number=supported.rotation;void supportRoll;

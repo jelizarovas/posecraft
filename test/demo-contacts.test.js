@@ -6,11 +6,12 @@ import {SceneController} from '../src/scene.js';
 import {assertDocument} from '../src/schema.js';
 test('Atlas grip windows repeat across the full workout and release between stations',()=>{
  const d=assertDocument(createGym()),c=new SceneController(d);
- assert.equal(d.contacts.filter(c=>c.period===60&&c.clip==='workout').length,4);assert.equal(d.contacts.filter(c=>c.clip==='bench-failed').length,2);
- for(const [time,count,kind]of [[7,2,'pullup'],[27,0,null],[42,2,'bench'],[67,2,'pullup'],[102,2,'bench'],[127,2,'pullup'],[162,2,'bench']]){
+ const workout=d.contacts.filter(c=>c.period===60&&c.clip==='workout');assert.equal(workout.filter(c=>!c.id.includes('bench-brace')).length,4);assert.equal(workout.filter(c=>c.id.includes('bench-brace')).length,4);assert.equal(d.contacts.filter(c=>c.clip==='bench-failed').length,2);
+ for(const [time,count,kind]of [[7,2,'pullup'],[27,0,null],[32,0,null],[42,2,'bench'],[54,0,null],[67,2,'pullup'],[92,0,null],[102,2,'bench'],[127,2,'pullup'],[162,2,'bench']]){
   c.previewClip('atlas','workout',time);const active=c.frame().contacts.filter(v=>v.active);assert.equal(active.length,count);
   for(const contact of active){assert.ok(contact.id.endsWith(kind));assert.ok(contact.error<.2,`${contact.id} gap ${contact.error} at ${time}`);}
  }
+ for(const time of [38.8,50.2,98.8,110.2,158.8,170.2]){const active=c.previewClip('atlas','workout',time).contacts.filter(v=>v.active);assert.equal(active.length,2);for(const contact of active){assert.ok(contact.id.includes('bench-brace'));assert.ok(contact.error<.15,`${contact.id} gap ${contact.error} at ${time}`);}}
  // Editing the shared station target changes the solved grip, not the authored keys.
  const before=JSON.stringify(d.packs.atlas.clips),changed=structuredClone(d);changed.contacts.find(v=>v.id==='left-pullup').target.offsetX+=5;
  const edited=new SceneController(changed);edited.previewClip('atlas','workout',7);assert.ok(edited.frame().contacts.find(v=>v.id==='left-pullup').error<.2);assert.equal(JSON.stringify(changed.packs.atlas.clips),before);edited.dispose();c.dispose();

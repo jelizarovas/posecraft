@@ -5,6 +5,19 @@ export function poseDefaults(pack){return Object.fromEntries(pack.joints.flatMap
 const I=[1,0,0,0,1,0,0,0,1],rad=Math.PI/180;
 const mul=(a,b)=>Array.from({length:9},(_,i)=>{const row=Math.floor(i/3),col=i%3;return a[row*3]*b[col]+a[row*3+1]*b[col+3]+a[row*3+2]*b[col+6];});
 const apply=(m,x,y,z)=>({x:m[0]*x+m[1]*y+m[2]*z,y:m[3]*x+m[4]*y+m[5]*z,z:m[6]*x+m[7]*y+m[8]*z});
+const rotationMatrix=({rotation=0,yaw=0,pitch=0})=>{const r=rotation*rad,y=yaw*rad,p=pitch*rad,c=Math.cos,s=Math.sin;return mul(mul([c(r),-s(r),0,s(r),c(r),0,0,0,1],[c(y),0,s(y),0,1,0,-s(y),0,c(y)]),[1,0,0,0,c(p),-s(p),0,s(p),c(p)]);};
+const wrapRotation=value=>((value+180)%360+360)%360-180;
+/** Author an end joint's orientation in the actor's world frame. Ancestors are
+ * ordered root to parent; joint records may supply nonzero rest rotations. */
+export function setWorldOrientation(pose,jointId,ancestors,target){
+ let parent=I;for(const ancestor of ancestors){const id=typeof ancestor==='string'?ancestor:ancestor.id;parent=mul(parent,rotationMatrix({rotation:pose[id+'.rotation']??ancestor.rotation??0,yaw:pose[id+'.yaw']||0,pitch:pose[id+'.pitch']||0}));}
+ const inverse=[parent[0],parent[3],parent[6],parent[1],parent[4],parent[7],parent[2],parent[5],parent[8]],m=mul(inverse,rotationMatrix(target));
+ let yaw=Math.asin(clamp(-m[6],-1,1))/rad,rotation,pitch;
+ if(Math.hypot(m[0],m[3])<1e-7){rotation=Math.atan2(-m[1],m[4])/rad;pitch=0;}
+ else{rotation=Math.atan2(m[3],m[0])/rad;pitch=Math.atan2(m[7],m[8])/rad;}
+ if(pitch>90){pitch-=180;yaw=180-yaw;rotation+=180;}else if(pitch< -90){pitch+=180;yaw=-180-yaw;rotation+=180;}
+ pose[jointId+'.rotation']=wrapRotation(rotation);pose[jointId+'.yaw']=wrapRotation(yaw);pose[jointId+'.pitch']=clamp(pitch,-90,90);return pose;
+}
 export function spatialKinematics(pack,pose){
  const world={};
  for(const j of pack.joints){const p=world[j.parent]||{x:0,y:0,z:0,m:I},r=(pose[j.id+'.rotation']??j.rotation)*rad,y=(pose[j.id+'.yaw']||0)*rad,t=(pose[j.id+'.pitch']||0)*rad,c=Math.cos,s=Math.sin;

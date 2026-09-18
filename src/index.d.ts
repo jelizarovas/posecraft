@@ -3,7 +3,7 @@ export function clamp(value:number,min:number,max:number):number;
 export function lerp(a:number,b:number,t:number):number;
 export function wrapAngle(angle:number):number;
 export function mixAngle(a:number,b:number,t:number):number;
-export function interpolate(track:readonly (readonly [number,number,string?])[],time:number,interpolation?:string,angular?:boolean):number;
+export function interpolate(track:readonly (readonly [number,number,string?])[],time:number,interpolation?:string,angular?:boolean|'yaw'):number;
 export function sampleClip(clip:Clip,elapsed:number,interpolation?:string):Record<string,number>;
 export function constrainPose(joints:Joint[],pose:Record<string,number>):Record<string,number>;
 export function forwardKinematics(joints:Joint[],pose:Record<string,number>):Record<string,{x:number;y:number;rotation:number;endX:number;endY:number}>;

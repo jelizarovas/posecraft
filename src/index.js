@@ -1,3 +1,4 @@
+import {repairRotationCharts} from './rotation-interpolation.js';
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 export const lerp = (a, b, t) => a + (b - a) * t;
 const radians = degrees => degrees * Math.PI / 180;
@@ -15,7 +16,8 @@ export function interpolate(track, time, interpolation = 'smooth', angular = fal
       let t = (time - start) / (end - start);
       if (mode === 'step') t = time === end ? 1 : 0;
       if (mode === 'smooth') t = t * t * (3 - 2 * t);
-      return angular ? mixAngle(a, b, t) : lerp(a, b, t);
+      const value=angular==='yaw'&&Math.abs(Math.abs(b-a)-180)<1e-9?lerp(a,b,t):angular?mixAngle(a,b,t):lerp(a,b,t);
+      return angular==='yaw'&&(value>180||value< -180)?wrapAngle(value):value;
     }
   }
   return track.at(-1)[1];
@@ -23,7 +25,8 @@ export function interpolate(track, time, interpolation = 'smooth', angular = fal
 
 export function sampleClip(clip, elapsed, interpolation) {
   const time = clip.loop ? elapsed % clip.duration : Math.min(elapsed, clip.duration);
-  return Object.fromEntries(Object.entries(clip.tracks).map(([key, track]) => [key, interpolate(track, time, interpolation, key.endsWith('.rotation'))]));
+  const pose=Object.fromEntries(Object.entries(clip.tracks).map(([key, track]) => {const value=interpolate(track,time,interpolation,key.endsWith('.yaw')?'yaw':key.endsWith('.rotation'));return [key,key.endsWith('.rotation')&&(value>180||value< -180)?wrapAngle(value):value];}));
+  return repairRotationCharts(clip.tracks,time,pose,interpolate,interpolation);
 }
 
 export function forwardKinematics(joints, pose) {
