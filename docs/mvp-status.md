@@ -15,7 +15,7 @@ Use GitHub Pages for the static Studio with relative build paths. There is no ba
 | Area | Working slice | Remaining scope |
 | --- | --- | --- |
 | ARC, DOC | Shared runtime, commands, versioned data, finite/reference validation, independent actors, JSON round trip | Reusable scene instances, external assets, migrations for future versions |
-| REN | Live SVG paths on hierarchical joints, separate draw order, source Ona geometry | Clips/masks/images, mesh deformation |
+| REN | Live SVG paths and weighted mesh surfaces on hierarchical joints, depth ordering, corrective shapes, source Ona geometry | General image import and mesh topology authoring |
 | ANM | Numeric keyframes/easing, scrubbing, looping, typed input states, blend durations, fixed steps, recorded replay | Trigger/timed state editor, general graph editor, scene-level choreography |
 | REA | React adapter, inputs/events, sizing, translation/acceleration response, hidden/offscreen suspension, disposal, reduced motion, SSR import | Angular motion, Ukis ownership handoff, robust contact model |
 | STU | Compact one-screen layout, Material icons, canvas part picking/rotation handles, editable joint limits/pivots, per-instance hair/colors, library, pose/key editing, transition blend editor, undo/redo, open/save/export/local recovery | Grouping, arbitrary rig creation, drawing tools, full state-graph editing |

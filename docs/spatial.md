@@ -75,3 +75,5 @@ A part can store `spatial.turnaround.views`, an ordered array of `{angle, d}` pa
 ## Scene and surface overlap
 
 See [scene depth and surface decorations](scene-depth.md) for floor anchors, furniture ordering, independently placed props, and details that stay attached to their body surface. Soft limbs render in separate depth regions so a bent arm can pass behind the torso and return in front.
+
+For connected surfaces weighted across several joints, see [skinned surfaces](skinned-mesh.md). Mesh weights and corrective shapes remain editable scene data and travel with website exports.

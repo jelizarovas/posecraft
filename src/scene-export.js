@@ -8,6 +8,7 @@ export function inspectSceneFeatures(document) {
   if(packs.some(pack=>pack.spatial))features.push('spatial');
   if(scene.actors.some(actor=>actor.depth)||(scene.props||[]).some(prop=>prop.depth)||packs.some(pack=>pack.parts.some(part=>part.spatial?.sceneDepth)))features.push('scene-depth');
   if(packs.some(pack=>pack.parts.some(part=>part.spatial?.surfaceOf)))features.push('surface-decals');
+  if(packs.some(pack=>pack.parts.some(part=>part.spatial?.mesh)))features.push('skinned-mesh');
   if(packs.some(pack=>pack.reaction))features.push('spring-reactions');
   if(scene.lighting?.enabled)features.push('lighting');
   if(scene.emitters?.length)features.push('emitters');

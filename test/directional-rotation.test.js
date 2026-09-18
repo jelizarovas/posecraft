@@ -9,8 +9,8 @@ function outlinePoints(path){const points=[];let point={x:0,y:0};for(const comma
 const area=p=>p.reduce((sum,a,i)=>{const b=p[(i+1)%p.length];return sum+a.x*b.y-b.x*a.y;},0)/2;
 const width=p=>Math.max(...p.map(p=>p.x))-Math.min(...p.map(p=>p.x));
 
-test('directional body and shoe contours retain winding and volume through every rear/front mirror interval',()=>{
- for(const id of ['head-shape','hair','trunk','shorts','leftshoe','rightshoe']){
+test('directional head and shoe contours retain winding and volume through every rear/front mirror interval',()=>{
+ for(const id of ['head-shape','hair','leftshoe','rightshoe']){
   const part=pack.parts.find(p=>p.id===id),anchors=part.spatial.turnaround.views.map(v=>outlinePoints(v.d)),sign=Math.sign(area(anchors[0])),minimum=Math.min(...anchors.map(p=>Math.abs(area(p))));let previous=null;
   for(let angle=0;angle<=360;angle++){
    const points=outlinePoints(turnaroundPath(part,angle)),a=area(points),w=width(points);assert.equal(Math.sign(a),sign,`${id} winding at ${angle}`);assert.ok(Math.abs(a)>minimum*.7,`${id} collapses at ${angle}`);if(previous)assert.ok(Math.abs(w-previous)<2,`${id} width jump at ${angle}`);previous=w;if(id.endsWith('shoe'))assert.ok(w>18,'shoe retains its heel/toe volume');

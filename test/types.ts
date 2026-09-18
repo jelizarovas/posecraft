@@ -117,3 +117,11 @@ void recipe;void summary;
 import {sampleSuspendedSupport} from "posecraft/support-balance";
 const supported=sampleSuspendedSupport({anchor:{x:0,y:0},restCenter:{x:10,y:100},resistance:.7,load:1});
 const supportRoll:number=supported.rotation;void supportRoll;
+
+const weightedSurface: import('posecraft/schema').SkinnedMesh={
+ vertices:[{weights:[{joint:'root',x:0,y:0,weight:1}]},{weights:[{joint:'root',x:10,y:0,weight:1}]},{weights:[{joint:'root',x:0,y:10,z:2,weight:1}]}],
+ triangles:[[0,1,2]],correctives:[{joint:'root',channel:'rotation',min:0,max:90,offsets:[{vertex:1,z:3}]}]
+};
+scene.packs[scene.actors[0].pack].parts[0].spatial={mesh:weightedSurface};
+// @ts-expect-error Correctives only use numeric pose channels.
+weightedSurface.correctives!.push({joint:'root',channel:'expression',min:0,max:1,offsets:[]});

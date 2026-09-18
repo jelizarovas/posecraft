@@ -18,5 +18,6 @@ test('parked bottle depth persists separately while carried depth matches the ch
 });
 test('gym equipment uses independent projected depth and decals name their physical host',()=>{
  const d=createGym(),parts=d.packs.atlas.parts;assert.equal(d.actors.find(a=>a.id==='gym').layer,'background');for(const id of ['gym-water-table','gym-bench','gym-rack-near','gym-rack-far','gym-pullup']){const actor=d.actors.find(a=>a.id===id);assert.equal(actor.layer,'characters');assert.ok(Number.isFinite(actor.depth.value));}assert.ok(d.actors.find(a=>a.id==='gym-rack-near').depth.value>d.actors.find(a=>a.id==='gym-rack-far').depth.value);
- for(const [id,host]of [['abs','trunk'],['back-spine','trunk'],['leftbiceps','leftarm'],['shorts-stripe','shorts'],['eyes','head-shape'],['leftshoe','leftleg'],['rightshoe','rightleg'],['leftgrip','leftarm'],['rightgrip','rightarm']])assert.equal(parts.find(p=>p.id===id).spatial.surfaceOf,host);
+ for(const [id,host]of [['eyes','head-shape'],['leftshoe','trunk'],['rightshoe','trunk']])assert.equal(parts.find(p=>p.id===id).spatial.surfaceOf,host);
+ for(const id of ['trunk','shorts','leftbiceps','skin-spine','left-shorts-stripe']){const mesh=parts.find(p=>p.id===id).spatial.mesh;assert.ok(mesh.vertices.length>=3&&mesh.triangles.length>0);assert.ok(mesh.vertices.every(v=>Math.abs(v.weights.reduce((sum,w)=>sum+w.weight,0)-1)<.001));}
 });

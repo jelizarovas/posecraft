@@ -3,11 +3,32 @@ import {validateInteractions} from './pointer-interactions.js';
 import {validateBehaviorGraph} from './behaviors.js';
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings','scene-depth','surface-decals'], unavailable: ['general-fluid-dynamics', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings','scene-depth','surface-decals','skinned-mesh'], unavailable: ['general-fluid-dynamics', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
 const finite = (v, min = -10000, max = 10000) => Number.isFinite(v) && v >= min && v <= max;
+const fields=(value,allowed)=>record(value)&&Object.keys(value).every(key=>allowed.includes(key));
+
+function validateSpatialMesh(mesh,joints,path,check){
+ check(fields(mesh,['vertices','triangles','correctives','creaseAngle']),path,'Expected mesh vertices, triangles and optional correctives or crease angle.');if(!record(mesh))return;
+ const vertices=Array.isArray(mesh.vertices)?mesh.vertices:[],triangles=Array.isArray(mesh.triangles)?mesh.triangles:[];
+ check(Array.isArray(mesh.vertices)&&vertices.length>=3&&vertices.length<=512,path+'.vertices','Expected 3..512 weighted vertices.');
+ check(Array.isArray(mesh.triangles)&&triangles.length>=1&&triangles.length<=1024,path+'.triangles','Expected 1..1024 triangles.');
+ for(const [i,vertex]of vertices.entries()){
+  const p=path+'.vertices.'+i,weights=Array.isArray(vertex?.weights)?vertex.weights:[];check(fields(vertex,['weights'])&&weights.length>=1&&weights.length<=4,p,'A vertex needs 1..4 joint weights.');let total=0;const used=new Set();
+  for(const [n,w]of weights.entries()){const q=p+'.weights.'+n;check(fields(w,['joint','x','y','z','weight'])&&joints.has(w.joint)&&!used.has(w.joint),q,'Weights need distinct existing joints.');if(!record(w))continue;used.add(w.joint);check(finite(w.x)&&finite(w.y)&&(w.z===undefined||finite(w.z)),q,'Expected finite local coordinates within -10000..10000.');check(finite(w.weight,Number.MIN_VALUE,1),q+'.weight','Expected a positive weight no greater than 1.');total+=w.weight;}
+  check(Number.isFinite(total)&&Math.abs(total-1)<=1e-6,p+'.weights','Vertex weights must sum to 1.');
+ }
+ const faces=new Set();for(const [i,face]of triangles.entries()){const valid=Array.isArray(face)&&face.length===3&&face.every(index=>Number.isInteger(index)&&index>=0&&index<vertices.length)&&new Set(face).size===3,key=valid?face.slice().sort((a,b)=>a-b).join(','):null;check(valid&&!faces.has(key),path+'.triangles.'+i,'Expected three distinct existing vertex indices and no duplicate triangles.');if(valid)faces.add(key);}
+ if(mesh.creaseAngle!==undefined)check(finite(mesh.creaseAngle,0,180),path+'.creaseAngle','Expected crease angle 0..180 degrees.');
+ if(mesh.correctives!==undefined){check(Array.isArray(mesh.correctives)&&mesh.correctives.length<=32,path+'.correctives','Expected at most 32 correctives.');let count=0;for(const [i,c]of (Array.isArray(mesh.correctives)?mesh.correctives:[]).entries()){
+  const p=path+'.correctives.'+i;check(fields(c,['joint','channel','min','max','offsets']),p,'Expected a corrective driver and vertex offsets.');if(!record(c))continue;
+  const joint=joints.get(c.joint),range=c.channel==='rotation'&&joint?[joint.min,joint.max]:({yaw:[-180,180],pitch:[-90,90],bend:[0,1]})[c.channel];check(!!joint&&!!range&&finite(c.min,...range)&&finite(c.max,...range)&&c.min<c.max,p,'Expected an existing joint, supported channel and increasing range within its limits.');
+  const offsets=Array.isArray(c.offsets)?c.offsets:[];check(Array.isArray(c.offsets)&&offsets.length<=512,p+'.offsets','Expected at most 512 vertex offsets.');count+=offsets.length;const used=new Set();
+  for(const [n,o]of offsets.entries()){const q=p+'.offsets.'+n;check(fields(o,['vertex','x','y','z'])&&Number.isInteger(o.vertex)&&o.vertex>=0&&o.vertex<vertices.length&&!used.has(o.vertex),q,'Expected a distinct existing vertex index.');if(!record(o))continue;used.add(o.vertex);check(['x','y','z'].some(k=>o[k]!==undefined)&&['x','y','z'].every(k=>o[k]===undefined||finite(o[k],-4096,4096)),q,'Expected at least one finite corrective offset within -4096..4096.');}
+ }check(count<=2048,path+'.correctives','At most 2048 corrective offsets per mesh.');}
+}
 
 export function validateDocument(doc) {
   try { return validateStructure(doc); }
@@ -61,7 +82,7 @@ function validateStructure(doc) {
       joints.add(j.id);
     }
     if(pack.spatial!==undefined)check(typeof pack.spatial==='boolean',p+'.spatial','Expected boolean.');
-    const partIds = new Set();
+    const partIds = new Set(),meshJoints=new Map(pack.joints.filter(record).map(j=>[j.id,j]));
     for (const part of pack.parts) {
       if (!record(part)) { check(false, `${p}.parts`, 'Expected part.'); continue; }
       check(safeId.test(part.id) && !partIds.has(part.id), `${p}.parts`, 'Part IDs must be unique.'); partIds.add(part.id);
@@ -96,6 +117,7 @@ function validateStructure(doc) {
         if(v.sceneDepth!==undefined){depthField(v.sceneDepth,q+'.sceneDepth',pack.joints);check(v.surfaceOf===undefined,q+'.sceneDepth','Surface decorations inherit scene depth from their host.');}
         if(v.surfaceOf!==undefined){const host=pack.parts.find(candidate=>candidate?.id===v.surfaceOf);check(typeof v.surfaceOf==='string'&&!!host&&host.id!==part.id&&host.spatial?.surfaceOf===undefined,q+'.surfaceOf','Expected a different host part without its own surface attachment.');}
         if(v.mask!==undefined)check(pack.parts.some(p=>p.id===v.mask)&&v.mask!==part.id,q,'Missing mask part.');
+        if(v.mesh!==undefined){check(!['softLimb','hairShell','turnaround','morph','surface'].some(key=>v[key]!==undefined),q+'.mesh','Mesh cannot combine with another geometry deformation.');check(doc.requiredFeatures?.includes('skinned-mesh'),'requiredFeatures','Mesh scenes must declare skinned-mesh.');validateSpatialMesh(v.mesh,meshJoints,q+'.mesh',check);}
         if(v.turnaround!==undefined){const views=v.turnaround?.views,number=/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g,signature=typeof part.d==='string'?part.d.replace(number,'#'):null;
           check(record(v.turnaround)&&Array.isArray(views)&&views.length>=3&&views.length<=73&&!v.morph&&!v.softLimb&&!v.hairShell&&!v.surface,q,'Turnaround needs 3..73 compatible directional paths.');
           if(Array.isArray(views)){let previous=-1;for(const [i,view]of views.entries()){check(record(view)&&finite(view.angle,0,360)&&view.angle>previous&&typeof view.d==='string'&&view.d.length<=20000&&/^[MmZzLlHhVvCcSsQqTtEe0-9.,+\s-]+$/.test(view.d)&&view.d.replace(number,'#')===signature&&(view.d.match(number)||[]).length>0&&(view.d.match(number)||[]).every(n=>finite(Number(n),-10000,10000)),q+'.turnaround.views.'+i,'Expected increasing angles and finite paths with matching commands.');previous=view?.angle;}
@@ -167,6 +189,8 @@ function validateStructure(doc) {
   }
   function depthField(value,path,joints){if(value===undefined)return;const fixed=record(value)&&Object.hasOwn(value,'value');check(record(value)&&(fixed?Object.keys(value).every(k=>k==='value')&&finite(value.value,-10000,10000):Array.isArray(joints)&&Object.keys(value).every(k=>['joint','offset'].includes(k))&&typeof value.joint==='string'&&joints.some(j=>j.id===value.joint)&&(value.offset===undefined||finite(value.offset,-4096,4096))),path,'Expected fixed scene depth -10000..10000, or an actor joint with optional offset -4096..4096.');}
   for(const prop of (Array.isArray(doc.props)?doc.props:[]).filter(record))depthField(prop.depth,'props.'+prop.id+'.depth');
+  const meshBudget=doc.actors.reduce((total,actor)=>{for(const part of doc.packs[actor?.pack]?.parts||[]){const m=part?.spatial?.mesh;if(Array.isArray(m?.vertices))total.vertices+=m.vertices.length;if(Array.isArray(m?.triangles))total.triangles+=m.triangles.length;}return total;},{vertices:0,triangles:0});
+  check(meshBudget.vertices<=8192&&meshBudget.triangles<=16384,'actors','Instantiated meshes exceed 8192 vertices or 16384 triangles.');
   const actorIds = new Set();
   for (const a of doc.actors) {
     if (!record(a)) { check(false, 'actors', 'Expected actor.'); continue; }

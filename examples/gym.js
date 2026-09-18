@@ -7,6 +7,7 @@ import {addGymPreparation} from './gym-preparation.js';
 import {configureGymRoom,gymBenchTargets,gymRoomStations,gymSceneDepths} from './gym-room.js';
 import {installGymIdleActions,gymBottleLocations,gymWaterReviews} from './gym-idle-actions.js';
 import {addGymTurnaround,applyGymFacing} from './gym-turnaround.js';
+import {addGymSkin} from './gym-skin.js';
 import {installGymAsymmetry,gymAsymmetryReviews} from './gym-asymmetry.js';
 const rad=Math.PI/180,lerp=(a,b,t)=>a+(b-a)*t,ease=t=>{t=clamp(t,0,1);return t*t*(3-2*t);},mix=(a,b,t)=>({x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t)}),between=(t,a,b)=>ease((t-a)/(b-a));
 export const gymModes=['workout','full-set','fail-six','fail-seven'];
@@ -282,7 +283,7 @@ function finishGymScene(scene,idleMetadata){
  }
  installGymDepth(scene,idleMetadata);addGymTurnaround(pack);
  for(const [host,ids]of [['trunk',['left-pec','right-pec','abs','back-scapula-left','back-scapula-right','back-spine']],['leftarm',['leftbiceps','leftgrip']],['rightarm',['rightbiceps','rightgrip']],['leftleg',['leftshoe']],['rightleg',['rightshoe']],['shorts',['shorts-stripe']],['head-shape',['hair','beard','eyes','eyebrows','effort','blink','nose','breath-mouth','back-hair-strands','ear-left','ear-right']]])for(const id of ids){const p=pack.parts.find(p=>p.id===id);if(p)p.spatial={...p.spatial,surfaceOf:host};}
- scene.requiredFeatures.push('directional-artwork','surface-decals');
+ addGymSkin(pack);scene.requiredFeatures.push('directional-artwork','surface-decals','skinned-mesh');
  return scene;
 }
 

@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import http from 'node:http';
+import {chromium} from '@playwright/test';
+import {meshExportFixture} from './mesh-export-fixture.mjs';
+import {compileScene} from '../tools/compile-scene.mjs';
+const doc=meshExportFixture(),dev=(process.env.POSECRAFT_URL||'http://127.0.0.1:5178').replace(/\/$/,'');
+await fs.mkdir('test-results',{recursive:true});const root=await fs.mkdtemp(path.resolve('test-results/mesh-website-')),manifest=await compileScene(doc,path.join(root,'site'));
+assert.equal(manifest.runtime,'illustration');assert.ok(manifest.features.includes('skinned-mesh'));assert.ok(manifest.files.some(f=>f.modules.some(id=>id.endsWith('/skinned-mesh.js'))));assert.ok(!manifest.files.some(f=>f.modules.some(id=>/planck|\/physics\.js|\/scene\.js/.test(id))));
+const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost'),filename=path.resolve(root,'.'+url.pathname+(url.pathname.endsWith('/')?'index.html':''));if(!filename.startsWith(root+path.sep))throw Error('Outside fixture');res.setHeader('Content-Type',filename.endsWith('.js')?'text/javascript':'text/html');res.end(await fs.readFile(filename));}catch{res.writeHead(404);res.end();}});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})}),page=await browser.newPage({viewport:{width:1120,height:400}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+try{
+ await page.route('**/__mesh-export-proof__',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><body></body>'}));await page.goto(dev+'/__mesh-export-proof__');
+ const proof=await page.evaluate(async document=>{
+  const [{SceneController},{IllustrationController},{WorkerSceneController},{mountSVG},{spatialParts},{capabilities}]=await Promise.all([import('/src/scene.js'),import('/src/illustration.js'),import('/src/worker.js'),import('/src/svg.js'),import('/src/spatial.js'),import('/src/schema.js')]);
+  const controllers=[new SceneController(document),new IllustrationController(document),new WorkerSceneController(document)];await controllers[2].ready;
+  const worker=controllers[2],settle=()=>new Promise((resolve,reject)=>{const deadline=performance.now()+5000;const check=()=>{if(worker.disposed)return reject(Error('Worker stopped'));if(!worker.inFlight&&!worker.queue.length)return resolve();if(performance.now()>deadline)return reject(Error('Worker timeout'));setTimeout(check,3)};check();});
+  globalThis.document.body.innerHTML='<style>body{margin:0;display:flex}main{width:360px}svg{width:100%;height:auto}</style><main></main><main></main><main></main>';
+  const hosts=[...globalThis.document.querySelectorAll('main')],renderers=controllers.map((c,i)=>mountSVG(hosts[i],document,c.frame())),nodes=hosts.map(h=>[...h.querySelectorAll('[data-fragment-path]')]);
+  const geometry=c=>JSON.stringify(spatialParts(document.packs.drawing,c.frame().actors[0]).parts.get('skin').mesh),rendered=h=>JSON.stringify([...h.querySelectorAll('[data-fragment-path]')].map(n=>[n.dataset.fragmentPath,n.getAttribute('d'),n.getAttribute('visibility')]).sort());let same=true,stable=true,first=geometry(controllers[0]);
+  for(let i=0;i<60;i++){for(const c of controllers)c.step(1/60);await settle();for(let k=0;k<3;k++)renderers[k].update(controllers[k].frame());same&&=controllers.every(c=>geometry(c)===geometry(controllers[0]))&&hosts.every(h=>rendered(h)===rendered(hosts[0]));stable&&=hosts.every((h,k)=>nodes[k].every(n=>n===h.querySelector(`[data-fragment-path="${n.dataset.fragmentPath}"]`)));}
+  const expected=geometry(controllers[0]),moved=first!==expected;for(const c of controllers)c.seek(.2);await settle();for(const c of controllers)c.seek(1);await settle();const replay=controllers.every(c=>geometry(c)===expected),parts=nodes[0].length;
+  renderers.forEach(r=>r.dispose());controllers.forEach(c=>c.dispose());return {same,stable,moved,replay,parts,capability:capabilities.features.includes('skinned-mesh')};
+ },doc);
+ assert.ok(proof.same,'full, lightweight, and worker frames render identical weighted geometry');assert.ok(proof.stable);assert.ok(proof.moved);assert.ok(proof.replay);assert.ok(proof.capability);assert.ok(proof.parts>4);
+ const requests=[];page.on('request',r=>requests.push(r.url()));const base=`http://127.0.0.1:${server.address().port}`;await page.goto(base+'/site/');await page.waitForFunction(()=>window.posecraft?.controller);await page.evaluate(()=>window.posecraft.pause());
+ const exported=await page.evaluate(()=>{const player=window.posecraft,paths=()=>[...document.querySelectorAll('[data-fragment-path]')],geometry=()=>paths().map(n=>[n.dataset.fragmentPath,n.getAttribute('d')]),original=paths();player.seek(0);const before=JSON.stringify(geometry());player.seek(1);const after=JSON.stringify(geometry()),faces=paths().filter(n=>!n.dataset.fragmentPath.includes('--edge-'));return {moved:before!==after,stable:original.every(n=>n===document.querySelector(`[data-fragment-path="${n.dataset.fragmentPath}"]`)),faces:faces.length,rampCount:new Set(faces.map(n=>n.getAttribute('fill'))).size,embedded:JSON.parse(document.querySelector('#posecraft-scene').textContent).packs.drawing.parts[0].spatial.mesh,html:document.querySelector('#posecraft').innerHTML};});
+ assert.ok(exported.moved);assert.ok(exported.stable);assert.equal(exported.faces,4);assert.equal(exported.rampCount,1,'faces share one shading ramp');assert.deepEqual(exported.embedded,doc.packs.drawing.parts[0].spatial.mesh);assert.ok(!/NaN|Infinity/.test(exported.html));assert.equal(await page.locator('#error').isVisible(),false);assert.ok(requests.filter(url=>url.endsWith('.js')).every(url=>url.startsWith(base+'/site/runtime/')));
+ await page.setViewportSize({width:390,height:400});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'test-results/mesh-export-proof.png'});assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:true,proof,features:manifest.features,bytes:manifest.files.reduce((sum,f)=>sum+f.bytes,0)}));
+}finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

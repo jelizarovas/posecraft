@@ -1,3 +1,4 @@
+import {evaluateSkinnedMesh} from './skinned-mesh.js';
 import {hairShellPath} from './hair-shell.js';
 import {clamp} from './index.js';
 export const spatialChannels={opacity:{min:0,max:1},yaw:{min:-180,max:180},pitch:{min:-90,max:90},z:{min:-500,max:500},bend:{min:0,max:1}};
@@ -95,6 +96,7 @@ function attachSurfaces(pack,parts,fragments){
   const hostId=part.spatial?.surfaceOf||part.spatial?.mask;
   if(!hostId||!parts.has(hostId)||hostId===part.id)continue;
   const host=pack.parts[parts.get(hostId).index],skin=host.spatial?.softLimb;
+  if(host.spatial?.mesh){parts.get(part.id).visible&&=parts.get(hostId).visible;continue;}
   const kind=skin?(part.joint===skin.hand?'palm':part.joint===skin.elbow?'forearm':'upper'):null,hostFragment=kind?hostId+'--'+kind:hostId;
   if(!fragments.has(hostFragment))continue;
   const view=parts.get(part.id),hostView=parts.get(hostId);view.depth=hostView.depth;view.visible&&=hostView.visible;
@@ -107,6 +109,19 @@ function attachSurfaces(pack,parts,fragments){
  // when those older documents cannot express a single surface owner.
  for(const id of [...fragments.keys()].sort(compare))emit(id);
  return order;
+}
+
+// Large surfaces use narrow depth bands to keep live SVG updates bounded.
+// Every triangle still deforms; only equal-material draw calls are batched.
+function meshDrawFragments(part,view,parts){
+ const mesh=view.mesh,bias=(part.spatial.order||0)*.001,base={...view,mesh:undefined,partId:part.id},faces=mesh.faces,edges=mesh.edges,host=parts.get(part.spatial.surfaceOf)?.mesh;
+ const hostLow=host?Math.min(...host.vertices.map(v=>v.depth)):0,hostWidth=host?Math.max(.001,(Math.max(...host.vertices.map(v=>v.depth))-hostLow)/64):1,surfaceDepth=host?.faces.length>128?depth=>hostLow+(Math.floor((depth-hostLow)/hostWidth)+.5)*hostWidth:depth=>depth;
+ if(faces.length<=128)return [...faces.map(f=>[f.index===0?part.id:part.id+'--face-'+f.index,{...base,d:f.d,depth:surfaceDepth(f.depth)+bias,visible:view.visible&&f.visible,kind:'mesh-face',primary:f.index===0}]),...edges.map(e=>[part.id+'--edge-'+e.id,{...base,d:e.d,depth:surfaceDepth(e.depth-.01)+bias+.01,visible:view.visible&&e.visible,kind:'mesh-edge'}])];
+ const count=64,low=Math.min(...mesh.vertices.map(v=>v.depth)),high=Math.max(...mesh.vertices.map(v=>v.depth)),width=Math.max(.001,(high-low)/count),buckets=Array.from({length:count},()=>({faces:[],edges:[]})),index=depth=>Math.max(0,Math.min(count-1,Math.floor((depth-low)/width)));
+ for(const face of faces)if(face.visible){const indices=face.frontFacing?face.indices:[...face.indices].reverse();buckets[index(face.depth)].faces.push('M'+indices.map(i=>{const v=mesh.vertices[i];return +v.x.toFixed(4)+' '+ +v.y.toFixed(4);}).join('L')+'Z');}
+ // Keep a contour above both incident face bands so its own skin cannot erase it.
+ for(const edge of edges)if(edge.visible)buckets[index(Math.max(edge.depth,...edge.faces.map(i=>faces[i].depth)))].edges.push(edge.d);
+ return buckets.flatMap((bucket,i)=>[[i===0?part.id:part.id+'--face-'+i,{...base,d:bucket.faces.join(''),depth:low+(i+.5)*width+bias,visible:view.visible&&bucket.faces.length>0,kind:'mesh-face',primary:i===0}],[part.id+'--edge-'+i,{...base,d:bucket.edges.join(''),depth:low+(i+.5)*width+bias+.01,visible:view.visible&&bucket.edges.length>0,kind:'mesh-edge'}]]);
 }
 
 export function spatialParts(pack,frame){
@@ -128,7 +143,8 @@ export function spatialParts(pack,frame){
   const center=apply(m,s.center?.[0]||0,s.center?.[1]||0,s.depth||0);
   result.set(part.id,{matrix:v,transform:`matrix(${v.map(n=>+n.toFixed(5)).join(' ')})`,depth:j.z+j.layerDepth+center.z+(s.order||0)*.001,index,opacity,visible:turnPath&&(turnPath.match(numbers)||[]).every(n=>Number(n)===0)?false:s.facingFade?opacity>0:s.facing==='front'?facing>.035:s.facing==='back'?facing<-.035:true,d:turnPath??(s.hairShell?hairShellPath(s.hairShell,m,frame.inputs?.[part.variantInput]):s.softLimb?softLimbPath(pack,part,pose,world):s.morph?morphPath(part,frame.pose[s.morph.channel]):null)});
  });
- const fragments=new Map();for(const part of pack.parts){const view=result.get(part.id);if(part.spatial?.softLimb){for(const fragment of limbFragments(pack,part,pose,world,view))fragments.set(part.id+'--'+fragment.kind,fragment);}else fragments.set(part.id,{...view,partId:part.id,kind:'part'});}
+ for(const part of pack.parts)if(part.spatial?.mesh){const view=result.get(part.id),mesh=evaluateSkinnedMesh(part.spatial.mesh,world,pose);Object.assign(view,{mesh,matrix:[1,0,0,1,0,0],transform:'matrix(1 0 0 1 0 0)',d:mesh.faces.filter(f=>f.visible).map(f=>'M'+(f.frontFacing?f.indices:[...f.indices].reverse()).map(i=>{const v=mesh.vertices[i];return +v.x.toFixed(4)+' '+ +v.y.toFixed(4);}).join('L')+'Z').join(''),depth:mesh.vertices.reduce((n,v)=>n+v.depth,0)/mesh.vertices.length});}
+ const fragments=new Map();for(const part of pack.parts){const view=result.get(part.id);if(view.mesh){for(const [id,fragment]of meshDrawFragments(part,view,result))fragments.set(id,fragment);}else if(part.spatial?.softLimb){for(const fragment of limbFragments(pack,part,pose,world,view))fragments.set(part.id+'--'+fragment.kind,fragment);}else fragments.set(part.id,{...view,partId:part.id,kind:'part'});}
  const fragmentOrder=attachSurfaces(pack,result,fragments),order=[],seen=new Set();for(const id of fragmentOrder){const partId=fragments.get(id).partId;if(!seen.has(partId)){order.push(partId);seen.add(partId);}}
  return {world,parts:result,order,fragments,fragmentOrder};
 }

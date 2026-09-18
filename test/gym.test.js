@@ -12,7 +12,7 @@ const world=(d,time,mode='workout')=>spatialKinematics(d.packs.atlas,sample(d,ti
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),benchTargets=gymBenchTargets();
 const barGrip=(world,name)=>{const x=benchTargets.bar.gripOffsets[name].x;return {x:world.barbell.x+world.barbell.m[0]*x,y:world.barbell.y+world.barbell.m[3]*x};};
 test('gym is portable editable scene data with cached independent copies and bounded tracks',()=>{
- const d=assertDocument(JSON.parse(JSON.stringify(createGym())));assert.deepEqual(Object.keys(d.packs.atlas.clips).slice(0,gymModes.length),gymModes);for(const id of ['drink-at-bar','drink-at-bench','bench-failed'])assert.ok(d.packs.atlas.clips[id]);assert.equal(d.packs.atlas.clips.workout.duration,180);assert.ok(d.groups.some(g=>g.id==='athlete'));assert.ok(d.packs.atlas.parts.some(p=>p.spatial?.softLimb));
+ const d=assertDocument(JSON.parse(JSON.stringify(createGym())));assert.deepEqual(Object.keys(d.packs.atlas.clips).slice(0,gymModes.length),gymModes);for(const id of ['drink-at-bar','drink-at-bench','bench-failed'])assert.ok(d.packs.atlas.clips[id]);assert.equal(d.packs.atlas.clips.workout.duration,180);assert.ok(d.groups.some(g=>g.id==='athlete'));assert.ok(d.packs.atlas.parts.some(p=>p.spatial?.mesh));
  for(const c of Object.values(d.packs.atlas.clips))for(const keys of Object.values(c.tracks)){assert.ok(keys.length<=1000);assert.ok(keys.every(k=>k.every(v=>typeof v==='string'||Number.isFinite(v))));}
  d.packs.atlas.parts[0].fill='#000000';assert.notEqual(createGym().packs.atlas.parts[0].fill,'#000000');assert.equal(d.actors.find(a=>a.id==='atlas').inputs.action,'workout');
 });
@@ -52,7 +52,7 @@ test('world foot anchors stay planted during support and phases leave time to pr
 
 
 test('pull-up head passes behind the rail while wrapping hands stay in front',()=>{
- const d=createGym(),pack=d.packs.atlas,pose=sample(d,7),order=spatialParts(pack,{pose,world:forwardKinematics(pack.joints,pose)}).order,rail=order.indexOf('pullup-front-bar');assert.ok(rail>order.indexOf('head-shape'));assert.ok(rail>order.indexOf('eyes'));assert.ok(order.indexOf('leftgrip')>rail);assert.ok(order.indexOf('rightgrip')>rail);for(const t of [30.7,54.3]){const pose=sample(d,t),turned=spatialParts(pack,{pose,world:forwardKinematics(pack.joints,pose)}).order;assert.ok(turned.indexOf('eyes')>turned.indexOf('head-shape'),'face remains visible when turned');}
+ const d=createGym(),pack=d.packs.atlas,pose=sample(d,7),spatial=spatialParts(pack,{pose,world:forwardKinematics(pack.joints,pose)}),order=spatial.order,rail=order.indexOf('pullup-front-bar');assert.ok(rail>order.indexOf('head-shape'));assert.ok(rail>order.indexOf('eyes'));const body=pack.parts.find(p=>p.id==='trunk').spatial.mesh;for(const side of ['left','right']){const tips=body.vertices.flatMap((v,i)=>v.weights.some(w=>w.joint===side+'Hand'&&w.weight>.5)?[spatial.parts.get('trunk').mesh.vertices[i]]:[]);assert.ok(tips.length>=8);assert.ok(tips.every(v=>v.depth>spatial.parts.get('pullup-front-bar').depth),'connected palm wraps in front of the rail');}for(const t of [30.7,54.3]){const pose=sample(d,t),turned=spatialParts(pack,{pose,world:forwardKinematics(pack.joints,pose)}).order;assert.ok(turned.indexOf('eyes')>turned.indexOf('head-shape'),'face remains visible when turned');}
 });
 
 test('bench work keeps feet on projected floor anchors and failure has anticipatory hesitation',()=>{

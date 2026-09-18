@@ -32,7 +32,7 @@ test('hanging knees fold in depth and walking ankles turn and flex without movin
 });
 
 test('reclining turns chest and pelvis together, with grouped hips and planted bench feet',()=>{
- const p=createGym().packs.atlas;assert.equal(p.parts.find(v=>v.id==='shorts').joint,'pelvis');assert.equal(p.parts.find(v=>v.id==='shorts-stripe').joint,'pelvis');
+ const p=createGym().packs.atlas;assert.equal(p.parts.find(v=>v.id==='shorts').joint,'pelvis');assert.equal(p.parts.find(v=>v.id==='left-shorts-stripe').joint,'pelvis');assert.ok(p.parts.find(v=>v.id==='shorts').spatial.mesh);
  const q=pose(p,'full-set',42),w=spatialKinematics(p,q);
  const targets=gymBenchTargets(),roll=Math.atan2(targets.back.x-targets.hips.x,targets.hips.y-targets.back.y)*180/Math.PI;assert.equal(q['torso.yaw'],60);assert.equal(q['pelvis.yaw'],60);assert.ok(Math.abs(q['torso.rotation']-roll)<.01);assert.ok(Math.abs(q['pelvis.rotation']-roll)<.01);
  assert.ok(Math.hypot(w.torso.m[0],w.torso.m[3])<.51,'chest is visibly foreshortened');
