@@ -24,3 +24,30 @@ test('activity validation rejects references, recursion, malformed ranges and ov
 test('completion events carry the recipe actor and can schedule another bounded performance',()=>{
  const {d,actor}=fixture();d.behaviorGraph.handlers.push({event:'done',actions:[{type:'perform',activity:'work'}]});const r=new BehaviorRuntime(d);run(r);r.tick(2);assert.equal(r.variables.wins,1);assert.equal(r.variables.starts,2);assert.equal(r.snapshot().actions[actor].active,true);assert.equal(r.actionPose(actor).progress,0);r.tick(0);assert.equal(r.variables.starts,2);r.tick(2);assert.equal(r.variables.wins,2);assert.equal(r.variables.starts,3);
 });
+
+test('fatigue-dependent choice weights change seeded selection before start effects',()=>{
+ const {d,actor}=fixture(),recipe=d.behaviorGraph.activities.work;
+ recipe.variants=[{id:'steady',clip:'work',weight:3,speed:{min:1,max:1}},{id:'strained',clip:'work',weight:1,weightInfluences:[{variable:'fatigue',weight:8}],speed:{min:1,max:1}}];
+ recipe.onStart.push({type:'set',variable:'fatigue',value:0});
+ const choose=(fatigue,seed)=>{const doc=structuredClone(d);doc.behaviorGraph.seed=seed;doc.behaviorGraph.variables.fatigue=fatigue;const r=new BehaviorRuntime(doc);run(r);assert.equal(r.variables.fatigue,0);return r.actionPose(actor).variant;};
+ let fresh=0,tired=0;
+ for(let seed=1;seed<=128;seed++){const a=choose(0,seed*7919),b=choose(1,seed*7919);fresh+=a==='strained';tired+=b==='strained';assert.equal(choose(1,seed*7919),b,'same seed and stats replay exactly');}
+ assert.ok(tired>fresh+35,`fatigue increases strained choices: ${fresh} fresh, ${tired} tired`);
+});
+
+test('zero choice weight skips a variation and an empty outcome starts nothing',()=>{
+ const {d,actor}=fixture(),recipe=d.behaviorGraph.activities.work;
+ d.behaviorGraph.variables.fatigue=1;recipe.variants[0].weightInfluences=[{variable:'fatigue',weight:-2}];
+ const r=new BehaviorRuntime(d);assert.equal(r.activities.start('work',0),false);assert.equal(r.variables.starts,0);assert.equal(r.actionPose(actor),null);r.tick(4);assert.equal(r.variables.wins,0);
+ recipe.variants.push({id:'fallback',clip:'work',weight:1,speed:{min:1,max:1}});
+ const fallback=new BehaviorRuntime(d);run(fallback);assert.equal(fallback.actionPose(actor).variant,'fallback');
+ recipe.failureVariants=[{id:'failure',clip:'fail',weight:1,weightInfluences:[{variable:'fatigue',weight:-1}],speed:{min:1,max:1}}];recipe.success.base=0;
+ const failed=new BehaviorRuntime(d);assert.equal(failed.activities.start('work',0),false);assert.equal(failed.variables.starts,0);assert.equal(failed.actionPose(actor),null);
+});
+
+test('choice-weight influence validation rejects unsafe values and keeps numeric conditions independent',()=>{
+ for(const bad of [null,{},Array(9).fill({variable:'fatigue',weight:1}),[{variable:'missing',weight:1}],[{variable:'flag',weight:1}],[{variable:'fatigue',weight:Infinity}],[{variable:'fatigue',weight:NaN}],[{variable:'fatigue',weight:1001}],[{variable:'fatigue',weight:-1001}],[null]]){
+  const {d}=fixture();d.behaviorGraph.variables.flag=true;d.behaviorGraph.activities.work.variants[0].weightInfluences=bad;assert.throws(()=>new BehaviorRuntime(d));
+ }
+ const {d,actor}=fixture(),v=d.behaviorGraph.activities.work.variants[0];v.when={variable:'fatigue',op:'eq',value:1};v.weightInfluences=[{variable:'fatigue',weight:1000}];const r=new BehaviorRuntime(d);assert.equal(r.activities.start('work',0),false);r.setVariable('fatigue',1);assert.equal(r.activities.start('work',0),true);assert.equal(r.actionPose(actor).variant,'normal');
+});

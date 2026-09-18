@@ -4,6 +4,18 @@ A live scene can perform named actions from `behaviorGraph.activities`. Each act
 
 In Studio, open **Scene → Behaviors & interactions → Stats** to add numeric stats and their limits. **Actions** edits animation choices, success chances, and effects. States and event handlers can use **perform** to start an action and **add** to increase or decrease a stat. Saving, undo, redo, project downloads, and website exports include these definitions.
 
+## Stats and variation choice
+
+In **Actions**, select a variation and use **Choice-weight influences** to make its frequency depend on current stats. The effective weight is `max(0, weight + sum(stat × influence))`. For example, a strained variation with base weight 1 and fatigue influence 0.08 has weight 1 when fresh and 9 at fatigue 100. With a steady variation weighted 3, its chance rises from 25% to 75%. This changes animation choice separately from the recipe's success chance.
+
+```js
+{ id: 'strained', clip: 'strained-pull-up', weight: 1,
+  weightInfluences: [{ variable: 'fatigue', weight: 0.08 }],
+  speed: { min: 0.8, max: 1 } }
+```
+
+Each variation supports up to eight influences referencing existing numeric stats, with coefficients from −1000 to 1000. Conditions filter variations first, then positive effective weights determine their relative chances. The same rules apply to failed variations. If the selected outcome has no positive eligible weight, the request starts nothing and applies no effects. Keep a positive fallback when an action must always be available. Selection reads stats before start effects and remains fixed for that attempt; resetting and replaying the same inputs reproduces it. Studio undo, reload, and exports preserve the influences.
+
 ## Outcome rules
 
 Success chance is the base probability plus each current stat multiplied by its influence, clamped to 0–1. For example, a base of 1 with fatigue influence −0.006 and dehydration influence −0.004 gives a 70% chance at fatigue 30 and dehydration 30. These are authoring values for a cartoon, not physiological measurements.

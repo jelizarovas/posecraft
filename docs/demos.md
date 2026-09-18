@@ -84,6 +84,8 @@ Use **Review**, **Speed**, **Loop action**, and the frame-step button on the gym
 
 ### Gym action variations
 
+Pull-ups and bench presses include left-leading and right-leading reps. The weaker side pauses, then catches up or stalls; pull-up shoulders roll under fixed grips, while uneven presses tilt one rigid barbell. These variations become more likely as fatigue rises. All eight clips are available in **Action variations** and editable in Studio, including their grip contacts, speed ranges and fatigue-dependent selection weights.
+
 In One more rep, choose **Action variations** to preview the left- or right-hand jump catch, one-hand release, or small celebration before dropping. Each preview has slow playback, frame stepping and a loop control. In the live workout, weighted prepare/recovery recipes choose these clips. Only failed pull-ups can select the celebration recovery. Holding-hand contacts use clip-local time, so changes to playback speed keep the grip attached. All four clips and their contact windows are editable in Studio and included in scene downloads and website exports.
 
 

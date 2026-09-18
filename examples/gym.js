@@ -3,6 +3,7 @@ import {addGymPreparation} from './gym-preparation.js';
 import {configureGymRoom,gymBenchTargets,gymRoomStations} from './gym-room.js';
 import {installGymIdleActions} from './gym-idle-actions.js';
 import {addGymTurnaround,applyGymFacing} from './gym-turnaround.js';
+import {installGymAsymmetry,gymAsymmetryReviews} from './gym-asymmetry.js';
 const rad=Math.PI/180,lerp=(a,b,t)=>a+(b-a)*t,ease=t=>{t=clamp(t,0,1);return t*t*(3-2*t);},mix=(a,b,t)=>({x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t)}),between=(t,a,b)=>ease((t-a)/(b-a));
 export const gymModes=['workout','full-set','fail-six','fail-seven'];
 export const gymTiming={round:60,preparation:0,reach:4,grab:6,pullEnd:24,release:25,recover:26.5,walkToBench:29,sit:36,lieDown:38,grasp:40,benchStart:41,benchEnd:48,rack:48,sitUp:49,stand:51,returnStart:52.5,home:59,repDurations:[1.65,1.8,1.95,2.1,2.3,2.5,2.7,3]};
@@ -251,6 +252,12 @@ function finishGymScene(scene){
  const withBottle=pose=>{pose['water-bottle.x']=400-pose['root.x'];pose['water-bottle.y']=270-pose['root.y'];pose['water-bottle.opacity']=1;return pose;};
  pack.clips.turnaround=authoredClip(12,t=>{const pose=applyGymFacing({...gymPose(0,'full-set')},t/12*360),angle=pose['torso.yaw']*rad;for(const [name,side]of [['left',-1],['right',1]]){pose[name+'Upper.x']=side*34*(Math.cos(angle)-1);pose[name+'Upper.z']=-side*Math.sin(angle)*30+4;pose[name+'Hand.z']=0;pose[name+'Thigh.x']=side*16*(Math.cos(angle)-1);pose[name+'Thigh.z']=-side*Math.sin(angle)*14;}return withBottle(pose);});
  pack.clips['floor-walk']=authoredClip(12,t=>withBottle(t<6?gymTravelPose(t,6,{x:180,y:383},{x:420,y:310}):gymTravelPose(t-6,6,{x:420,y:310},{x:180,y:383})));
+ installGymAsymmetry(scene,{poseAt:gymPose,makeClip:authoredClip,solve,limbDepth});
+ for(const review of gymAsymmetryReviews){
+  const activity=g.activities[review.kind],variant={id:review.id,clip:review.clip,start:0,end:review.duration,weight:review.failed?1:.15,weightInfluences:[{variable:'fatigue',weight:review.failed?.03:.04}],speed:{min:.82,max:1.08}};
+  activity[review.failed?'failureVariants':'variants'].push(variant);
+  for(const name of ['left','right'])scene.contacts.push({id:review.id+'-'+name,name:review.label+' / '+name+' grip',enabled:true,actor:'atlas',chain:{upper:name+'Upper',lower:name+'Lower',end:name+'Hand'},target:review.kind==='pull'?{type:'joint',actor:'gym',joint:'root',offsetX:name==='left'?137:223,offsetY:150}:{type:'joint',actor:'atlas',joint:'barbell',offsetX:benchTargets.bar.gripOffsets[name].x,offsetY:0},bend:name==='left'?1:-1,weight:1,start:0,end:review.duration,clip:review.clip});
+ }
  addGymTurnaround(pack);scene.requiredFeatures.push('directional-artwork');
  return scene;
 }
