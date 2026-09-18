@@ -1,7 +1,7 @@
-import {clamp,wrapAngle} from '../src/index.js';
+import {clamp,wrapAngle,sampleClip} from '../src/index.js';
 import {addGymPreparation} from './gym-preparation.js';
-import {configureGymRoom,gymBenchTargets,gymRoomStations} from './gym-room.js';
-import {installGymIdleActions} from './gym-idle-actions.js';
+import {configureGymRoom,gymBenchTargets,gymRoomStations,gymSceneDepths} from './gym-room.js';
+import {installGymIdleActions,gymBottleLocations,gymWaterReviews} from './gym-idle-actions.js';
 import {addGymTurnaround,applyGymFacing} from './gym-turnaround.js';
 import {installGymAsymmetry,gymAsymmetryReviews} from './gym-asymmetry.js';
 const rad=Math.PI/180,lerp=(a,b,t)=>a+(b-a)*t,ease=t=>{t=clamp(t,0,1);return t*t*(3-2*t);},mix=(a,b,t)=>({x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t)}),between=(t,a,b)=>ease((t-a)/(b-a));
@@ -44,7 +44,7 @@ export function gymWalk(time,start,end,from,to,options={}){
 }
 export function gymTravelPose(time,duration,from,to,options={}){
  const pose={...gymPose(0,'full-set')},w=gymWalk(time,0,duration,from,to,options),heading=w.yaw,across=Math.cos(heading*rad),depth=Math.sin(heading*rad);
- pose['root.x']=w.x;pose['root.y']=w.y;pose['torso.yaw']=heading;pose['pelvis.yaw']=heading;pose['head.yaw']=0;
+ pose['root.x']=w.x;pose['root.y']=w.y;pose['floor-depth.y']=w.floorY-383;pose['torso.yaw']=heading;pose['pelvis.yaw']=heading;pose['head.yaw']=0;
  for(const [name,side]of [['left',-1],['right',1]]){
   const shoulder={x:side*34*across,y:-68},stride=clamp((w.feet[name].x-w.x)/32,-1,1),target={x:shoulder.x-stride*21,y:6-Math.abs(stride)*5},arm=solve(shoulder,target,40,side<0?-1:1);
   pose[name+'Upper.x']=shoulder.x-side*34;pose[name+'Upper.y']=0;pose[name+'Upper.rotation']=arm.upper;pose[name+'Lower.rotation']=arm.lower;pose[name+'Upper.yaw']=0;pose[name+'Lower.yaw']=0;pose[name+'Upper.z']=-side*depth*30+4;pose[name+'Hand.z']=0;
@@ -65,7 +65,7 @@ export function gymPose(time,mode='workout'){
  y-=4*hang+70*lift+shake;y=lerp(y,benchTargets.sit.y,sit);y=lerp(y,benchTargets.hips.y,lying);
  const tired=(outcome<8?1:.45)*between(t,25,26.5)*(1-between(t,28.3,29)),anticipation=(outcome<8?.7:.3)*Math.sin(Math.PI*clamp(t/4,0,1))**2,breath=Math.sin(t*3.2)*1.3*(tired+anticipation);
  const benchRoll=Math.atan2(benchTargets.back.x-benchTargets.hips.x,benchTargets.hips.y-benchTargets.back.y)/rad,reclineAngle=-lying*benchRoll*rad,torsoLength=lerp(48,Math.hypot(benchTargets.back.x-benchTargets.hips.x,benchTargets.back.y-benchTargets.hips.y),lying),torsoX=-torsoLength*Math.sin(reclineAngle),torsoY=48-torsoLength*Math.cos(reclineAngle);
- pose['root.x']=x;pose['root.y']=y;pose['pelvis.z']=30;pose['torso.x']=torsoX;pose['torso.y']=torsoY+breath;pose['torso.rotation']=benchRoll*lying-15*tired-7*anticipation;pose['torso.yaw']=(walking?.direction||1)*40*(walking?.blend||0)+60*lying;pose['pelvis.rotation']=benchRoll*lying;pose['pelvis.yaw']=(walking?.direction||1)*30*(walking?.blend||0)+60*lying;pose['head.rotation']=20*lying+8*tired;pose['head.yaw']=-12*lying+(walking?.direction||1)*10*(walking?.blend||0);pose['head.pitch']=-10*effort+12*tired+7*anticipation;
+ pose['root.x']=x;pose['root.y']=y;pose['floor-depth.y']=(gymSceneDepths.bench-383)*sit;pose['pelvis.z']=30;pose['torso.x']=torsoX;pose['torso.y']=torsoY+breath;pose['torso.rotation']=benchRoll*lying-15*tired-7*anticipation;pose['torso.yaw']=(walking?.direction||1)*40*(walking?.blend||0)+60*lying;pose['pelvis.rotation']=benchRoll*lying;pose['pelvis.yaw']=(walking?.direction||1)*30*(walking?.blend||0)+60*lying;pose['head.rotation']=20*lying+8*tired;pose['head.yaw']=-12*lying+(walking?.direction||1)*10*(walking?.blend||0);pose['head.pitch']=-10*effort+12*tired+7*anticipation;
  let weightY=bench.barY,pressEffort=0;const benchEnds=[43.05,45.35,48];if(t>=41&&t<48){const index=benchEnds.findIndex(end=>t<end),start=index?benchEnds[index-1]:41,q=(t-start)/(benchEnds[index]-start);pressEffort=q<.42?ease(q/.42):q<.55?1:1-ease((q-.55)/.45);weightY+=32*pressEffort+(index===2?Math.sin(t*24)*.7*pressEffort:0);}
  pose['barbell.x']=bench.barX-x;pose['barbell.y']=weightY-y;pose['barbell.rotation']=benchTargets.bar.rotation;pose['barbell.z']=-.3*(1-between(t,40,41)*(1-between(t,48,49)));pose['pullbar.x']=bar.x-x;pose['pullbar.y']=bar.y-y;pose['pullbar.z']=10;
  const hesitation=outcome<8&&t<4?.24*Math.sin(Math.PI*clamp((t-.6)/2.8,0,1))**2:0,grip=between(t,4,6)*(1-between(t,25,26.5))+hesitation,reachBench=between(t,40,41)*(1-between(t,48,49));
@@ -90,7 +90,7 @@ const joint=(id,parent,x=0,y=0,length=0)=>({id,parent,x,y,length,rotation:0,min:
 const part=(id,jointId,d,fill,extra={})=>({id,joint:jointId,d,fill,stroke:'#292c38',strokeWidth:2,spatial:{order:0},...extra});
 const circle=(x,y,r)=>`M${x-r} ${y}a${r} ${r} 0 1 0 ${r*2} 0a${r} ${r} 0 1 0 ${-r*2} 0Z`;
 function lifter(){
- const joints=[joint('root',null),joint('torso','root',0,-48),joint('pelvis','root'),joint('head','torso',0,-58),...['face','face-neutral','face-effort','face-blink','sweat','effort-lines'].map(id=>joint(id,'head'))];
+ const joints=[joint('root',null),joint('prop-depth-root',null),joint('floor-depth','prop-depth-root',0,383),joint('depth-bottle','prop-depth-root',0,383),joint('torso','root',0,-48),joint('pelvis','root'),joint('head','torso',0,-58),...['face','face-neutral','face-effort','face-blink','sweat','effort-lines'].map(id=>joint(id,'head'))];
  for(const [name,side] of [['left',-1],['right',1]])joints.push(joint(name+'Upper','root',side*34,-68,40),joint(name+'Lower',name+'Upper',40,0,40),joint(name+'Hand',name+'Lower',40),joint(name+'Thigh','root',side*16,12,36),joint(name+'Calf',name+'Thigh',36,0,36),joint(name+'Foot',name+'Calf',36));
  joints.push(joint('barbell','root'),joint('pullbar','root'),joint('water-bottle','root'));
  const skin='#c98159',highlight='#e6a67b',shadow='#a65f46',parts=[];
@@ -230,12 +230,12 @@ function addLiveGym(scene){
  }
  for(const [side,i]of [['left',0],['right',1]])scene.contacts.push({id:side+'-failed-bench',name:side+' hand / stalled bench press',enabled:true,actor:'atlas',chain:{upper:side+'Upper',lower:side+'Lower',end:side+'Hand'},target:{type:'joint',actor:'atlas',joint:'barbell',offsetX:i?40:-40,offsetY:0},bend:i?-1:1,weight:1,start:0,end:4.4,clip:'bench-failed'});
  addGymPreparation(scene,{poseAt:gymPose,makeClip:authoredClip});
- configureGymRoom(scene);installGymIdleActions(scene,{poseAt:gymPose,makeClip:authoredClip,walkPose:gymTravelPose,stations:gymRoomStations});
- return finishGymScene(scene);
+ configureGymRoom(scene);let idleMetadata={};installGymIdleActions(scene,{poseAt:gymPose,makeClip:authoredClip,walkPose:gymTravelPose,stations:gymRoomStations,onInstalled:({metadata})=>idleMetadata=metadata});
+ return finishGymScene(scene,idleMetadata);
 }
 
 export const gymSceneReviews=[{id:'hang-switch',clip:'hang-switch',label:'Hang / rest / switch hands',duration:5.8},{id:'turnaround',clip:'turnaround',label:'Atlas / full 360° views',duration:12},{id:'floor-walk',clip:'floor-walk',label:'Walk / floor depth',duration:12}];
-function finishGymScene(scene){
+function finishGymScene(scene,idleMetadata){
  const pack=scene.packs.atlas,g=scene.behaviorGraph,event=name=>({type:'event',event:name});
  scene.contacts=scene.contacts.flatMap(c=>c.clip?[c]:gymModes.map(clip=>({...c,id:clip==='workout'?c.id:c.id+'-'+clip,clip})));
  for(const c of scene.contacts)if(c.target.joint==='barbell'){const name=c.chain.upper.startsWith('left')?'left':'right';c.target.offsetX=benchTargets.bar.gripOffsets[name].x;c.target.offsetY=0;}
@@ -258,8 +258,26 @@ function finishGymScene(scene){
   activity[review.failed?'failureVariants':'variants'].push(variant);
   for(const name of ['left','right'])scene.contacts.push({id:review.id+'-'+name,name:review.label+' / '+name+' grip',enabled:true,actor:'atlas',chain:{upper:name+'Upper',lower:name+'Lower',end:name+'Hand'},target:review.kind==='pull'?{type:'joint',actor:'gym',joint:'root',offsetX:name==='left'?137:223,offsetY:150}:{type:'joint',actor:'atlas',joint:'barbell',offsetX:benchTargets.bar.gripOffsets[name].x,offsetY:0},bend:name==='left'?1:-1,weight:1,start:0,end:review.duration,clip:review.clip});
  }
- addGymTurnaround(pack);scene.requiredFeatures.push('directional-artwork');
+ installGymDepth(scene,idleMetadata);addGymTurnaround(pack);
+ for(const [host,ids]of [['trunk',['left-pec','right-pec','abs','back-scapula-left','back-scapula-right','back-spine']],['leftarm',['leftbiceps','leftgrip']],['rightarm',['rightbiceps','rightgrip']],['leftleg',['leftshoe']],['rightleg',['rightshoe']],['shorts',['shorts-stripe']],['head-shape',['hair','beard','eyes','eyebrows','effort','blink','nose','breath-mouth','back-hair-strands','ear-left','ear-right']]])for(const id of ids){const p=pack.parts.find(p=>p.id===id);if(p)p.spatial={...p.spatial,surfaceOf:host};}
+ scene.requiredFeatures.push('directional-artwork','surface-decals');
  return scene;
+}
+
+
+// Floor depth is independent of jump height and body crouch. Parked objects use
+// their own remembered floor plane; while carried, they rejoin the local rig.
+function installGymDepth(scene,metadata){
+ const pack=scene.packs.atlas,g=scene.behaviorGraph;scene.actors.find(a=>a.id==='atlas').depth={joint:'floor-depth',offset:0};
+ g.variables.bottleDepth=383;g.variableBounds.bottleDepth={min:0,max:450};
+ const bottle=scene.poseBindings.find(b=>b.actor==='atlas'&&b.joint==='water-bottle');scene.poseBindings.push({...structuredClone(bottle),joint:'depth-bottle',y:{variable:'bottleDepth'}});
+ for(const activity of Object.values(g.activities))for(const variant of activity.variants||[]){const water=gymWaterReviews.find(r=>r.clip===variant.clip);if(water)(variant.onSuccess??=[]).push({type:'set',variable:'bottleDepth',value:gymBottleLocations[water.destination].stand.y});}
+ for(const review of gymWaterReviews){const clip=pack.clips[review.clip],m=metadata[review.clip],source=gymBottleLocations[review.source].stand.y,destination=gymBottleLocations[review.destination].stand.y;
+  const times=[...new Set([0,clip.duration,m.pickup,m.replace,...(clip.tracks['floor-depth.y']||[]).map(k=>k[0])])].sort((a,b)=>a-b);
+  const keys=times.map(t=>[t,+((t<m.pickup?source:t>m.replace?destination:383+(sampleClip(clip,t)['floor-depth.y']||0))-383).toFixed(5),'linear']);
+  clip.tracks['depth-bottle.y']=keys;
+ }
+ scene.requiredFeatures=[...new Set([...scene.requiredFeatures,'scene-depth'])];
 }
 
 function equipment(){const joints=[joint('root',null)],parts=[part('wall','root','M0 0H800V390H0Z','#e5e7e5',{strokeWidth:0}),part('floor','root','M0 390H800V450H0Z','#9cafb4',{strokeWidth:0}),part('wall-panels','root','M0 115H800M0 235H800M400 0V390','none',{stroke:'#d2d9d7',strokeWidth:2}),part('window','root','M318 30H470V169H318Z','#a2c3c8',{stroke:'#718f99',strokeWidth:7}),part('window-bars','root','M394 31V168M319 99H469','none',{stroke:'#e1eeea',strokeWidth:5}),part('pullup-frame','root','M86 390V150Q86 122 112 122H248Q274 122 274 150V390M74 390H110M252 390H287','none',{stroke:'#3c5265',strokeWidth:12}),part('pullup-grip','root','M105 150H255','none',{stroke:'#233445',strokeWidth:9}),part('rubber-mat','root','M77 396H286V406H77Z','#506777',{strokeWidth:0}),part('bench-mat','root','M487 396H738V406H487Z','#506777',{strokeWidth:0}),part('bench-legs','root','M537 355L524 390M682 355L697 390M514 390H543M682 390H710','none',{stroke:'#456275',strokeWidth:9}),part('bench-pad','root','M510 347Q509 340 517 340H706Q715 341 713 355H510Z','#31505f',{stroke:'#203d4b',strokeWidth:2}),part('bench-rack','root','M501 390V260H516M669 390V260H654','none',{stroke:'#58788b',strokeWidth:8}),part('wall-line','root','M320 364H463','none',{stroke:'#b5c3c4',strokeWidth:4})];return {name:'Gym stations',spatial:true,joints,parts,clips:{still:{duration:1,loop:true,tracks:{}}},inputs:{},initial:'still',states:{still:{clip:'still'}},provenance:{source:'Original Posecraft gym artwork',license:'MIT'}};}

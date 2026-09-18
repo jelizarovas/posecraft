@@ -48,9 +48,9 @@ function skinEnvelope(volumes){
  }return path;
 }
 
-export function softLimbPath(pack,part,pose,world=spatialKinematics(pack,pose)){
+function softLimbGeometry(pack,part,pose,world){
  const skin=part.spatial.softLimb,origin=world[part.joint],elbow=world[skin.elbow],hand=world[skin.hand],e={x:elbow.x-origin.x,y:elbow.y-origin.y},h={x:hand.x-origin.x,y:hand.y-origin.y},width=m=>.6+.4*Math.min(1,Math.hypot(m[1],m[4])),upper=width(origin.m),fore=width(elbow.m),wrist=width(hand.m),r=skin.radius,volumes=[[],[],[]];
- const key=[e.x,e.y,h.x,h.y,upper,fore,wrist,hand.m[0],hand.m[3],r],cached=skinCache.get(part);if(cached&&key.every((v,i)=>v===cached.key[i]))return cached.path;
+ const key=[e.x,e.y,h.x,h.y,upper,fore,wrist,hand.m[0],hand.m[3],r],cached=skinCache.get(part);if(cached&&key.every((v,i)=>v===cached.key[i]))return cached;
  // Taper each actual bone independently. A rounded elbow replaces the old
  // shoulder-to-wrist quadratic, which cut across tightly folded poses.
  for(let i=0;i<=2;i++){const t=i/2;volumes[0].push({x:e.x*t,y:e.y*t,r:r*(.96-.22*t+.08*Math.sin(Math.PI*t))*upper});}
@@ -58,7 +58,42 @@ export function softLimbPath(pack,part,pose,world=spatialKinematics(pack,pose)){
  // The wrist center stays exactly at the IK/contact point. Its projected axis
  // shapes a short rounded palm; a reversed axis simply overlaps the forearm.
  for(let i=0;i<=2;i++){const t=i/2;volumes[2].push({x:h.x+hand.m[0]*r*.72*t,y:h.y+hand.m[3]*r*.72*t,r:r*.58*wrist*(1-.55*t)});}
- const path=skinEnvelope(volumes);skinCache.set(part,{key,path});return path;
+ const geometry={key,path:skinEnvelope(volumes),volumes,clips:null};skinCache.set(part,geometry);return geometry;
+}
+export function softLimbPath(pack,part,pose,world=spatialKinematics(pack,pose)){return softLimbGeometry(pack,part,pose,world).path;}
+
+// A limb keeps one seamless outline, but each bone can be interleaved with
+// other geometry. Clipping that outline avoids drawing artificial elbow seams.
+function limbFragments(pack,part,pose,world,view){
+ const skin=part.spatial.softLimb,geometry=softLimbGeometry(pack,part,pose,world);
+ geometry.clips??=geometry.volumes.map(volume=>skinEnvelope([volume]));
+ const upper=world[part.joint],fore=world[skin.elbow],hand=world[skin.hand],r=skin.radius;
+ const depth=j=>j.z+j.layerDepth,order=(part.spatial.order||0)*.001,skinDepth=part.spatial.depth||0;
+ return ['upper','forearm','palm'].map((kind,index)=>({
+  ...view,partId:part.id,kind,clipD:geometry.clips[index],
+  depth:(index===0?(depth(upper)+depth(fore))*.5:index===1?(depth(fore)+depth(hand))*.5:depth(hand)+hand.m[6]*r*.36)+[upper,fore,hand][index].m[8]*skinDepth+order
+ }));
+}
+
+function attachSurfaces(pack,parts,fragments){
+ const children=new Map(),attached=new Set(),byPart=new Map();
+ for(const [id,fragment]of fragments)(byPart.get(fragment.partId)||byPart.set(fragment.partId,[]).get(fragment.partId)).push(id);
+ for(const part of pack.parts){
+  const hostId=part.spatial?.surfaceOf||part.spatial?.mask;
+  if(!hostId||!parts.has(hostId)||hostId===part.id)continue;
+  const host=pack.parts[parts.get(hostId).index],skin=host.spatial?.softLimb;
+  const kind=skin?(part.joint===skin.hand?'palm':part.joint===skin.elbow?'forearm':'upper'):null,hostFragment=kind?hostId+'--'+kind:hostId;
+  if(!fragments.has(hostFragment))continue;
+  const view=parts.get(part.id),hostView=parts.get(hostId);view.depth=hostView.depth;view.visible&&=hostView.visible;
+  for(const id of byPart.get(part.id)||[]){const fragment=fragments.get(id),target=skin&&fragment.kind!=='part'?hostId+'--'+fragment.kind:hostFragment;fragment.depth=fragments.get(target).depth;fragment.visible&&=fragments.get(target).visible;(children.get(target)||children.set(target,[]).get(target)).push(id);attached.add(id);}
+ }
+ const compare=(a,b)=>fragments.get(a).depth-fragments.get(b).depth||fragments.get(a).index-fragments.get(b).index;
+ const order=[],visited=new Set(),emit=id=>{if(visited.has(id))return;visited.add(id);order.push(id);const decals=children.get(id)||[];decals.sort((a,b)=>{const pa=pack.parts[fragments.get(a).index],pb=pack.parts[fragments.get(b).index];return (pa.spatial?.order||0)-(pb.spatial?.order||0)||fragments.get(a).index-fragments.get(b).index;});for(const decal of decals)emit(decal);};
+ for(const id of [...fragments.keys()].filter(id=>!attached.has(id)).sort(compare))emit(id);
+ // Legacy masks can form chains or cycles. Preserve every stable slot even
+ // when those older documents cannot express a single surface owner.
+ for(const id of [...fragments.keys()].sort(compare))emit(id);
+ return order;
 }
 
 export function spatialParts(pack,frame){
@@ -80,5 +115,7 @@ export function spatialParts(pack,frame){
   const center=apply(m,s.center?.[0]||0,s.center?.[1]||0,s.depth||0);
   result.set(part.id,{matrix:v,transform:`matrix(${v.map(n=>+n.toFixed(5)).join(' ')})`,depth:j.z+j.layerDepth+center.z+(s.order||0)*.001,index,opacity,visible:turnPath&&(turnPath.match(numbers)||[]).every(n=>Number(n)===0)?false:s.facingFade?opacity>0:s.facing==='front'?facing>.035:s.facing==='back'?facing<-.035:true,d:turnPath??(s.hairShell?hairShellPath(s.hairShell,m,frame.inputs?.[part.variantInput]):s.softLimb?softLimbPath(pack,part,pose,world):s.morph?morphPath(part,frame.pose[s.morph.channel]):null)});
  });
- return {world,parts:result,order:[...result.keys()].sort((a,b)=>result.get(a).depth-result.get(b).depth||result.get(a).index-result.get(b).index)};
+ const fragments=new Map();for(const part of pack.parts){const view=result.get(part.id);if(part.spatial?.softLimb){for(const fragment of limbFragments(pack,part,pose,world,view))fragments.set(part.id+'--'+fragment.kind,fragment);}else fragments.set(part.id,{...view,partId:part.id,kind:'part'});}
+ const fragmentOrder=attachSurfaces(pack,result,fragments),order=[],seen=new Set();for(const id of fragmentOrder){const partId=fragments.get(id).partId;if(!seen.has(partId)){order.push(partId);seen.add(partId);}}
+ return {world,parts:result,order,fragments,fragmentOrder};
 }

@@ -12,12 +12,19 @@ export function addSpatialRig(pack,id,{studies=true}={}){
    if(p.id==='hair-back')Object.assign(p.spatial,{depth:0,thickness:.72,axis:'x',order:-10});
    if(p.id==='hair-front')Object.assign(p.spatial,{depth:0,facing:'front',facingFade:.3,thickness:.72,axis:'x',order:90});
    if(p.joint.includes('Foot'))Object.assign(p.spatial,{center:[0,6],thickness:.55,axis:'x'});
+   if(p.id.startsWith('shirt-')&&p.id!=='shirt-outline')p.spatial.surfaceOf='shirt-outline';
+   if(p.id==='shirt-outline')p.spatial.center=[0,20];
+   if(p.id==='face-1')p.spatial.surfaceOf='face-0';
+   for(const side of ['left','right'])if(p.id.startsWith(side+'-shoe-')&&p.id!==side+'-shoe-0')p.spatial.surfaceOf=side+'-shoe-0';
   }else{
    Object.assign(p.spatial,{center:[pack.joints.find(j=>j.id===p.joint).length/2,0]});
    if(p.id.endsWith('-shell'))Object.assign(p.spatial,{thickness:.6,axis:['head','root'].includes(p.joint)?'x':'y'});
+   if(p.id.endsWith('-shell')&&/^(left|right)/.test(p.joint))p.spatial.depth=2;
    if(p.id.startsWith('eye-')||['mouth','hurt-cheek'].includes(p.id))Object.assign(p.spatial,{facing:'front',depth:12,mask:'head-shell'});
    if(p.spatial.mask)Object.assign(p.spatial,{surface:{x:p.id==='eye-0'?-7:p.id==='eye-1'?7:0,width:16,depth:9}});
    if(p.id==='chest-target'||p.id.endsWith('-joint'))Object.assign(p.spatial,{facing:'front',depth:2});
+   if(p.id==='chest-target')p.spatial.surfaceOf='torso-shell';
+   if(p.id.endsWith('-joint'))p.spatial.surfaceOf=p.joint+'-shell';
   }
  }
  if(id==='ona'){
@@ -28,9 +35,9 @@ export function addSpatialRig(pack,id,{studies=true}={}){
    const shape=(points)=>'M'+points[0]+' '+points[1]+' C'+points.slice(2,8).join(' ')+' C'+points.slice(8,14).join(' ')+' C'+points.slice(14,20).join(' ')+' Z';
    const straight=[0,0,sign*10,2,sign*16,19,sign*14,30,sign*13,40,sign*3,38,sign*3,29,sign*3,17,0,9,0,0];
    const bent=[0,0,sign*16,-4,sign*24,3,sign*21,14,sign*19,27,sign*5,27,sign*4,16,sign*3,9,0,5,0,0];
-   pack.parts.push({id:side+'-arm-volume',joint:side+'Arm',d:shape(straight),fill:'#fafbf8',channel:'skin',stroke:'#383936',strokeWidth:1.7,spatial:{thickness:.6,axis:'x',center:[sign*8,16],order:side==='left'?-1:1,morph:{channel:side+'Arm.bend',target:shape(bent)}}});
+   pack.parts.push({id:side+'-arm-volume',joint:side+'Arm',d:shape(straight),fill:'#fafbf8',channel:'skin',stroke:'#383936',strokeWidth:1.7,spatial:{depth:1,thickness:.6,axis:'x',center:[sign*8,16],order:side==='left'?-1:1,morph:{channel:side+'Arm.bend',target:shape(bent)}}});
   }
-  pack.parts.push({id:'shirt-back-seam',joint:'root',d:'M0 5L0 33',fill:'none',stroke:'#b3913e',strokeWidth:1,spatial:{depth:-1,facing:'back'}});
+  pack.parts.push({id:'shirt-back-seam',joint:'root',d:'M0 5L0 33',fill:'none',stroke:'#b3913e',strokeWidth:1,spatial:{depth:-1,facing:'back',surfaceOf:'shirt-outline'}});
   const hair=pack.inputs.hair.options;
   pack.parts.push({id:'hair-rear-cap',joint:'head',d:'M-44 -20Q-49 -52 0 -55Q49 -52 44 -20L42 9Q0 21 -42 9Z',fill:'#65504a',channel:'hair',variantInput:'hair',variants:Object.fromEntries(hair.map(h=>[h,h==='none'?{visible:false}:{}])),spatial:{depth:0,facing:'back',facingFade:.3,thickness:.72,axis:'x',order:95}});
  }else{
@@ -41,7 +48,7 @@ export function addSpatialRig(pack,id,{studies=true}={}){
    Object.assign(foot.spatial,{thickness:.5,axis:'x',center:[8,0]});
    for(const clip of Object.values(pack.clips))clip.tracks[side+'Foot.yaw']??=[[0,side==='left'?-145:-35]];
   }
-  pack.parts.push({id:'back-panel',joint:'torso',d:'M12 -9L37 -9L37 9L12 9Z M17 -5L32 -5 M17 0L32 0 M17 5L32 5',fill:'none',stroke:'#806a58',strokeWidth:1.1,spatial:{depth:-3,facing:'back'}});
+  pack.parts.push({id:'back-panel',joint:'torso',d:'M12 -9L37 -9L37 9L12 9Z M17 -5L32 -5 M17 0L32 0 M17 5L32 5',fill:'none',stroke:'#806a58',strokeWidth:1.1,spatial:{depth:-3,facing:'back',surfaceOf:'torso-shell'}});
  }
  if(id==='ona'){
   const front=pack.parts.find(p=>p.id==='hair-front');

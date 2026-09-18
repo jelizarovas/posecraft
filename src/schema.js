@@ -3,7 +3,7 @@ import {validateInteractions} from './pointer-interactions.js';
 import {validateBehaviorGraph} from './behaviors.js';
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings'], unavailable: ['general-fluid-dynamics', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings','scene-depth','surface-decals'], unavailable: ['general-fluid-dynamics', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -93,6 +93,8 @@ function validateStructure(doc) {
         if(v.facingFade!==undefined)check(finite(v.facingFade,.01,1)&&['front','back'].includes(v.facing),q,'Facing fade requires a facing side and range .01..1.');
         if(v.facing!==undefined)check(['front','back'].includes(v.facing),q,'Invalid facing.');
         if(v.surface!==undefined)check(record(v.surface)&&finite(v.surface.x,-500,500)&&finite(v.surface.width,1,500)&&finite(v.surface.depth,1,500)&&Math.abs(v.surface.x)<v.surface.width,q,'Invalid curved surface.');
+        if(v.sceneDepth!==undefined){depthField(v.sceneDepth,q+'.sceneDepth',pack.joints);check(v.surfaceOf===undefined,q+'.sceneDepth','Surface decorations inherit scene depth from their host.');}
+        if(v.surfaceOf!==undefined){const host=pack.parts.find(candidate=>candidate?.id===v.surfaceOf);check(typeof v.surfaceOf==='string'&&!!host&&host.id!==part.id&&host.spatial?.surfaceOf===undefined,q+'.surfaceOf','Expected a different host part without its own surface attachment.');}
         if(v.mask!==undefined)check(pack.parts.some(p=>p.id===v.mask)&&v.mask!==part.id,q,'Missing mask part.');
         if(v.turnaround!==undefined){const views=v.turnaround?.views,number=/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g,signature=typeof part.d==='string'?part.d.replace(number,'#'):null;
           check(record(v.turnaround)&&Array.isArray(views)&&views.length>=3&&views.length<=73&&!v.morph&&!v.softLimb&&!v.hairShell&&!v.surface,q,'Turnaround needs 3..73 compatible directional paths.');
@@ -163,9 +165,12 @@ function validateStructure(doc) {
     const c = prop.collider;
     check(record(c) && typeof c.enabled === 'boolean' && finite(c.width, 4, 4096) && finite(c.height, 4, 4096) && finite(c.x, -4096, 4096) && finite(c.y, -4096, 4096) && finite(c.friction, 0, 2) && finite(c.bounce, 0, 1), p+'.collider', 'Invalid collision box.');
   }
+  function depthField(value,path,joints){if(value===undefined)return;const fixed=record(value)&&Object.hasOwn(value,'value');check(record(value)&&(fixed?Object.keys(value).every(k=>k==='value')&&finite(value.value,-10000,10000):Array.isArray(joints)&&Object.keys(value).every(k=>['joint','offset'].includes(k))&&typeof value.joint==='string'&&joints.some(j=>j.id===value.joint)&&(value.offset===undefined||finite(value.offset,-4096,4096))),path,'Expected fixed scene depth -10000..10000, or an actor joint with optional offset -4096..4096.');}
+  for(const prop of (Array.isArray(doc.props)?doc.props:[]).filter(record))depthField(prop.depth,'props.'+prop.id+'.depth');
   const actorIds = new Set();
   for (const a of doc.actors) {
     if (!record(a)) { check(false, 'actors', 'Expected actor.'); continue; }
+    depthField(a.depth,'actors.'+a.id+'.depth',doc.packs[a.pack]?.joints);
     if(a.groundY!==undefined)check(finite(a.groundY,0,4096),`actors.${a.id}.groundY`,'Expected ground height 0..4096.');
     if(a.layer!==undefined)check(['background','characters','foreground'].includes(a.layer),`actors.${a.id}.layer`,'Unknown drawing layer.');
     if(a.unlit!==undefined)check(typeof a.unlit==='boolean',`actors.${a.id}.unlit`,'Expected boolean.');

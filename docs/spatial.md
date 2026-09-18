@@ -72,3 +72,6 @@ Import `addSpatialRig` and `addOnaArmJoints` from `posecraft/character-rigs`. On
 ### Directional artwork
 
 A part can store `spatial.turnaround.views`, an ordered array of `{angle, d}` paths spanning 0 through 360 degrees. Paths use matching commands and point counts. The first and last view close the turn. The renderer interpolates neighboring contours using the joint's world-facing direction while retaining its roll and pitch. This lets side and rear views have different silhouettes and features without flattening a front drawing. Atlas provides 25 keys at 15-degree spacing. The same saved data renders in Studio, worker playback and website exports.
+## Scene and surface overlap
+
+See [scene depth and surface decorations](scene-depth.md) for floor anchors, furniture ordering, independently placed props, and details that stay attached to their body surface. Soft limbs render in separate depth regions so a bent arm can pass behind the torso and return in front.

@@ -266,9 +266,9 @@ function localPoint(actorId,x,y){const g=$('art').querySelector(`[data-actor="${
 $('stage').onpointerdown=e=>{
  if(e.button!==0)return;scenario=null;const effectHit=e.target.closest('[data-emitter]');if(!dragMode&&effectHit){selectSceneItem({kind:'emitter',id:effectHit.dataset.emitter});return;}
  const propHit=e.target.closest('[data-prop]');if(!dragMode&&propHit){selectProp(propHit.dataset.prop);const p=scenePoint(e.clientX,e.clientY);drag={type:'prop',start:p,origin:{x:prop().x,y:prop().y},next:null};$('stage').setPointerCapture(e.pointerId);return;}
- const hit=e.target.closest('[data-joint],[data-bone]'),a=e.target.closest('[data-actor]');
- if(!dragMode&&hit&&a&&behaviorConfig(store.document.actors.find(v=>v.id===a.dataset.actor)?.behavior).mode!=='animated'){selectedProp=null;selected=a.dataset.actor;inspector='feel';drawHierarchy();drawInspector();mount();runInteraction('tap');drag=null;return;}
- if(!dragMode&&hit&&a){const id=hit.dataset.joint||hit.dataset.bone;selectJoint(a.dataset.actor,id);playing=false;if(channel()!=='rotation'){toast('Use the channel slider to adjust this value.');return;}const evaluated=frame().actors.find(a=>a.id===selected),w=pack().spatial?spatialKinematics(pack(),evaluated.pose)[id]:evaluated.world[id],p=localPoint(selected,e.clientX,e.clientY);drag={type:'pose',x:e.clientX,y:e.clientY,pivot:w,angle:Math.atan2(p.y-w.y,p.x-w.x),rotation:baseValue()};}
+ const hit=e.target.closest('[data-joint],[data-bone],[data-scene-joint]'),a=e.target.closest('[data-actor],[data-scene-actor]'),actorId=a?.dataset.actor||a?.dataset.sceneActor;
+ if(!dragMode&&hit&&a&&behaviorConfig(store.document.actors.find(v=>v.id===actorId)?.behavior).mode!=='animated'){selectedProp=null;selected=actorId;inspector='feel';drawHierarchy();drawInspector();mount();runInteraction('tap');drag=null;return;}
+ if(!dragMode&&hit&&a){const id=hit.dataset.joint||hit.dataset.bone||hit.dataset.sceneJoint;selectJoint(actorId,id);playing=false;if(channel()!=='rotation'){toast('Use the channel slider to adjust this value.');return;}const evaluated=frame().actors.find(a=>a.id===selected),w=pack().spatial?spatialKinematics(pack(),evaluated.pose)[id]:evaluated.world[id],p=localPoint(selected,e.clientX,e.clientY);drag={type:'pose',x:e.clientX,y:e.clientY,pivot:w,angle:Math.atan2(p.y-w.y,p.x-w.x),rotation:baseValue()};}
  else drag={type:'card',x:e.clientX,y:e.clientY,origin:{...offset}};
  $('stage').setPointerCapture(e.pointerId);
 };

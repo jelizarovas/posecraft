@@ -12,6 +12,7 @@ export function gymBenchTargets(press=0){
  const hips=project(115,0,65),back=project(35,0,65),bodyRotation=Math.atan2(back.y-hips.y,back.x-hips.x)/rad+90;
  return {bodyRotation,hips,back,head:project(-55,0,70),shoulders:{left:project(-5,-23,72),right:project(-5,23,72)},feet:{left:project(170,-24,7),right:project(170,24,7)},bar:{...bar,rotation,left:near,right:far,gripOffsets:{left:local(near),right:local(far)},ends:{left:project(-10,-130,height),right:project(-10,130,height)}},pad:rectangle(-85,155,-24,24,58),sit:project(140,0,65)};
 }
+export const gymSceneDepths=Object.freeze({pullup:380,pullbar:383,bench:399.52,table:383,rackNear:407.775,rackFar:363.304});
 const part=(id,d,fill,order=0,extra={})=>({id,joint:'root',d,fill,stroke:'#314653',strokeWidth:1.5,spatial:{order},...extra});
 const rootJoint=id=>({id,parent:null,x:0,y:0,length:0,rotation:0,min:-180,max:180});
 function roomParts(){
@@ -27,7 +28,7 @@ function roomParts(){
  const mat=rectangle(-110,205,-60,60,0);parts.push(part('bench-mat',path(mat),'#9ca995',12,{stroke:'#849580',strokeWidth:2}));
  let legs='';for(const u of [-62,128])for(const v of [-18,18])legs+=line(project(u,v,4),project(u,v,52));parts.push(part('bench-legs',legs,'none',15,{stroke:'#55727a',strokeWidth:7}));
  const pad=rectangle(-85,155,-24,24,58),bottom=rectangle(-85,155,-24,24,47);parts.push(part('bench-side',path([pad[0],pad[1],bottom[1],bottom[0]]),'#294654',16),part('bench-end',path([pad[1],pad[2],bottom[2],bottom[1]]),'#223d4a',16),part('bench-pad',path(pad),'#4e7880',17,{stroke:'#294653',strokeWidth:3}));
- let rack='';for(const v of [-92,92]){rack+=line(project(-10,v,0),project(-10,v,134));rack+=line(project(-10,v,134),project(7,v,134));rack+=line(project(-38,v,0),project(19,v,0));}parts.push(part('bench-rack',rack,'none',18,{stroke:'#627f87',strokeWidth:7}));
+ for(const [id,v]of [['bench-rack',-92],['bench-rack-far',92]]){const rack=line(project(-10,v,0),project(-10,v,134))+line(project(-10,v,134),project(7,v,134))+line(project(-38,v,0),project(19,v,0));parts.push(part(id,rack,'none',18,{stroke:'#627f87',strokeWidth:7}));}
  const station=gymFloorPoint(400,383),h=93*(1+station.u*gymRoomPerspective.uScale+station.v*gymRoomPerspective.vScale),top=rectangle(station.u-32,station.u+32,station.v-24,station.v+24,h),base=rectangle(station.u-32,station.u+32,station.v-24,station.v+24,h-9);let tableLegs='';for(const u of [-25,25])for(const v of [-17,17])tableLegs+=line(project(station.u+u,station.v+v,0),project(station.u+u,station.v+v,h-7));parts.push(part('water-table-legs',tableLegs,'none',20,{stroke:'#7b6950',strokeWidth:6}),part('water-table-edge',path([top[0],top[1],base[1],base[0]]),'#947e5e',21,{stroke:'#695d4c',strokeWidth:1.5}),part('water-table',path(top),'#b6a17c',22,{stroke:'#837053',strokeWidth:2}));
  // Small shelves give the wandering water break real surfaces to leave a bottle on.
  for(const [name,x,y,width]of [['window-water',320,225,62],['mirror-water',755,275,66]]){
@@ -42,8 +43,18 @@ function barbellParts(){const target=gymBenchTargets().bar,angle=-target.rotatio
 }
 /** Mutates room artwork, barbell artwork, and lighting. Atlas owns the bottle artwork. */
 export function configureGymRoom(scene){
- scene.packs.gym={...scene.packs.gym,name:'Gym / perspective room',spatial:true,joints:[rootJoint('root')],parts:roomParts(),clips:{still:{duration:1,loop:true,tracks:{}}},inputs:{},initial:'still',states:{still:{clip:'still'}}};
- const atlas=scene.packs.atlas;if(atlas){const replaced=new Set(['barbell-shaft','plate-left','plate-right','collar-left','collar-right','plate-left-edge','plate-right-edge']);atlas.parts=atlas.parts.filter(p=>!replaced.has(p.id));atlas.parts.push(...barbellParts());}
+ const all=roomParts(),groups=[
+  ['gym-pullup','Pull-up frame',gymSceneDepths.pullup,['pullup-frame','pullup-grip']],
+  ['gym-bench','Bench',389.252,['bench-legs','bench-side','bench-end','bench-pad']],
+  ['gym-rack-near','Near weight rack',gymSceneDepths.rackNear,['bench-rack']],
+  ['gym-rack-far','Far weight rack',gymSceneDepths.rackFar,['bench-rack-far']],
+  ['gym-water-table','Water table',gymSceneDepths.table,['water-table-legs','water-table-edge','water-table']]
+ ],moved=new Set(groups.flatMap(g=>g[3])),base={spatial:true,joints:[rootJoint('root')],clips:{still:{duration:1,loop:true,tracks:{}}},inputs:{},initial:'still',states:{still:{clip:'still'}}};
+ scene.packs.gym={...scene.packs.gym,...structuredClone(base),name:'Gym / perspective room',parts:all.filter(p=>!moved.has(p.id))};
+ const gym=scene.actors.find(a=>a.id==='gym');if(gym)gym.layer='background';
+ for(const [id,name,depth,ids]of groups){scene.packs[id]={...structuredClone(base),name,parts:all.filter(p=>ids.includes(p.id))};const actor={id,name,pack:id,layer:'characters',unlit:true,transform:{x:0,y:0,scale:1,rotation:0},depth:{value:depth},...(gym?.group?{group:gym.group}:{})};const at=scene.actors.findIndex(a=>a.id===id);if(at>=0)scene.actors[at]=actor;else scene.actors.splice(Math.max(0,scene.actors.findIndex(a=>a.id==='atlas')),0,actor);}
+ scene.requiredFeatures=[...new Set([...(scene.requiredFeatures||[]),'scene-depth'])];
+ const atlas=scene.packs.atlas;if(atlas){if(!atlas.joints.some(j=>j.id==='depth-bottle')){atlas.joints.push(rootJoint('prop-depth-root'),{...rootJoint('depth-bottle'),parent:'prop-depth-root',y:383});}const replaced=new Set(['barbell-shaft','plate-left','plate-right','collar-left','collar-right','plate-left-edge','plate-right-edge']);atlas.parts=atlas.parts.filter(p=>!replaced.has(p.id));atlas.parts.push(...barbellParts());for(const p of atlas.parts){if(p.joint==='barbell')p.spatial={...p.spatial,sceneDepth:{value:gymSceneDepths.bench}};if(p.joint==='pullbar')p.spatial={...p.spatial,sceneDepth:{value:gymSceneDepths.pullbar}};if(p.joint==='water-bottle')p.spatial={...p.spatial,sceneDepth:{joint:'depth-bottle',offset:0}};}}
  scene.lighting={...scene.lighting,enabled:false,floorShadow:0,wallShadow:0,reflection:0,gloss:0};
  return scene;
 }
