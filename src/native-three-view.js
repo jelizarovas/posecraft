@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {loadCharacter3D} from './gltf-character-3d.js';
 import {createBenchAction3D} from './bench-action-3d.js';
+import {benchBodyGeometry3D} from './bench-geometry-3d.js';
 import {exportNativeBenchHTML} from './native-three-export.js';
 import NativeActionWorker from './native-action-worker.js?worker&inline';
 import {createNativeActionClient} from './native-action-worker-client.js';
@@ -52,9 +53,9 @@ export async function createNativeThreeView(canvas, options = {}) {
   const cylinder=(group,radius,length,pos,material)=>{const mesh=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,32),material);mesh.rotation.z=Math.PI/2;mesh.position.set(...pos);mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);return mesh;};
   const floor=box(environment,[100,.06,100],[0,-.035,0],materials.floor);floor.castShadow=false;
   const grid=new THREE.GridHelper(12,24,'#bdc9c5','#cad3cf');grid.position.y=-.003;grid.material.transparent=true;grid.material.opacity=.36;environment.add(grid);
-  box(bench,[.62,.12,1.9],[0,.42,0],materials.pad);
-  box(bench,[.13,.09,1.6],[0,.26,0],materials.steel);
-  for(const z of [-.64,.64]){box(bench,[.12,.3,.12],[0,.15,z],materials.steel);box(bench,[.9,.06,.27],[0,.03,z],materials.steel);}
+  const benchBody=new Map(benchBodyGeometry3D().map(part=>{
+    const mesh=box(bench,[1,1,1],part.position,materials[part.material]);mesh.name=`bench-${part.id}`;mesh.scale.fromArray(part.size);return [part.id,mesh];
+  }));
   const rackPosts=[],rackHooks=[];
   for(const x of [-.68,.68]){
     rackPosts.push(box(bench,[.085,1,.085],[x,.5,-.58],materials.steel));
@@ -88,6 +89,7 @@ export async function createNativeThreeView(canvas, options = {}) {
     if(workerClient){workerReady=false;try{await workerClient.configure({rig:character.rig,roles:character.roles,grips:character.grips,bench:p.bench,settings:p.settings});if(mine!==generation||disposed)return;workerReady=true;}catch(error){if(error.name!=='AbortError'){workerError=error.message;workerClient.dispose();workerClient=null;}}}
     if(mine!==generation||disposed)return;
     bench.position.fromArray(p.bench.position);bench.quaternion.fromArray(p.bench.rotation);bench.scale.setScalar(p.bench.scale);
+    for(const part of benchBodyGeometry3D(nextAction.bench.size)){const mesh=benchBody.get(part.id);mesh.position.fromArray(part.position);mesh.scale.fromArray(part.size);}
     const rackHeight=p.bench.rackHeight??1;
     for(const post of rackPosts){post.scale.y=rackHeight;post.position.y=rackHeight/2;}
     for(const hook of rackHooks)hook.position.y=rackHeight-.018-.035/2;

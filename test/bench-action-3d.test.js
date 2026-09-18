@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createBenchAction3D} from '../src/bench-action-3d.js';
+import {benchBodyGeometry3D} from '../src/bench-geometry-3d.js';
 import fs from 'node:fs/promises';
 import {Texture,Vector3} from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
@@ -105,7 +106,8 @@ test('both authored characters keep physical palm grips and clear the bench base
      const grip=character.grips[side],w=f.world[grip.joint],offset=rotate(grip.position,w.rotation),palm=w.position.map((v,i)=>v+offset[i]),sign=side==='left'?1:-1;
      assert.ok(distance(palm,[f.bar.position[0]+sign*action.measurements.halfGrip,...f.bar.position.slice(1)])<1e-6,`${file} palm slipped`);
      const foot=f.world[character.roles[side+'Ankle']].position,knee=f.world[character.roles[side+'Knee']].position;
-     assert.ok(Math.abs(foot[0])>.52,'Foot overlaps the declared base');assert.ok(Math.abs(knee[0])>.37,'Knee remains inside the bench pad');
+     const body=benchBodyGeometry3D(action.bench.size),base=body.find(p=>p.id==='front-foot'),pad=body.find(p=>p.id==='pad');
+     assert.ok(Math.abs(foot[0])>base.size[0]/2+.04,'Foot ankle lacks clearance from the declared base');assert.ok(Math.abs(knee[0])>pad.size[0]/2+.04,'Knee lacks clearance from the declared pad');
     }
     prior=f;
    }
@@ -155,7 +157,7 @@ test('scoots move lifted hips against stationary hand and foot supports on both 
        assert.ok(Math.abs(feet[j].actual.position[1]-(bench.position[1]+action.measurements.soleHeight))<1e-6,'A support foot floated during the push');
       }
      }
-     if(s.stage==='shift'){assert.ok(s.seatLift>=.03,'Hip transit needs visible seat clearance');assert.equal(f.support.seat,false);}
+     if(s.stage==='shift'){assert.ok(s.seatLift>=.015,'Hip transit needs visible seat clearance');assert.equal(f.support.seat,false);}
      if(previous){
       const travel=Math.hypot(pelvis[0]-previous.pelvis[0],pelvis[2]-previous.pelvis[2]);horizontalTravel+=travel;
       if(travel>1e-8){
@@ -206,7 +208,7 @@ test('skinned palms and fingers clear the cushion during scoot preparation and h
     if(vertices.length)selections.push({mesh,vertices});
    });
    const selected=selections.reduce((n,s)=>n+s.vertices.length,0);assert.ok(selected>100,'The regression did not find the authored hand surface');
-   const report={file,selected,frames:0,stages:new Set(),insideVertices:0,worst:null};
+   const report={file,selected,frames:0,stages:new Set(),insideVertices:0,worst:null},pad=benchBodyGeometry3D(action.bench.size).find(p=>p.id==='pad');
    const inverse=[-bench.rotation[0],-bench.rotation[1],-bench.rotation[2],bench.rotation[3]],vertex=new Vector3();
    for(const beat of action.beats.filter(b=>['scoot-back','scoot-forward'].includes(b.id))){
     const count=Math.ceil((beat.end-beat.start)*60);
@@ -219,7 +221,7 @@ test('skinned palms and fingers clear the cushion during scoot preparation and h
       // as the renderer. Then remove bench placement for the declared pad box.
       mesh.getVertexPosition(index,vertex).applyMatrix4(mesh.matrixWorld);
       const p=rotate([vertex.x-bench.position[0],vertex.y-bench.position[1],vertex.z-bench.position[2]],inverse).map(v=>v/bench.scale);
-      const penetration=Math.min(.31-Math.abs(p[0]),p[1]-.36,.48-p[1],.95-Math.abs(p[2]));
+      const penetration=Math.min(...p.map((v,axis)=>pad.size[axis]/2-Math.abs(v-pad.position[axis])));
       if(penetration>1e-5){
        report.insideVertices++;
        if(!report.worst||penetration>report.worst.penetration)report.worst={time,phase:frame.phase,stage,cycle:frame.scoot.cycle,vertex:index,point:p,penetration};
@@ -231,4 +233,89 @@ test('skinned palms and fingers clear the cushion during scoot preparation and h
   }finally{character.dispose();}
  }
  assert.ok(reports.every(r=>r.insideVertices===0),'Actual hand geometry intersects the cushion: '+JSON.stringify(reports));
+});
+
+
+test('both authored rigs rise over planted feet before alternating stance resets and reverse the transfer to sit',async()=>{
+ for(const [index,file]of ['athlete','regular'].entries()){
+  const character=await imported(file),yaw=index?.6:0,bench={position:index?[.4,.12,-.3]:[0,0,0],rotation:[0,Math.sin(yaw/2),0,Math.cos(yaw/2)],scale:1};
+  try{
+   const action=createBenchAction3D({rig:character.rig,roles:character.roles,grips:character.grips,bench}),inverse=[0,-Math.sin(yaw/2),0,Math.cos(yaw/2)];
+   const local=p=>rotate(p.map((v,i)=>v-bench.position[i]),inverse);
+   const beat=action.beats.find(b=>b.id==='stand'),sit=action.beats.find(b=>b.id==='sit');
+   const at=u=>action.sample(beat.start+(beat.end-beat.start)*Math.min(u,1-1e-8));
+   const first=at(0),feet=['leftAnkle','rightAnkle'].map(role=>first.world[character.roles[role]].position),footZ=feet.reduce((sum,p)=>sum+local(p)[2]/2,0),stages=new Set();
+   let lastRise=0,maxPitch=0,firstLift=null,previous=null,resets=new Set();
+   for(let i=0;i<=120;i++){
+    const u=i/120,f=at(u),transfer=f.transfer,pelvis=local(f.world[character.roles.pelvis].position);
+    assert.ok(transfer,`${file} missing transfer metadata`);stages.add(transfer.stage);maxPitch=Math.max(maxPitch,transfer.pitch);
+    assert.ok(f.valid,`${file} transfer ${u}: ${JSON.stringify(f.diagnostics.map(d=>[d.id,d.status,d.error]))}`);
+    const ankles=['leftAnkle','rightAnkle'].map(role=>f.world[character.roles[role]].position);
+    for(let n=0;n<2;n++){
+     if(transfer.stage!=='settle')assert.ok(distance(ankles[n],feet[n])<1e-7,`${file} foot slid during load transfer`);
+     if(previous&&distance(ankles[n],previous[n])>1e-7){assert.equal(transfer.stage,'settle','Stance changed before standing');assert.ok(transfer.rise>1-1e-6,'Foot reset before pelvis fully rose');resets.add(n);}
+    }
+    assert.ok(f.diagnostics.filter(d=>d.id.endsWith('Leg')&&d.active).length>=1,'Both feet lost support during stance reset');
+    assert.ok(ankles.filter(p=>Math.abs(local(p)[1]-action.measurements.soleHeight)<1e-7).length>=1,'Both shoes lifted during stance reset');previous=ankles;
+    assert.ok(transfer.rise>=lastRise-1e-8,'Standing pelvis reversed its rise');lastRise=transfer.rise;
+    if(transfer.stage==='prepare'||transfer.stage==='lean'){
+     assert.ok(Math.abs(pelvis[1]-action.measurements.seatY)<1e-7,'Pelvis lifted before the forward lean completed');assert.equal(f.support.seat,true);
+    }
+    if(transfer.rise>.01&&!firstLift){
+     firstLift=f;assert.ok(transfer.pitch>25*Math.PI/180,'Leg extension began without a visible forward lean');
+     // This is a geometric trunk-support proxy, not an inferred physical COM.
+     const shoulders=['leftShoulder','rightShoulder'].map(role=>local(f.world[character.roles[role]].position));
+     const trunkZ=.4*pelvis[2]+.3*(shoulders[0][2]+shoulders[1][2]);
+     assert.ok(Math.abs(trunkZ-footZ)<.13,`${file} trunk is still behind the planted support when the seat unloads: ${trunkZ-footZ}m`);
+    }
+    if(transfer.rise>.02)assert.equal(f.support.seat,false,'Lifted hips still claim seat support');
+    if(i>0&&i<120){
+     const reverse=action.sample(sit.start+(sit.end-sit.start)*(1-u));
+     assert.ok(distance(reverse.world[character.roles.pelvis].position,f.world[character.roles.pelvis].position)<1e-7,'Sitting does not reverse the supported pelvis trajectory');
+     assert.ok(Math.abs(reverse.transfer.pitch-transfer.pitch)<1e-8);
+    }
+   }
+   assert.deepEqual([...stages],['prepare','lean','push','settle']);assert.deepEqual([...resets],[0,1],'Stance reset must step left then right');assert.ok(firstLift);assert.ok(maxPitch>30*Math.PI/180);
+   const end=action.sample(action.duration),pelvis=local(end.world[character.roles.pelvis].position);
+   assert.ok(Math.abs(pelvis[2]-footZ)<1e-7,'Standing pelvis did not settle above the ankle line');assert.ok(Math.abs(pelvis[1]-action.measurements.standY)<1e-7);
+  }finally{character.dispose();}
+ }
+});
+
+
+test('rendered legs and shoes clear the declared bench during the complete exit',async()=>{
+ const reports=[];
+ for(const file of ['athlete','regular']){
+  const character=await imported(file);
+  try{
+   const action=createBenchAction3D({rig:character.rig,roles:character.roles,grips:character.grips,bench:{position:[0,0,0],rotation:I,scale:1}}),joints=new Map(character.rig.joints.map(j=>[j.id,j])),legs=new Set();
+   for(const joint of character.rig.joints)for(let ancestor=joint;ancestor;ancestor=joints.get(ancestor.parent))if([character.roles.leftHip,character.roles.rightHip].includes(ancestor.id)){legs.add(joint.id);break;}
+   const selections=[];
+   character.root.traverse(mesh=>{
+    if(!mesh.isSkinnedMesh)return;
+    const weights=mesh.geometry.getAttribute('skinWeight'),indices=mesh.geometry.getAttribute('skinIndex'),vertices=[];
+    for(let i=0;i<weights.count;i++){
+     let legWeight=0;
+     for(let k=0;k<weights.itemSize;k++)if(legs.has(mesh.skeleton.bones[indices.getComponent(i,k)]?.name))legWeight+=weights.getComponent(i,k);
+     if(legWeight>.6)vertices.push(i);
+    }
+    if(vertices.length)selections.push({mesh,vertices});
+   });
+   const geometry=benchBodyGeometry3D(action.bench.size),vertex=new Vector3(),report={file,frames:0,selected:selections.reduce((n,s)=>n+s.vertices.length,0),insideVertices:0,byPhase:{},worst:null};
+   assert.ok(report.selected>100,'No actual leg/shoe surface found');
+   const begin=action.beats.find(b=>b.id==='release').start;
+   for(let time=begin;time<=action.duration;time+=1/20){
+    const frame=action.sample(time);character.apply(frame.pose,frame.placement);report.frames++;
+    for(const {mesh,vertices}of selections)for(const index of vertices){
+     mesh.getVertexPosition(index,vertex).applyMatrix4(mesh.matrixWorld);const p=vertex.toArray();
+     for(const box of geometry){
+      const penetration=Math.min(...p.map((v,axis)=>box.size[axis]/2-Math.abs(v-box.position[axis])));
+      if(penetration>1e-5){report.insideVertices++;const key=frame.phase+':'+(frame.scoot?.stage??frame.transfer?.stage??'');report.byPhase[key]=(report.byPhase[key]??0)+1;if(!report.worst||penetration>report.worst.penetration){const wi=mesh.geometry.getAttribute('skinWeight'),si=mesh.geometry.getAttribute('skinIndex');report.worst={time,phase:frame.phase,stage:frame.scoot?.stage??frame.transfer?.stage,progress:frame.scoot?.progress,box:box.id,vertex:index,point:p,penetration,weights:Array.from({length:4},(_,k)=>[mesh.skeleton.bones[si.getComponent(index,k)]?.name,wi.getComponent(index,k)])};}}
+     }
+    }
+   }
+   reports.push(report);
+  }finally{character.dispose();}
+ }
+ assert.ok(reports.every(r=>r.insideVertices===0),'Actual leg/shoe geometry intersects the equipment: '+JSON.stringify(reports));
 });

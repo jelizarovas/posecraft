@@ -28,6 +28,14 @@ Bench entry and exit use short support cycles: plant open palms and feet, lean f
 
 Regression checks sample both authored bodies at 60 Hz for support drift, seat clearance, foot resets and reachable goals. Hand clearance uses the actual skinned palm and finger vertices against the cushion volume, rather than wrist positions alone. Whole-skeleton continuity is checked at every phase join, including wrist velocity and safe completion. The same sampler runs in Studio, its worker and the exported player.
 
+## Bench proportions and standing transfer
+
+The default pad is 32cm wide, with a 46cm base, shared by the renderer and movement evaluator. Knee targets clear that geometry without the previous exaggerated sideways bend. Seated and reclined hip clearances are separate because the posed thigh surface needs more space than the back.
+
+Standing first shifts weight forward while the pelvis remains supported. The hands brace the thighs, the feet stay fixed during leg extension, and only then does the character take two short steps into a relaxed stance. Sitting reverses that sequence. The legs remain outside the cushion until the body has cleared it; closing them during the final scoot previously swept the shins through the pad.
+
+Scoots use smaller, quicker lifts with articulated spine motion. Sit-up leads with the chest and head instead of rotating the torso as a rigid plank. Added tests evaluate actual skinned legs and shoes against every declared bench box throughout the exit, as well as the existing palm and finger checks. Normal-speed front and side review recordings are produced by `test/native-exit-review-browser.mjs`. These remain kinematic motions, not a force or soft-tissue simulation.
+
 ## Reproducible checks
 
 - `npm run test:native-3d` covers rig geometry, malformed scene/project input, transformed targets, fixed lengths, actual imported skin/bone parity, both body proportions, palm contacts, interruptions and the worker client's bounded queue.
