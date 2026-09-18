@@ -1,7 +1,8 @@
 import {spatialKinematics} from '../src/spatial.js';
 
 const tau=Math.PI*2,clamp=x=>Math.max(0,Math.min(1,x)),mix=(a,b,t)=>a+(b-a)*t;
-const rows=[[-88,13,10],[-82,29,12],[-72,35,17],[-60,32,18],[-36,27,16],[-10,22,13],[12,26,13]];
+// A slender neck joins a lower shoulder line; chest volume stays below the jaw.
+const rows=[[-86,8,6],[-73,27,11],[-64,33,14],[-53,30,15],[-36,27,15],[-10,22,13],[12,26,13]];
 const round=n=>+n.toFixed(5);
 function binding(pack){const pose={};for(const side of ['left','right']){pose[side+'Upper.rotation']=side==='left'?180:0;pose[side+'Thigh.rotation']=90;}return spatialKinematics(pack,pose);}
 function skinBuilder(bind){
@@ -38,10 +39,11 @@ function orient(mesh){
 function bodyMesh(bind){
  const b=skinBuilder(bind),rings=rows.map(([y,rx,rz])=>Array.from({length:16},(_,i)=>{const angle=i*tau/16,x=Math.sin(angle)*rx;return b.add({x,y,z:Math.cos(angle)*rz},torsoWeights(x,y));}));
  for(let r=0;r<rings.length-1;r++)for(let i=0;i<16;i++){if((r===1||r===2)&&[3,4,11,12].includes(i))continue;const j=(i+1)%16;b.triangles.push([rings[r][i],rings[r][j],rings[r+1][i]],[rings[r][j],rings[r+1][j],rings[r+1][i]]);}
- b.cap(rings[0],{x:0,y:-89,z:0},[['torso',1]]);
+ b.cap(rings[0],{x:0,y:-87,z:0},[['torso',1]]);
  for(const [side,sign,s]of [['right',1,4],['left',-1,12]]){
   let previous=[rings[1][s-1],rings[1][s],rings[1][s+1],rings[2][s+1],rings[3][s+1],rings[3][s],rings[3][s-1],rings[2][s-1]];
-  for(const [d,radius]of [[7,12],[22,12.5],[39,9],[47,8.7],[69,7],[76,6],[80,7],[84,5.5],[86,2.5]]){const next=Array.from({length:8},(_,i)=>{const angle=(3+i)*Math.PI/4;return b.add({x:sign*(34+d),y:-68+Math.cos(angle)*radius,z:Math.sin(angle)*radius*.85},armWeights(side,d));});b.connect(previous,next);previous=next;}
+  // A ring at the shoulder pivot keeps the branch round as the arm drops.
+  for(const [d,radius]of [[0,9],[7,11],[22,11.5],[39,9],[47,8.7],[69,7],[76,6],[80,7],[84,5.5],[86,2.5]]){const next=Array.from({length:8},(_,i)=>{const angle=(3+i)*Math.PI/4;return b.add({x:sign*(34+d),y:-68+Math.cos(angle)*radius,z:Math.sin(angle)*radius*.85},armWeights(side,d));});b.connect(previous,next);previous=next;}
   b.cap(previous,{x:sign*120.6,y:-68,z:0},[[side+'Hand',1]]);
  }
  splitLegs(b,rings.at(-1));
@@ -78,7 +80,7 @@ export function addGymSkin(pack){
  for(const part of pack.parts){if(removed.has(part.id))continue;let replacement=part;
   if(part.id==='trunk')replacement=meshPart(part,body.mesh);
   else if(part.id==='shorts')replacement=meshPart(part,surfaceMesh(bind,body,points=>points.every(p=>p.y>=-10&&p.y<=25),0));
-  else if(['left-pec','right-pec','back-scapula-left','back-scapula-right'].includes(part.id)){const side=part.id.includes('left')?-1:1,rear=part.id.startsWith('back'),anchors=[[31,-23],[15,-32],[3,-17],[3,-2],[20,4],[31,-5]].map(([x,y])=>({x:x*side,y:y-48})),outline=anchors.flatMap((p,i)=>{const previous=anchors[(i+anchors.length-1)%anchors.length],next=anchors[(i+1)%anchors.length],a={x:(previous.x+p.x)/2,y:(previous.y+p.y)/2},b={x:(next.x+p.x)/2,y:(next.y+p.y)/2};return [a,{x:(a.x+2*p.x+b.x)/4,y:(a.y+2*p.y+b.y)/4}];});replacement=meshPart(part,clippedSurface(bind,body,outline,rear),{strokeWidth:0});}
+  else if(['left-pec','right-pec','back-scapula-left','back-scapula-right'].includes(part.id)){const side=part.id.includes('left')?-1:1,rear=part.id.startsWith('back'),anchors=[[31,-23],[15,-32],[3,-17],[3,-2],[20,4],[31,-5]].map(([x,y])=>({x:x*side,y:y-(rear?48:42)})),outline=anchors.flatMap((p,i)=>{const previous=anchors[(i+anchors.length-1)%anchors.length],next=anchors[(i+1)%anchors.length],a={x:(previous.x+p.x)/2,y:(previous.y+p.y)/2},b={x:(next.x+p.x)/2,y:(next.y+p.y)/2};return [a,{x:(a.x+2*p.x+b.x)/4,y:(a.y+2*p.y+b.y)/4}];});replacement=meshPart(part,clippedSurface(bind,body,outline,rear),{strokeWidth:0});}
   else if(part.id.endsWith('biceps')){const sign=part.id.startsWith('left')?-1:1,outline=Array.from({length:12},(_,i)=>({x:sign*54+Math.cos(i*tau/12)*9,y:-68+Math.sin(i*tau/12)*6}));replacement=meshPart(part,clippedSurface(bind,body,outline,false,.7));}
   else if(part.id.endsWith('shoe'))replacement={...part,spatial:{...part.spatial,surfaceOf:'trunk'}};
   parts.push(replacement);
