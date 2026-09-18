@@ -165,6 +165,14 @@
     "./actor-behaviors": {
       "types": "./src/actor-behaviors.d.ts",
       "default": "./src/actor-behaviors.js"
+    },
+    "./navigation": {
+      "types": "./src/navigation.d.ts",
+      "default": "./src/navigation.js"
+    },
+    "./scene-baking": {
+      "types": "./src/scene-baking.d.ts",
+      "default": "./src/scene-baking.js"
     }
   },
   "bin": {
@@ -210,7 +218,9 @@
     "docs/actor-behaviors.md",
     "docs/motion-layers.md",
     "docs/implementation-2026-09-17.md",
-    "docs/architecture-review-2026-09-17.md"
+    "docs/architecture-review-2026-09-17.md",
+    "docs/navigation-authoring.md",
+    "docs/physics-baking.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -257,7 +267,13 @@
     "test:catch-export": "node test/catch-export-browser.mjs",
     "test:canvas-pointer": "node test/canvas-pointer-browser.mjs",
     "test:actor-flow-tools": "node test/actor-flow-tools-browser.mjs",
-    "test:roadmap-release": "node test/roadmap-release-browser.mjs"
+    "test:roadmap-release": "node test/roadmap-release-browser.mjs",
+    "test:navigation-studio": "node test/navigation-bake-studio-browser.mjs",
+    "test:actor-depth": "node test/canvas-actor-depth-browser.mjs",
+    "test:physics-baking": "node test/scene-baking-browser.mjs",
+    "test:navigation": "node test/catch-navigation-browser.mjs",
+    "test:actor-depth-export": "node test/canvas-actor-depth-export-browser.mjs",
+    "test:object-ack": "node test/object-command-worker-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

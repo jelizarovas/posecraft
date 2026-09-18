@@ -148,3 +148,10 @@ const ownGraph:ActorBehavior={id:'ona-decisions',actor:'ona',graph:{seed:1,initi
 scene.actorBehaviors=[ownGraph];
 // @ts-expect-error Only declared shared-object commands are supported.
 player.objectCommand({type:'teleport',object:'ball'});
+
+import {PathJob,navigationSegmentClear} from "posecraft/navigation";
+import {bakeSceneMotion} from "posecraft/scene-baking";
+const routeJob=new PathJob(scene,{start:{x:50,y:100},end:{x:200,y:100},area:{x:0,y:0,width:400,height:300}});
+routeJob.step(16);navigationSegmentClear(scene,{x:50,y:100},{x:200,y:100},{clearance:10});
+scene.canvasDepth="actor";
+const bake:ReturnType<typeof bakeSceneMotion>=bakeSceneMotion(scene,{actor:scene.actors[0].id,duration:2,fps:30});void bake;

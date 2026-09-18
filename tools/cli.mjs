@@ -18,6 +18,9 @@ try {
     else if(command==='agent-preview')result=await service.preview({file:filename,output:args[0],time:Number(args[1]||0),format:args[0]?.toLowerCase().endsWith('.png')?'png':'svg',proposal:args[2]});
     else throw Error('Unknown agent command.');console.log(JSON.stringify(result,null,2));if(result.valid===false)process.exitCode=1;
   }
+  else if(command==='bake'){
+    const {bakeSceneMotion}=await import('../src/scene-baking.js');if(!args[1])throw Error('Supply request JSON and a separate output JSON path.');const result=await bakeSceneMotion(read(filename),read(args[0]));fs.writeFileSync(args[1],JSON.stringify(result.document,null,2)+'\n',{flag:'wx'});console.log(JSON.stringify({output:args[1],...result.diagnostics},null,2));
+  }
   else if (['episode-inspect','episode-validate','episode-preview'].includes(command)) {
     if(!filename||fs.statSync(filename).size>20000000)throw new Error('Expected an episode under 20 MB.');
     const project=assertEpisode(JSON.parse(fs.readFileSync(filename,'utf8')));
@@ -53,5 +56,5 @@ try {
         console.log(JSON.stringify({engineVersion:'0.1.0',schemaVersion:doc.schemaVersion,revision:doc.revision,seed:0,fixedStep:STEP,frame:runtime.frame(),events},null,2));
       }
     }
-  } else console.log('Posecraft CLI\n  capabilities\n  inspect scene.json\n  validate scene.json\n  edit scene.json transaction.json output.json\n  preview scene.json output.svg [seconds]\n  simulate scene.json scenario.json\n  agent-inspect scene.json\n  agent-validate scene.json [proposal.json]\n  agent-propose scene.json request.json proposal.json\n  agent-apply scene.json proposal.json output.json\n  agent-simulate scene.json scenario.json [proposal.json]\n  agent-preview scene.json output.svg|png [seconds] [proposal.json]\n  episode-validate episode.json\n  episode-inspect episode.json\n  episode-preview episode.json output.svg [seconds]');
+  } else console.log('Posecraft CLI\n  capabilities\n  inspect scene.json\n  validate scene.json\n  edit scene.json transaction.json output.json\n  preview scene.json output.svg [seconds]\n  simulate scene.json scenario.json\n  bake scene.json request.json output.json\n  agent-inspect scene.json\n  agent-validate scene.json [proposal.json]\n  agent-propose scene.json request.json proposal.json\n  agent-apply scene.json proposal.json output.json\n  agent-simulate scene.json scenario.json [proposal.json]\n  agent-preview scene.json output.svg|png [seconds] [proposal.json]\n  episode-validate episode.json\n  episode-inspect episode.json\n  episode-preview episode.json output.svg [seconds]');
 } catch(error) { console.error(JSON.stringify({error:error.message,diagnostics:error.diagnostics})); process.exitCode=1; }

@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {crossingMeshFixture,rendererFrame} from './fixtures/renderer-scenes.js';
+import {evaluateDrawing,inspectCanvasCapabilities} from '../src/render-evaluation.js';
+import {inspectActorDepthCapabilities} from '../src/canvas-depth.js';
+
+test('actor depth is explicitly selected and preserves raw edges, transforms and material ordering',()=>{const scene=crossingMeshFixture();assert.equal(evaluateDrawing(scene,rendererFrame(scene)).depthMode,'painter');scene.renderer='canvas';scene.canvasDepth='actor';scene.packs.shape.parts[0].transform='translate(5 7)';scene.packs.shape.parts[0].spatial.order=12;const drawing=evaluateDrawing(scene,rendererFrame(scene));assert.equal(drawing.depthMode,'actor');assert.equal(drawing.meshes[0].matrix[4],5);assert.equal(drawing.meshes[0].matrix[5],7);assert.equal(drawing.meshes[0].order,12);assert.ok(drawing.meshes[0].edges.some(e=>e.visible&&e.kind==='boundary'));assert.equal(inspectActorDepthCapabilities(drawing).supported,true);assert.deepEqual(structuredClone(drawing),drawing);});
+
+test('actor depth allows contours but rejects evaluated translucent or masked mesh surfaces',()=>{const scene=crossingMeshFixture();scene.renderer='canvas';scene.canvasDepth='actor';scene.packs.shape.parts[0].stroke='#112233';scene.packs.shape.parts[0].strokeWidth=2;const drawing=evaluateDrawing(scene,rendererFrame(scene));assert.equal(inspectActorDepthCapabilities(drawing).supported,true);drawing.meshes[0].opacity=.5;assert.equal(inspectActorDepthCapabilities(drawing).supported,false);drawing.meshes[0].opacity=1;drawing.meshes[0].masked=true;assert.equal(inspectActorDepthCapabilities(drawing).supported,false);scene.packs.shape.parts[0].spatial.mask='blue';assert.ok(inspectCanvasCapabilities(scene).unsupported.some(e=>e.code==='depth-mesh-mask'));});
+
+test('actor depth rejects translucent contours before rendering',()=>{const scene=crossingMeshFixture();scene.renderer='canvas';scene.canvasDepth='actor';Object.assign(scene.packs.shape.parts[0],{stroke:'#11223380',strokeWidth:2});assert.ok(inspectCanvasCapabilities(scene).unsupported.some(r=>r.code==='depth-mesh-outline'));const drawing=evaluateDrawing(scene,rendererFrame(scene));assert.ok(inspectActorDepthCapabilities(drawing).unsupported.some(r=>r.code==='depth-mesh-outline'));});

@@ -1,3 +1,4 @@
+import {createCatchNavigation} from '../examples/catch.js';
 import {createActorBehaviorTools} from './actor-behavior-tools.js';
 import {createFlowTools} from './flow-tools.js';
 import {createObjectTools} from './object-tools.js';
@@ -31,9 +32,11 @@ const icon = name => `<span class="material-symbols-outlined" aria-hidden="true"
 const button = (id,name,label,extra='') => `<button id="${id}" title="${label}" aria-label="${label}" ${extra}>${icon(name)}</button>`;
 const requestedDemo=findDemo(new URLSearchParams(location.search).get('demo'));
 const demo=requestedDemo?.kind==='scene'?requestedDemo:null;
-const initialScene=demo?createDemo(demo.id):starter;
+const routedDemo=demo?.id==='game-of-catch'&&new URLSearchParams(location.search).get('obstacles')==='1';
+const freshDemo=()=>routedDemo?createCatchNavigation():createDemo(demo.id);
+const initialScene=demo?freshDemo():starter;
 const fromDraw=new URLSearchParams(location.search).get('from')==='draw';
-const key = 'posecraft.studio.v2'+(fromDraw?'.draw':demo?'.demo.'+demo.id:'');
+const key = 'posecraft.studio.v2'+(fromDraw?'.draw':demo?'.demo.'+demo.id+(routedDemo?'.obstacles':''):'');
 const sound=new SoundEffects();
 document.body.classList.add('studio-app');
 const media = matchMedia('(prefers-reduced-motion: reduce)');
@@ -243,7 +246,7 @@ $('save').onclick=$('export').onclick=()=>download(store.document.id+'.posecraft
 $('svg-export').onclick=()=>download(store.document.id+'.svg',renderSVG(store.document,frame()),'image/svg+xml');
 $('import').onclick=()=>$('file').click();$('file').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{if(f.size>5000000)throw new Error('Scene exceeds 5 MB.');load(JSON.parse(await f.text()));toast('Project opened.');}catch(error){toast('Could not open scene. '+error.message);}e.target.value='';};
 $('upgrade-rig').onclick=()=>{const p=pack(),type=['ona','dummy'].find(id=>library[id].packs[id].provenance?.source===p?.provenance?.source);if(!type||p.spatial){toast('This character already has a depth rig, or uses custom artwork.');return;}const next=addSpatialRig(structuredClone(p),type,{studies:false});if(type==='ona')addOnaArmJoints(next);transact([set(['packs',actor().pack],next),set(['requiredFeatures'],[...new Set([...(store.document.requiredFeatures||[]),'spatial-rig','hair-shell'])])],'Depth artwork added. Your existing clips remain editable; Undo restores the earlier rig.');};
-$('reload-demo').onclick=()=>{if(!demo)return;download(store.document.id+'-before-demo-reload.json',JSON.stringify(store.document,null,2));load(createDemo(demo.id));toast('Current demo loaded. Previous draft downloaded as a backup.');};
+$('reload-demo').onclick=()=>{if(!demo)return;download(store.document.id+'-before-demo-reload.json',JSON.stringify(store.document,null,2));load(freshDemo());toast('Current demo loaded. Previous draft downloaded as a backup.');};
 $('website-export').onclick=()=>behaviorTools.exportWebsite();
 $('convert-campfire').onclick=()=>{try{const next=convertCampfireEffects(store.document);transact(['packs','actors','groups','emitters','lighting','requiredFeatures'].map(k=>set([k],next[k])),'Campfire effects converted. Undo restores the previous draft.');sidebarView='scene';if(store.document.emitters?.length)selectSceneItem({kind:'emitter',id:(store.document.emitters.find(e=>e.type==='flame')||store.document.emitters[0]).id});else drawSceneSidebar();}catch(e){toast(e.message);}};
 $('new').onclick=()=>{download(store.document.id+'-backup.json',JSON.stringify(store.document,null,2));load(starter);toast('Previous project downloaded as a backup.');};

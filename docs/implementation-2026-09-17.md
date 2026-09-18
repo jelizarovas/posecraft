@@ -5,7 +5,7 @@ This implements the seven bounded workstreams in [the architecture review](archi
 | Workstream | Baseline at `2b1807a` | Implemented result |
 | --- | --- | --- |
 | Reproducible acceptance | Separate scene regressions | Seeded Catch samples, renderer pixel comparisons, exported Gym/Catch checks, 1/4/16 mesh workload and seek benchmarks |
-| Evaluation/rendering | Geometry and materials embedded in SVG rendering | Shared evaluated drawing contract, optional saved Canvas selection, common picking, restricted per-pixel mesh-depth experiment |
+| Evaluation/rendering | Geometry and materials embedded in SVG rendering | Shared evaluated drawing contract, optional saved Canvas selection, common picking, optional per-actor mesh depth with vector artwork |
 | Shared props | Independent per-character physical worlds | Bounded scene-level circles/static surfaces, single ownership, checked transfer/release, actor impulse bridge, Studio controls and graph effects |
 | Catch | No shared passing game | Saved participants and skills, preparation/flight/interception/miss/retrieval/return, bounded planning and replayable variations |
 | Existing scenes | Center-sampled buoyancy and ensemble cooking | Five hull samples with water feedback; editable actor cooking graphs and legacy conversion; reusable Gym breathing/effort layers |
@@ -16,7 +16,7 @@ This implements the seven bounded workstreams in [the architecture review](archi
 
 Scene tools now contain **Objects & catching**, **Character decisions**, and **Motion & website**. The panels edit validated document data, preserve undo/reload, and use the same runtime as exported playback. Scene behavior effects can attach, transfer, release, impulse, place or enable an object. Actor graphs have their own variables, sensors, rates, outputs, states and branches. The Campfire converter adds cooking graphs as one undoable edit while keeping the character artwork unchanged.
 
-The compiler selects new object, game, actor-behavior and motion-layer providers when a scene uses them. Catch and Gym compile as illustrations without Planck or the full SceneController. The measured Catch runtime was approximately 180 KB minified / 60 KB gzip, excluding embedded scene JSON. General rendering code is still shared; this is not minimal per-shape compilation or physics baking.
+The compiler selects new object, game, actor-behavior and motion-layer providers when a scene uses them. Catch and Gym compile as illustrations without Planck or the full SceneController. The measured Catch runtime was approximately 180 KB minified / 60 KB gzip, excluding embedded scene JSON. General rendering code is still shared; this is not minimal per-shape compilation. The separate motion baker described below can replace a recorded physical actor with an ordinary clip.
 
 ## Measured evidence
 
@@ -28,13 +28,23 @@ For ten Campfire seeks with actor graphs, warm checkpoints reduced local p50 fro
 
 Catch's saved seed `20260917`, sampled through 35 seconds, produces catches, misses, bounces, real pickups and return throws. Full/lightweight/worker playback agrees; standalone compiled export agrees within 1e-8 numeric rounding between Node and Edge. Same-engine cached replay comparisons are exact. Screenshots include the gallery, eight sampled states, desktop/mobile Studio and exported playback.
 
-Final verification: 404 unit tests passed, TypeScript checks passed, and the production build passed. The built-site browser check verified the Catch gallery, saved SVG/Canvas switching, Campfire decision editing and mobile layout. Verification commands and generated artifacts are kept in each feature guide. Browser regressions cover Campfire social/handoff behavior, Gym contacts/actions/water memory, Bottle touch/phone inputs and fluid parity, scene tools, connected mesh export, scoped decisions, new panels, scroll adapters, reduced motion and disposal. No physical-phone performance measurement was performed.
+First-release verification: 404 unit tests passed, TypeScript checks passed, and the production build passed. The built-site browser check verified the Catch gallery, saved SVG/Canvas switching, Campfire decision editing and mobile layout. Verification commands and generated artifacts are kept in each feature guide. Browser regressions cover Campfire social/handoff behavior, Gym contacts/actions/water memory, Bottle touch/phone inputs and fluid parity, scene tools, connected mesh export, scoped decisions, new panels, scroll adapters, reduced motion and disposal. No physical-phone performance measurement was performed.
 
 ## Deliberate boundaries
 
-- Canvas rejects projected shadows/reflections and editor guides. The depth-buffer experiment accepts a restricted opaque mesh scene; it is not a production GPU renderer. Moving evaluation to a worker, transparent depth compositing and full renderer parity remain optimization work.
+- Canvas rejects projected shadows/reflections and editor guides. Optional actor depth resolves opaque mesh intersections and preserves vector heads/faces/shoes inside each actor scene unit. It is a bounded CPU pass, not a GPU renderer or inter-actor depth buffer. Moving evaluation to a worker and transparent mesh depth remain optimization work.
 - Shared dynamics support circles and static rectangles, with bounded substeps. Actor collisions are a bridge to independent ragdoll worlds. General polygon bodies, articulated avatar collisions and automatic full-body contact planning are not implemented.
-- Catch respects blocking boxes and character spacing but does not navigate around arbitrary obstacles or predict ricochets. Blocked retrieval reports and retries instead of snapping an object into a hand. Ragdoll dives remain a later variant.
+- Catch can route through a saved walking area around visible rotated prop colliders and static shared objects. Moving avatars have local spacing avoidance, not cooperative crowd routing; ricochet prediction is not implemented. Blocked retrieval reports and retries instead of snapping an object into a hand. Ragdoll dives remain a later variant.
 - Actor graphs expose reusable decisions and cooking thresholds. Campfire social attention, sharing choreography and locomotion remain reusable built-in mechanics. A complete user-authored social action planner is not claimed.
 - Gym's connected mesh/correctives and authored asymmetric actions remain the base. Motion layers add small strain/breathing changes; they do not solve anatomy or simulate muscles.
-- Film/audio editing, dialogue, frame-accurate movie export, unrestricted procedural algorithms and physical checkpoint baking remain in the wider Studio roadmap.
+- Film/audio editing, dialogue, frame-accurate movie export, unrestricted procedural algorithms and general physical checkpoints remain in the wider Studio roadmap.
+
+## Continuation: routes, actor depth and recorded physics
+
+Catch now has a **Walk around obstacles** gallery variant, with its setting preserved through restart, new game, skill changes, copied links and **Edit in Studio**. Its walking area, clearance, grid and per-step search budget are saved under `objectGames[].navigation`. The incremental A* heap and in-flight route state survive checkpoints. Route tests check segment clearance around rotated obstacles, real vertical detours, bounded search and contact-based retrieval; the original open-field game is unchanged. See [navigation authoring](navigation-authoring.md).
+
+Studio's **Motion & website** panel offers **Actor depth** under Canvas. The pass resolves opaque mesh triangles, material overlays and contours while compositing vector artwork at its evaluated depth. Real Atlas standing, hanging, walking and bench samples show fewer clothing streaks and cleaner overlapping limbs. It costs more than painter mode; [the renderer guide](renderers.md) records measured draw times and supported materials.
+
+The same panel can **Bake physics into a clip**. It records one physical character, adaptively retains keys to meet chosen position/angle tolerances, then offers a scrub preview and an explicit undoable Apply. It keeps the source rig and isolates the baked character in a copied rig. A compiled two-second study excludes Planck and agrees with the original physical sample positions within 0.2 pixels and rotations within 0.25 degrees. This is bounded motion recording, not a solver checkpoint; [the baking guide](physics-baking.md) lists the supported study scenes and eight-second window.
+
+Continuation verification: the full local suite passed 417 tests before the final contour-material regression was added; the final focused route/depth suite passed all 10 tests. Type checking, production build, package inspection and built-site desktop/mobile smoke checks passed. Browser regressions cover active-route checkpoints and worker/full/lightweight parity, compiled navigation and actor-depth scenes without Planck, actual depth picking, physical-bake export accuracy, Studio cancellation/review/undo/reload, and delayed worker ownership acknowledgements.

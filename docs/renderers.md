@@ -1,6 +1,6 @@
 # Renderers and evaluated drawing
 
-Scenes may save `renderer: "svg"` or `renderer: "canvas"`. Omission means SVG. `mountRenderer(element, scene, frame, options)` selects the saved backend. It returns `update(frame)` and `dispose()`. It does not create an animation loop or own a simulation. Character editing overlays continue to use SVG.
+Scenes may save `renderer: "svg"` or `renderer: "canvas"`. Omission means SVG. Canvas scenes can also save `canvasDepth: "actor"` to resolve opaque mesh intersections within each actor; omission keeps painter order. `mountRenderer(element, scene, frame, options)` selects the saved backend. It returns `update(frame)` and `dispose()`. It does not create an animation loop or own a simulation. Character editing overlays continue to use SVG.
 
 ```js
 import { mountRenderer } from 'posecraft/render-mount';
@@ -37,13 +37,29 @@ The input frame remains authoritative: emitters and fluid overlays use `effectsT
 
 Material bounds sample curved paths; they are not exact symbolic extrema. Native SVG/Canvas rasterizers can differ slightly around antialiasing and translucent gradients. The acceptance test uses pixels as well as geometry, not string equality. The Canvas backing surface is capped at 4096 pixels per dimension, and device pixel ratio at 2. Disposal clears and unregisters the surface; repeated disposal and subsequent updates are harmless.
 
-## Mesh depth experiment
+## Optional actor depth
 
-The general Canvas backend intentionally preserves the SVG painter ordering and depth bands. Changing drawing APIs alone does not fix intersections between triangles inside a band.
+Set `renderer: "canvas"` and `canvasDepth: "actor"` to use the practical actor depth pass. It depth-tests opaque mesh triangles at each covered pixel, including coincident clothing and muscle surfaces. Material order resolves coincident ties. Silhouette and crease strokes are checked against the front mesh instead of drawing every contour over hidden limbs.
+
+Ordinary vector heads, faces and shoes are rasterized with their masks and opacity, then composited at their existing evaluated depth plane. They keep their vector artwork; they are not converted to 3D surfaces. Picking reads the same visible material buffer, including the vectors. Existing browser gestures therefore continue to use actor/part/joint identities.
+
+Depth is local to an actor scene unit. Other actors, props and detached scene-depth attachments still follow the existing scene ordering. This does not provide physical intersections between different actors or depth-varying curved vector surfaces. Mesh masks, translucent meshes and nonopaque mesh contour colors are rejected; opaque solid, cel and radial-gradient meshes are supported. Translucent and masked ordinary vector parts remain supported. Cast shadows and reflections retain the existing Canvas gates.
+
+The CPU pass uses 2× supersampling and crops to each actor unit. Reused buffers are bounded to 2,097,152 samples per actor and 4,194,304 per frame. Triangle/contour coverage and vector composition each have a 16,000,000-sample work cap. Excess work raises an explicit error rather than silently switching ordering. Large viewports or many large mesh actors may need a smaller viewport or painter mode. Contour stroke width uses the projected transform scale, so strongly nonuniform part transforms are an approximation. Disposal and actor removal release retained depth buffers.
+
+`inspectCanvasCapabilities(scene)` reports static restrictions. `inspectActorDepthCapabilities(drawing)` additionally checks evaluated materials and opacity, so an animated translucent mesh is rejected when it becomes visible. `renderCanvas` selects the pass from the drawing's depth mode. Call `renderCanvas` before `pickDrawing` for actor-depth data; picking an unrendered or stale drawing raises an error.
+
+Run `node --test test/actor-depth.test.js`, `node test/canvas-actor-depth-browser.mjs`, and `node test/canvas-actor-depth-export-browser.mjs`. The export check compiles the saved Atlas scene, verifies its selected renderer, matches the full runtime pose, and clicks the rendered actor through the shared picking adapter. The browser check proves crossing triangles, coincident overlays, contours, partially transparent masked vector art, mounted picking, explicit rejection and bounded work. It renders real Atlas standing, pull-up, walking, recline and bench poses at 0/6/31/39/42/54 seconds into `test-results/canvas-actor-depth.png` beside painter references. The reviewed sheet shows fewer clothing streaks and cleaner body overlaps while preserving the head and shoes. Default Canvas pixel comparisons remain unchanged.
+
+On the same Edge 153 / i7-1265U host, an 800×450 Atlas bench42 drawing warmed for 8 iterations and measured for 16 took 15.6ms median / 20.7ms p95 in actor-depth mode, versus 1.2ms / 2.3ms in painter mode. This excludes geometry evaluation. Cold frames had larger JIT/allocation spikes, including 94ms. Actor depth is a quality choice, not a speed claim or mobile frame-rate guarantee.
+
+## Restricted mesh depth experiment
+
+The default Canvas painter mode intentionally preserves the SVG painter ordering and depth bands. Changing drawing APIs alone does not fix intersections between triangles inside a band.
 
 `renderDepthCanvas(context, drawing)` is a separate bounded CPU depth-buffer experiment. It interpolates vertex depth at every covered pixel and its picking buffer agrees with the visible triangle. A crossing-triangle test proves this difference from whole-face painter ordering. It accepts exactly one mesh actor, opaque solid materials and no ordinary vector paths, masks, outlines, lighting or translucency. Those restrictions are checked before drawing. It is not selectable as a production scene renderer.
 
-The default experiment caps the surface at 1,048,576 pixels and tested triangle coverage at 8,000,000 pixel candidates. It has no antialiasing. Mixed vector/mesh compositing, transparent depth, contours and GPU execution remain future work.
+The default experiment caps the surface at 1,048,576 pixels and tested triangle coverage at 8,000,000 pixel candidates. It has no antialiasing. This older strict experiment still omits mixed vector/mesh compositing and contours; the actor-depth pass above supports those within its documented limits. Transparent mesh depth and GPU execution remain future work.
 
 ## Evidence and reproducible measurements
 
@@ -63,4 +79,4 @@ The timing workload uses an 800×600 surface, deterministic `full-set` samples a
 
 The authored pose is sampled once and shared, costing about 0.2ms median in each case. Canvas evaluation plus drawing must be compared with the combined SVG number; the Canvas drawing column alone is not an end-to-end speedup. Browser painting/compositing and GPU completion are not synchronously measured. Heap samples were roughly 65–69MB for the whole browser task, not retained memory attributable to a renderer. These results identify evaluation as the dominant cost and do not establish mobile frame rates or justify switching existing scenes by default. No physical phone measurement was performed.
 
-Vite's minified ES library build measured the SVG entry at 125,180 bytes, 36,855 gzip, and the dispatcher entry at 145,848 bytes, 43,238 gzip. The optional-backend dispatcher therefore adds 6,383 gzip bytes in this isolated comparison. These entries include common validation/evaluation dependencies and are not complete website export sizes. Export compilation can tree-shake a directly selected backend; the general dispatcher imports both.
+Before the actor-depth increment, Vite's minified ES library build measured the SVG entry at 125,180 bytes, 36,855 gzip, and the dispatcher entry at 145,848 bytes, 43,238 gzip. The optional-backend dispatcher therefore adds 6,383 gzip bytes in this isolated comparison. These entries include common validation/evaluation dependencies and are not complete website export sizes. Export compilation can tree-shake a directly selected backend; the general dispatcher imports both.

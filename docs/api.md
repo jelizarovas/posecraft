@@ -180,3 +180,12 @@ See [shared props and Catch](shared-objects.md), [actor decision graphs](actor-b
 ## Semantic agent authoring
 
 `posecraft/agent-authoring` provides revision-safe inspect, diagnose, propose and apply operations. [The agent guide](agent-authoring.md) documents CLI commands, bounded simulation, actual PNG previews and the six-tool stdio MCP server (`posecraft-mcp`). Clip, contact and pointer builders expand to ordinary validated transactions. They do not execute code from scene documents.
+
+
+## Navigation, actor depth and physical motion recording
+
+`posecraft/navigation` exports the incremental `PathJob`, `navigationObstacles`, `navigationSegmentClear` and bounded `approachPoint` helper. `WorkerSceneController.findPath` also accepts an `area` rectangle. Catch integrates routing through its saved `navigation` field; see [walking-area authoring](navigation-authoring.md). The route work budget counts heap entries processed; stale entries can consume budget without expanding a node.
+
+Set `renderer: 'canvas', canvasDepth: 'actor'` for [per-actor depth composition](renderers.md). Unsupported mesh materials fail explicitly. Scene-unit ordering between actors and scenery remains unchanged.
+
+`posecraft/scene-baking` exports asynchronous `bakeSceneMotion(scene, options)`. It returns a validated document, undoable commands and measured error diagnostics without mutating the source. `node tools/cli.mjs bake scene.json request.json output.json` writes a new baked document and refuses to overwrite a file. See [supported recordings and limits](physics-baking.md).

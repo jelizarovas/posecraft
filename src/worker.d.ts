@@ -4,7 +4,7 @@ import type {PointerCommand} from './schema.js';
 import type {BehaviorPayload,BehaviorSnapshot} from './behaviors.js';
 import type {SceneDocument,BehaviorSettings} from './schema.js';
 import type {Frame,SceneEvent,Interaction} from './scene.js';
-export interface PathRequest {start:{x:number;y:number};end:{x:number;y:number};cellSize?:number;clearance?:number}
+export interface PathRequest {start:{x:number;y:number};end:{x:number;y:number};cellSize?:number;clearance?:number;area?:{x:number;y:number;width:number;height:number}}
 export interface PathResult {path:{x:number;y:number}[]|null;expanded:number;cellSize:number}
 export interface WorkerStats {execution:string;computeMs:number;roundTripMs:number;droppedSeconds:number;pendingBatches:number}
 export class WorkerSceneController {

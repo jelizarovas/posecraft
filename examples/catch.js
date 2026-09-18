@@ -9,3 +9,9 @@ export function createCatch(){
  objects:[{id:'ball',name:'Ball',shape:'circle',x:240,y:340,radius:10,fill:'#df8257',mass:.2,restitution:.65,damping:.05,friction:.6,depth:410,owner:{actor:'pip',joint:'rightWrist'}}],objectPhysics:{gravity:650,floorY:410,actorCollisions:false},
  objectGames:[{id:'passing',type:'catch',object:'ball',seed:20260917,variation:75,flightTime:1.35,pause:1.3,participants:actors.map((a,i)=>({actor:a.id,root:'root',head:'head',feet:['leftFoot','rightFoot'],chain:{upper:i?'leftArm':'rightArm',lower:i?'leftForearm':'rightForearm',end:i?'leftWrist':'rightWrist'},bend:i?-1:1,speed:145,skill:i?.78:.88,reaction:.14,crouch:48}))}]};
 }
+
+/** The same passing game with an authored walking area and collision props. */
+export function createCatchNavigation(){const doc=createCatch();doc.name='Catch around obstacles';doc.bounds.height=500;doc.requiredFeatures.push('navigation','scene-depth');doc.objectGames[0].navigation={bounds:{x:40,y:210,width:720,height:180},cellSize:12,clearance:18,maxNodes:64};const grass=doc.props.find(p=>p.id==='grass');Object.assign(grass,{y:375,height:250});grass.collider.height=250;
+ for(const actor of doc.actors)actor.depth={joint:'root',offset:50};
+ doc.props.push({id:'garden-box',name:'Garden box',group:'setting',layer:'characters',x:400,y:318,width:90,height:38,rotation:12,fill:'#839781',depth:{value:368},collider:{enabled:true,width:90,height:38,x:0,y:0,friction:.7,bounce:.45}});
+ return doc;}
