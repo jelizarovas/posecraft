@@ -4,6 +4,8 @@ Status: implementation started, September 17, 2026. The first coordinated milest
 
 The [September architecture review](architecture-review-2026-09-17.md) checks the supplied recommendations against the current code and proposes the next shared-engine and demo work. Its proposed order is not an implementation-complete checklist.
 
+Following the user's rejection of the Atlas 3D pilot's visual quality, the [engine quality reset](engine-quality-reset.md) is the next implementation priority. It requires a native spatial/rig contract, deliberately authored assets, real contact/support constraints and a blocking motion-quality review before further showcase expansion. The renderer pilot is not an accepted production character pipeline. A separate [native bench Studio](native-studio.md) now implements the first end-to-end path with authored GLBs, native contacts, worker playback and portable website export; the [review record](native-3d-review.md) distinguishes verified behavior from remaining quality work.
+
 ## What is already usable
 
 Posecraft has reusable character packs, constrained joints, numeric keyframes, expressions and looks, experimental depth rigs, scene lighting, fifteen demos, assisted physical responses, and browser/React embeds. Director adds scenes, shots, camera and placement keys, reference-frame comparison, seeded motion and webcam takes. Project JSON can be saved and reopened. See [Director](director.md), [rigs](spatial.md), [lighting](lighting.md) and [capture](capture.md).

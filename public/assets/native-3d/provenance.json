@@ -1,0 +1,41 @@
+{
+  "creator": "Quaternius",
+  "pack": "Universal Base Characters Standard",
+  "license": "CC0-1.0",
+  "homepage": "https://quaternius.com/packs/universalbasecharacters.html",
+  "downloadPage": "https://quaternius.itch.io/universal-base-characters",
+  "archive": "Universal Base Characters[Standard].zip",
+  "downloaded": "2026-09-18",
+  "archiveSha256": "fdbf1804c90dfc1ea03e992bff7da2dfd1a79318e13270a660180f9308455f40",
+  "processing": "Original geometry, skeletons, skin weights and morphs retained. Source 2048px textures downsampled: body color 1024px JPEG quality 90, body normals/roughness 512px PNG, eyebrow hair atlases 256px PNG; original 256px eyes retained. Buffers/images embedded into GLB. Missing exporter _png.png texture aliases resolved to matching supplied .png files.",
+  "files": [
+    {
+      "file": "athlete.glb",
+      "source": "Superhero_Male_FullBody.gltf",
+      "sha256": "53ec7ab41d38dd74d61004f4aa14446cd765ea5697067d4ef7b64b6deae3199d",
+      "bytes": 1570432,
+      "uriRepairs": [
+        {
+          "from": "T_Hair_1_Normal_png.png",
+          "to": "T_Hair_1_Normal.png"
+        },
+        {
+          "from": "T_Eye_Normal_png.png",
+          "to": "T_Eye_Normal.png"
+        }
+      ]
+    },
+    {
+      "file": "regular.glb",
+      "source": "Superhero_Female_FullBody.gltf",
+      "sha256": "342d64527b1fed3f6d2ff94ee348469978e2fa9e6ce0aa69ca61dd010413b0c7",
+      "bytes": 1818712,
+      "uriRepairs": [
+        {
+          "from": "T_Eye_Normal_png.png",
+          "to": "T_Eye_Normal.png"
+        }
+      ]
+    }
+  ]
+}

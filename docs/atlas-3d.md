@@ -2,6 +2,8 @@
 
 The optional [Atlas comparison page](../atlas-3d.html) draws the gym character in 3D beside its SVG reference. It is a renderer pilot for Atlas and the gym room. It does not convert arbitrary Posecraft artwork into 3D or replace the SVG renderer used by existing projects.
 
+Visual status: the user did not accept this pilot's character quality. The [engine quality reset](engine-quality-reset.md) records the architectural and asset problems to address next. Passing browser checks and the CPU measurements below do not establish animation quality.
+
 Both views receive the same evaluated scene frame. The existing gym clips, joint limits, contact solves, seeded action choices and fatigue variables remain the animation source. The 3D renderer changes how that frame is drawn. A depth buffer can resolve overlapping surfaces, but it cannot repair an incorrect pose, unreachable grip or unsupported body position in the source animation.
 
 The body, shorts and muscle surfaces use Atlas's connected mesh data with GPU joint weights and corrective offsets. Vertex buffers stay fixed during playback; joint matrices and correction strengths change. The head, hair, beard, nose, eyes and shoes use volumetric geometry. Physical depth is used for drawing; SVG layer-order hints do not become physical thickness.

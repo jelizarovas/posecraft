@@ -181,6 +181,38 @@
     "./animation-preview": {
       "types": "./src/animation-preview.d.ts",
       "default": "./src/animation-preview.js"
+    },
+    "./rig-3d": {
+      "types": "./src/rig-3d.d.ts",
+      "default": "./src/rig-3d.js"
+    },
+    "./scene-3d": {
+      "types": "./src/scene-3d.d.ts",
+      "default": "./src/scene-3d.js"
+    },
+    "./scene-3d-schema": {
+      "types": "./src/scene-3d-schema.d.ts",
+      "default": "./src/scene-3d-schema.js"
+    },
+    "./bench-action-3d": {
+      "types": "./src/bench-action-3d.d.ts",
+      "default": "./src/bench-action-3d.js"
+    },
+    "./gltf-character-3d": {
+      "types": "./src/gltf-character-3d.d.ts",
+      "default": "./src/gltf-character-3d.js"
+    },
+    "./bench-project-3d": {
+      "types": "./src/bench-project-3d.d.ts",
+      "default": "./src/bench-project-3d.js"
+    },
+    "./grip-3d": {
+      "types": "./src/grip-3d.d.ts",
+      "default": "./src/grip-3d.js"
+    },
+    "./native-action-worker-client": {
+      "types": "./src/native-action-worker-client.d.ts",
+      "default": "./src/native-action-worker-client.js"
     }
   },
   "bin": {
@@ -231,11 +263,17 @@
     "docs/physics-baking.md",
     "docs/attachments.md",
     "docs/implementation-2026-09-18.md",
-    "docs/atlas-3d.md"
+    "docs/atlas-3d.md",
+    "docs/engine-quality-reset.md",
+    "docs/native-3d.md",
+    "tools/build-native-runtime.mjs",
+    "public/assets/native-3d",
+    "docs/native-studio.md",
+    "docs/native-3d-review.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build && node tools/build-export-runtimes.mjs",
+    "build": "vite build && node tools/build-export-runtimes.mjs && node tools/build-native-runtime.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test test/*.test.js",
     "test:browser": "node test/browser.mjs",
@@ -290,7 +328,12 @@
     "test:animation-guides": "node test/animation-guides-browser.mjs",
     "test:markers": "node test/markers-studio-browser.mjs",
     "test:retiming-export": "node test/retiming-export-browser.mjs",
-    "test:atlas-three": "node test/atlas-three-browser.mjs"
+    "test:atlas-three": "node test/atlas-three-browser.mjs",
+    "test:native-3d": "node --test test/rig-3d.test.js test/scene-3d-schema.test.js test/scene-3d.test.js test/bench-action-3d.test.js test/bench-project-3d.test.js test/gltf-character-3d.test.js test/native-action-worker-client.test.js",
+    "test:native-studio": "node test/native-studio-browser.mjs",
+    "test:native-export": "node test/native-export-browser.mjs",
+    "test:native-worker": "node test/native-action-worker-browser.mjs",
+    "test:native-performance": "node test/native-bench-performance.mjs"
   },
   "peerDependencies": {
     "react": ">=18"
@@ -314,6 +357,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@types/three": "0.186.0",
     "planck": "1.4.2",
     "three": "0.186.0"
   }

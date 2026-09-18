@@ -15,6 +15,8 @@ Open the localhost address printed by Vite. `npm run build` creates the static G
 
 ## What works in 0.1
 
+The next engine milestone follows the [quality reset](docs/engine-quality-reset.md): convincing motion, clear authoring and measured website performance. The [native 3D Studio](https://jelizarovas.github.io/posecraft/native-studio.html) now edits a bench sequence using authored GLB characters, world-space contacts and worker playback. Move the bench, change the character, save/reopen the project, and export a self-contained website. See the [workflow and current limits](docs/native-studio.md). This is a separate native workflow; the existing 2D scenes retain their current engine.
+
 - [Timeline tools](docs/timeline.md): retime complete clips with matching contacts, edit event markers, and inspect nearby poses and joint paths.
 
 - [A game of catch](https://jelizarovas.github.io/posecraft/demos.html#game-of-catch): shared ball ownership, catches, misses and retrieval. Author players, grips and skills in Studio.

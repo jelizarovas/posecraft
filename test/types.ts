@@ -168,3 +168,27 @@ guides.onion(.5,{step:.1,count:2});guides.path("head",{samples:31});
 const retimed=retimeSceneClip(scene,{packId:scene.actors[0].pack,clipId:"idle",duration:4});
 new DocumentStore(scene).transact(retimed.commands,retimed.expectedRevision);
 const marker:import("posecraft/schema").ClipMarker={time:1,name:"hand:ready"};void marker;
+
+
+import {compileScene3D,validateScene3D} from "posecraft/scene-3d";
+import {compileRig3D,evaluateRig3D,solveTwoBone3D} from "posecraft/rig-3d";
+import type {Scene3D} from "posecraft/scene-3d-schema";
+const nativeScene={} as Scene3D;
+const nativeCompiled=compileScene3D(nativeScene);
+const nativeFrame=nativeCompiled.evaluate({camera:nativeScene.camera});
+const nativeReload:Scene3D=nativeCompiled.serialize();
+const nativeDiagnostic:string=nativeFrame.contacts[0].status;
+const nativeRig=compileRig3D(nativeScene.rigs["humanoid"]);
+const nativeWorld=evaluateRig3D(nativeRig,{}, {position:[0,0,0],rotation:[0,0,0,1],scale:1});
+const nativeSolve=solveTwoBone3D(nativeRig,{},"reach",{position:[1,0,1],rotation:[0,0,0,1]});
+void validateScene3D(nativeReload);void nativeDiagnostic;void nativeWorld;void nativeSolve;
+
+import {loadCharacter3D} from "posecraft/gltf-character-3d";
+import {createBenchAction3D} from "posecraft/bench-action-3d";
+import {createBenchProject3D,BenchProject3DStore} from "posecraft/bench-project-3d";
+import {wristTargetForGrip3D} from "posecraft/grip-3d";
+const benchProject=createBenchProject3D();const benchStore=new BenchProject3DStore(benchProject);
+async function importedNativeCharacter(){const asset=await loadCharacter3D("./athlete.glb",{height:1.75});const action=createBenchAction3D({rig:asset.rig,roles:asset.roles,grips:asset.grips,bench:benchProject.bench,settings:benchProject.settings});asset.apply(action.sample(1).pose,action.sample(1).placement);const finish=action.interrupt(15);if(finish.supported)finish.sample(0);if(asset.grips.left)wristTargetForGrip3D(asset.grips.left,{position:[0,1,0]});asset.dispose();}void importedNativeCharacter;void benchStore;
+
+import {createNativeActionClient} from "posecraft/native-action-worker-client";
+const nativeActionClient=createNativeActionClient(new Worker("worker.js",{type:"module"}));nativeActionClient.dispose();
