@@ -14,6 +14,12 @@ export function spatialKinematics(pack,pose){
  return world;
 }
 const numbers=/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g;
+const turnaroundCache=new WeakMap();
+export function turnaroundPath(part,angle){
+ let compiled=turnaroundCache.get(part);if(!compiled){compiled=part.spatial.turnaround.views.map(view=>({angle:view.angle,values:view.d.match(numbers).map(Number),d:view.d}));turnaroundCache.set(part,compiled);}
+ const yaw=((angle%360)+360)%360,index=compiled.findIndex((view,i)=>i<compiled.length-1&&yaw>=view.angle&&yaw<compiled[i+1].angle),a=compiled[Math.max(0,index)],b=compiled[Math.max(0,index)+1],t=(yaw-a.angle)/(b.angle-a.angle);let n=0;
+ return a.d.replace(numbers,()=>String(+(a.values[n]+(b.values[n]-a.values[n++])*t).toFixed(4)));
+}
 const morphCache=new WeakMap();
 export function morphPath(part,value){
  if(!part.spatial?.morph)return part.d;let compiled=morphCache.get(part);
@@ -59,11 +65,12 @@ export function spatialParts(pack,frame){
  if(!pack.spatial)return null;let pose=frame.pose;if(frame.physics){const root=pack.joints.find(j=>j.parent===null),w=frame.world[root.id];pose={...pose,[root.id+'.x']:w.x-root.x,[root.id+'.y']:w.y-root.y};}const world=spatialKinematics(pack,pose),result=new Map();
  pack.parts.forEach((part,index)=>{const j=world[part.joint],s=part.spatial||{},m=j.m,offset=apply(m,0,0,s.depth||0),v=[m[0],m[3],m[1],m[4],j.x+offset.x,j.y+offset.y];
   // Volumes retain a side silhouette at profile. Limbs keep their true shortened axis.
-  if(s.thickness){const axis=s.axis==='y'?2:0,other=axis===0?2:0,n=Math.hypot(v[axis],v[axis+1]),target=Math.hypot(n,s.thickness*Math.sqrt(Math.max(0,1-n*n))),length=Math.hypot(v[other],v[other+1]),sign=m[8]<0?-1:1;
+  if(s.thickness&&!s.turnaround){const axis=s.axis==='y'?2:0,other=axis===0?2:0,n=Math.hypot(v[axis],v[axis+1]),target=Math.hypot(n,s.thickness*Math.sqrt(Math.max(0,1-n*n))),length=Math.hypot(v[other],v[other+1]),sign=m[8]<0?-1:1;
    if(length>.001){v[axis]=(axis===0?v[3]:-v[1])/length*target*sign;v[axis+1]=(axis===0?-v[2]:v[0])/length*target*sign;}else{const a=(frame.world[part.joint].rotation+(axis===2?90:0))*rad;v[axis]=Math.cos(a)*target;v[axis+1]=Math.sin(a)*target;}}
 
   if(s.softLimb||s.hairShell)v.splice(0,6,1,0,0,1,j.x,j.y);
-  let facing=m[8];
+  let facing=m[8],turnPath=null;
+  if(s.turnaround){const up=Math.hypot(m[1],m[4]),roll=(frame.world?.[part.joint]?.rotation||0)*rad,hx=up>.0001?m[4]/up:Math.cos(roll),hy=up>.0001?-m[1]/up:Math.sin(roll),angle=Math.atan2(m[2]*hx+m[5]*hy,m[8])/rad;v[0]=hx;v[1]=hy;turnPath=turnaroundPath(part,angle);}
   if(s.surface){const {x,width,depth}=s.surface,u=clamp(x/width,-.95,.95),z=depth*Math.sqrt(1-u*u),slope=-depth*u/(width*Math.sqrt(1-u*u)),point=apply(m,x,0,z);
    v[0]=m[0]+m[2]*slope;v[1]=m[3]+m[5]*slope;v[2]=m[1];v[3]=m[4];v[4]=j.x+point.x-v[0]*x;v[5]=j.y+point.y-v[1]*x;facing=m[8]-m[6]*slope;
   }
@@ -71,7 +78,7 @@ export function spatialParts(pack,frame){
   const frontCoverage=s.facingFade?clamp(facing/s.facingFade,0,1):1,opacity=s.facingFade?(s.facing==='back'?1-frontCoverage:frontCoverage):1;
   // Depth is sampled at an authored part center, not just its attachment pivot.
   const center=apply(m,s.center?.[0]||0,s.center?.[1]||0,s.depth||0);
-  result.set(part.id,{matrix:v,transform:`matrix(${v.map(n=>+n.toFixed(5)).join(' ')})`,depth:j.z+j.layerDepth+center.z+(s.order||0)*.001,index,opacity,visible:s.facingFade?opacity>0:s.facing==='front'?facing>.035:s.facing==='back'?facing<-.035:true,d:s.hairShell?hairShellPath(s.hairShell,m,frame.inputs?.[part.variantInput]):s.softLimb?softLimbPath(pack,part,pose,world):s.morph?morphPath(part,frame.pose[s.morph.channel]):null});
+  result.set(part.id,{matrix:v,transform:`matrix(${v.map(n=>+n.toFixed(5)).join(' ')})`,depth:j.z+j.layerDepth+center.z+(s.order||0)*.001,index,opacity,visible:turnPath&&(turnPath.match(numbers)||[]).every(n=>Number(n)===0)?false:s.facingFade?opacity>0:s.facing==='front'?facing>.035:s.facing==='back'?facing<-.035:true,d:turnPath??(s.hairShell?hairShellPath(s.hairShell,m,frame.inputs?.[part.variantInput]):s.softLimb?softLimbPath(pack,part,pose,world):s.morph?morphPath(part,frame.pose[s.morph.channel]):null)});
  });
  return {world,parts:result,order:[...result.keys()].sort((a,b)=>result.get(a).depth-result.get(b).depth||result.get(a).index-result.get(b).index)};
 }

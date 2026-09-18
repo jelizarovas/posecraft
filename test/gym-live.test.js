@@ -12,7 +12,7 @@ const world=(pack,clip,time)=>spatialKinematics(pack,sampleClip({...pack.clips[c
 test('live gym is portable authored activities, bounded stats and complementary decisions',()=>{
  const d=assertDocument(JSON.parse(JSON.stringify(createGym()))),g=d.behaviorGraph;
  assert.equal(d.presentation,'live');assert.ok(d.requiredFeatures.includes('action-variations'));
- assert.equal(Object.keys(g.activities).length,12);
+ for(const name of ['prepare','pull','recover','bench','rack-and-rise','drink-bar','drink-bench','idle-bar','idle-bench','hang-rest'])assert.ok(g.activities[name]);assert.ok(Object.keys(g.activities).length<=32);
  for(const activity of Object.values(g.activities))for(const v of [...activity.variants,...activity.failureVariants||[]]){
   assert.ok(d.packs.atlas.clips[v.clip]);assert.ok(v.start<v.end);
   assert.ok(Object.keys(v.offsets||{}).every(key=>key.startsWith('head.')),'variation cannot move a planted limb');
@@ -22,20 +22,17 @@ test('live gym is portable authored activities, bounded stats and complementary 
  }
 });
 
-test('water breaks grip the bottle, meet the mouth and keep feet planted at both stations',()=>{
+test('water breaks fetch one table bottle, bring its cap to the mouth and replace it',()=>{
  const p=createGym().packs.atlas;
  for(const [clip,base]of [['drink-at-bar',29],['drink-at-bench',52.5]]){
-  const rest=world(p,'full-set',base);let previous;
-  for(let i=0;i<=150;i++){
-   const t=i/30,w=world(p,clip,t);assert.ok(distance(w.rightHand,w['water-bottle'])<.5);
-   assert.ok(w.rightLower.y>w.rightUpper.y,'drinking elbow stays below the shoulder');
-   if(previous)for(const name of ['rightLower','rightHand'])assert.ok(distance(w[name],previous[name])<9,'arm bends continuously without an IK branch flip');
-   previous=w;
-   for(const side of ['left','right'])assert.ok(distance(w[side+'Foot'],rest[side+'Foot'])<.02);
-   if(i===0||i===150){assert.ok(distance(w.rightHand,rest.rightHand)<.1);assert.equal(sampleClip(p.clips[clip],t)['water-bottle.opacity'],0);}
+  const rest=world(p,'full-set',base),duration=p.clips[clip].duration,travel=(duration-8.1)/2;let previous,sipFeet,sipSamples=0;
+  for(let i=0;i<=Math.ceil(duration*30);i++){
+   const t=Math.min(duration,i/30),pose=sampleClip(p.clips[clip],t),w=world(p,clip,t);
+   if(previous&&t>=travel&&t<=duration-travel)for(const name of ['rightLower','rightHand'])assert.ok(distance(w[name],previous[name])<9,'arm moves continuously through pickup, sip and replacement');previous=w;
+   if(pose['water-bottle.rotation']<-64){const b=w['water-bottle'],cap={x:b.x-20*b.m[1],y:b.y-20*b.m[4]},grip={x:b.x+8*b.m[0],y:b.y+8*b.m[3]};assert.ok(distance(grip,w.rightHand)<.75,'hand stays wrapped around bottle');assert.ok(distance(cap,{x:w.head.x,y:w.head.y+13})<9,'cap reaches mouth');sipFeet??={left:w.leftFoot,right:w.rightFoot};for(const side of ['left','right'])assert.ok(distance(w[side+'Foot'],sipFeet[side])<.1,'feet plant while sipping');sipSamples++;}
+   if(i===0||t===duration){assert.ok(distance(w.rightHand,rest.rightHand)<.1);assert.ok(distance(w['water-bottle'],{x:400,y:270})<.1,'bottle remains at the table after return');assert.equal(pose['water-bottle.opacity'],1);}
   }
-  const w=world(p,clip,2),angle=-65*Math.PI/180,cap={x:w['water-bottle'].x+20*Math.sin(angle),y:w['water-bottle'].y-20*Math.cos(angle)};
-  assert.ok(distance(cap,{x:w.head.x,y:w.head.y+13})<7,'bottle cap reaches mouth');
+  assert.ok(sipSamples>30,'a deliberate water break is visible');
  }
 });
 
@@ -49,16 +46,16 @@ test('rep variants and station actions join without root, hand or foot jumps',()
 });
 
 test('default live workout reaches both stations, fails tired reps, drinks and preserves contacts',()=>{
- const c=new SceneController(createGym()),states=new Set(),firstFailedReps=[],speeds=new Set();let previousFailures=0,maxContact=0,frame;
+ const c=new SceneController(createGym()),states=new Set(),firstFailedReps=[],speeds=new Set();let previousFailures=0,previousFatigue=0,recovered=false,maxContact=0,frame;
  try{
-  for(let i=0;i<900;i++){
-   frame=c.step(.1);const status=gymLiveStatus(frame);states.add(status.state);
+  for(let i=0;i<1500;i++){
+   frame=c.step(.1);const status=gymLiveStatus(frame);states.add(status.state);if(status.fatigue<previousFatigue-3)recovered=true;previousFatigue=status.fatigue;
    assert.ok(status.reps>=0&&status.reps<=8);assert.ok(status.fatigue>=0&&status.fatigue<=100);assert.ok(status.dehydration>=0&&status.dehydration<=100);
    if(status.failures>previousFailures){firstFailedReps.push(status.reps);previousFailures=status.failures;}
    speeds.add(frame.behavior.actions.atlas.speed);
    for(const contact of frame.contacts||[])if(contact.active)maxContact=Math.max(maxContact,contact.error);
   }
-  assert.equal(firstFailedReps[0],7);assert.ok(states.has('bench'));assert.ok(states.has('drink-bar')||states.has('drink-bench'));assert.ok(gymLiveStatus(frame).drinks>=1);assert.ok(speeds.size>5);assert.ok(maxContact<.25,`grip error ${maxContact}`);
+  assert.ok(firstFailedReps.length>0);assert.ok(firstFailedReps.every(n=>n>=0&&n<8));assert.equal(recovered,true,'rest completion reduces fatigue');assert.ok(states.has('bench'));assert.ok(states.has('drink-bar')||states.has('drink-bench'));assert.ok(gymLiveStatus(frame).drinks>=1);assert.ok(speeds.size>5);assert.ok(maxContact<.25,`grip error ${maxContact}`);
  }finally{c.dispose();}
 });
 

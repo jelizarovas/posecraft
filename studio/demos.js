@@ -1,9 +1,10 @@
 import {mountBottleControls} from '../src/bottle-browser.js';
 import {mountScenePointers} from '../src/pointer-browser.js';
 import {loveseatBeat,loveseatBeats} from '../examples/loveseat.js';
-import {gymPhase,gymBeats,gymGripReviews} from '../examples/gym.js';
+import {gymPhase,gymBeats,gymGripReviews,gymSceneReviews} from '../examples/gym.js';
 import {gymPreparationReviews} from '../examples/gym-preparation.js';
-const gymActionReviews=[...gymGripReviews,...gymPreparationReviews];
+import {gymIdleReviews} from '../examples/gym-idle-actions.js';
+const gymActionReviews=[...gymGripReviews,...gymPreparationReviews,...gymSceneReviews,...gymIdleReviews];
 import {lightingConfig} from '../src/lighting.js';
 import './demos.css';
 import {demoCatalog,createDemo,findDemo} from '../examples/showcase.js';
@@ -30,7 +31,7 @@ for(const d of demoCatalog){
 }
 function cleanup(){bottleWide=false;$('demo-art').style.background='';bottleControls?.dispose();bottleControls=null;reviewLive=false;pointers?.dispose();pointers=null;playbackRate=1;reviewBeat=null;loopBeat=false;ensembleSoundTime=-Infinity;ensembleSoundEvents.clear();scrubPending=null;stopMotion();wander=false;nextWalk=0;token++;worker?.terminate();worker=null;controller?.dispose();controller=null;renderer?.dispose();renderer=null;renderedScene=null;ready=false;inFlight=false;pending=null;offset={x:0,y:0};drag=null;$('demo-stage').style.transform='';}
 const timedScenes=new Set(['campfire-night','ship-in-a-bottle','loveseat-stairs','gym-routine']);
-const actionReview=()=>selected?.id==='gym-routine'?gymActionReviews.find(r=>r.clip===documentData?.actors.find(a=>a.id==='atlas')?.inputs.action):null;
+const actionReview=()=>{if(selected?.id!=='gym-routine')return null;const review=gymActionReviews.find(r=>r.clip===documentData?.actors.find(a=>a.id==='atlas')?.inputs.action);return review?{...review,duration:documentData.packs.atlas.clips[review.clip].duration}:null;};
 const sceneDuration=()=>selected?.id==='campfire-night'||documentData?.fluid?180:Math.min(180,Math.max(...documentData.actors.map(a=>{const p=documentData.packs[a.pack],state=p.states[a.inputs?.action]||p.states[p.initial];return p.clips[state.clip].duration;})));
 function select(id,seed,mode){
  cleanup();selected=findDemo(id)||demoCatalog[0];documentData=createDemo(selected.id);if(seed!==undefined&&documentData.ensemble)documentData.ensemble.seed=seed;if(seed!==undefined&&documentData.behaviorGraph)documentData.behaviorGraph.seed=seed;if(selected.id==='gym-routine'&&mode&&mode!=='workout'){documentData.presentation='sequence';if(mode==='review-workout')mode='workout';if(gymActionReviews.some(r=>r.clip===mode)){const p=documentData.packs.atlas;p.inputs.action.options.push(mode);p.states[mode]={clip:mode};}}if(mode)for(const a of documentData.actors||[]){const p=documentData.packs[a.pack];if(p.inputs.action?.options.includes(mode)){a.inputs={...a.inputs,action:mode};const state=Object.entries(p.states).find(([,s])=>s.clip===mode);if(state)p.initial=state[0];}}frame=null;time=0;last=null;debug=selected.id==='drop-lab';playing=!media.matches;const mine=token;

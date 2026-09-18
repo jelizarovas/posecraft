@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGym,gymModes,gymPhase,gymPose,gymTiming,gymWalk} from '../examples/gym.js';
+import {gymBenchTargets} from '../examples/gym-room.js';
 import {assertDocument} from '../src/schema.js';
 import {sampleClip,forwardKinematics} from '../src/index.js';
 import {spatialKinematics,spatialParts} from '../src/spatial.js';
@@ -8,7 +9,8 @@ import {SceneController} from '../src/scene.js';
 import {renderSVG} from '../src/svg.js';
 const sample=(d,time,mode='workout')=>sampleClip(d.packs.atlas.clips[mode],time);
 const world=(d,time,mode='workout')=>spatialKinematics(d.packs.atlas,sample(d,time,mode));
-const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),benchTargets=gymBenchTargets();
+const barGrip=(world,name)=>{const x=benchTargets.bar.gripOffsets[name].x;return {x:world.barbell.x+world.barbell.m[0]*x,y:world.barbell.y+world.barbell.m[3]*x};};
 test('gym is portable editable scene data with cached independent copies and bounded tracks',()=>{
  const d=assertDocument(JSON.parse(JSON.stringify(createGym())));assert.deepEqual(Object.keys(d.packs.atlas.clips).slice(0,gymModes.length),gymModes);for(const id of ['drink-at-bar','drink-at-bench','bench-failed'])assert.ok(d.packs.atlas.clips[id]);assert.equal(d.packs.atlas.clips.workout.duration,180);assert.ok(d.groups.some(g=>g.id==='athlete'));assert.ok(d.packs.atlas.parts.some(p=>p.spatial?.softLimb));
  for(const c of Object.values(d.packs.atlas.clips))for(const keys of Object.values(c.tracks)){assert.ok(keys.length<=1000);assert.ok(keys.every(k=>k.every(v=>typeof v==='string'||Number.isFinite(v))));}
@@ -24,8 +26,8 @@ test('both pull-up grips stay on the stationary bar between keys including failu
  const d=createGym();let max=0;for(const mode of ['full-set','fail-six','fail-seven'])for(let i=0;i<550;i++){const t=6+i*18/550,w=world(d,t,mode);for(const [name,side]of [['left',-1],['right',1]])max=Math.max(max,distance(w[name+'Hand'],{x:180+43*side,y:150}));}assert.ok(max<3.2,`maximum grip error ${max}px`);
 });
 test('barbell stays in its rack while athlete walks and hands track all three bench reps',()=>{
- const d=createGym();for(const t of [0,3,26.5,32,36,40,48,53,59]){const w=world(d,t);assert.ok(distance(w.barbell,{x:585,y:270})<.6,`rack drift at${t}`);}
- let max=0,reps=0,wasLow=false;for(let i=0;i<=700;i++){const t=41+i/100,w=world(d,t);for(const [name,side]of [['left',-1],['right',1]])max=Math.max(max,distance(w[name+'Hand'],{x:w.barbell.x+side*40,y:w.barbell.y}));const low=w.barbell.y>298;if(low&&!wasLow)reps++;wasLow=low;}assert.equal(reps,3);assert.ok(max<3.2,`bench hand error ${max}px`);
+ const d=createGym();for(const t of [0,3,26.5,32,36,40,48,53,59]){const w=world(d,t);assert.ok(distance(w.barbell,benchTargets.bar)<.6,`rack drift at${t}`);}
+ let max=0,reps=0,wasLow=false;for(let i=0;i<=700;i++){const t=41+i/100,w=world(d,t);for(const [name,side]of [['left',-1],['right',1]])max=Math.max(max,distance(w[name+'Hand'],barGrip(w,name)));const low=w.barbell.y>benchTargets.bar.y+28;if(low&&!wasLow)reps++;wasLow=low;}assert.equal(reps,3);assert.ok(max<3.2,`bench hand error ${max}px`);
 });
 test('walk, dismount, lying and loop boundaries remain continuous and finite',()=>{
  const d=createGym();for(const mode of gymModes){const duration=d.packs.atlas.clips[mode].duration;let previous=world(d,0,mode);for(let i=1;i<=duration*60;i++){const t=i/60,next=world(d,t,mode);for(const point of Object.values(next))assert.ok(Number.isFinite(point.x)&&Number.isFinite(point.y));for(const name of ['root','head','leftHand','rightHand','leftFoot','rightFoot'])assert.ok(distance(next[name],previous[name])<18,`${mode} ${name} jumps at${t}: ${distance(next[name],previous[name])}`);previous=next;}}
@@ -38,7 +40,7 @@ test('serialized standard clips render muscular anatomy and station props withou
 
 test('resting stance has soft straight knees and planted feet below hips',()=>{
  const d=createGym();for(const t of [0,59,59.5]){const w=world(d,t),p=sample(d,t);for(const name of ['left','right']){assert.ok(Math.abs(p[name+'Calf.rotation'])<20);assert.ok(Math.abs(w[name+'Foot'].x-w[name+'Thigh'].x)<3);assert.ok(Math.abs(w[name+'Foot'].y-383)<.01);}}
- const bench=world(d,42);assert.ok(Math.abs(bench.leftFoot.x-bench.rightFoot.x)<37);assert.ok(Math.abs(bench.leftFoot.y-383)<.6);assert.ok(Math.abs(bench.rightFoot.y-383)<.6);
+ const bench=world(d,42);assert.ok(Math.abs(bench.leftFoot.x-bench.rightFoot.x)<37);assert.ok(distance(bench.leftFoot,benchTargets.feet.left)<.6);assert.ok(distance(bench.rightFoot,benchTargets.feet.right)<.6);
  const knee=Array.from({length:50},(_,i)=>sample(d,30+i/50)['leftCalf.rotation']);assert.ok(Math.max(...knee)-Math.min(...knee)>20,'walking has a distinct knee swing');
 });
 
@@ -53,7 +55,7 @@ test('pull-up head passes behind the rail while wrapping hands stay in front',()
  const d=createGym(),pack=d.packs.atlas,pose=sample(d,7),order=spatialParts(pack,{pose,world:forwardKinematics(pack.joints,pose)}).order,rail=order.indexOf('pullup-front-bar');assert.ok(rail>order.indexOf('head-shape'));assert.ok(rail>order.indexOf('eyes'));assert.ok(order.indexOf('leftgrip')>rail);assert.ok(order.indexOf('rightgrip')>rail);for(const t of [30.7,54.3]){const pose=sample(d,t),turned=spatialParts(pack,{pose,world:forwardKinematics(pack.joints,pose)}).order;assert.ok(turned.indexOf('eyes')>turned.indexOf('head-shape'),'face remains visible when turned');}
 });
 
-test('sit, recline and rise keep the bench feet planted and failure has anticipatory hesitation',()=>{
- const d=createGym();let drift=0;for(let t=36;t<52.5;t+=.04){const w=world(d,t);drift=Math.max(drift,distance(w.leftFoot,{x:692,y:383}),distance(w.rightFoot,{x:728,y:383}));}assert.ok(drift<2.5,`bench foot drift ${drift}`);
+test('bench work keeps feet on projected floor anchors and failure has anticipatory hesitation',()=>{
+ const d=createGym();let drift=0;for(let t=38;t<=51;t+=.04){const w=world(d,t);drift=Math.max(drift,distance(w.leftFoot,benchTargets.feet.left),distance(w.rightFoot,benchTargets.feet.right));}assert.ok(drift<2.5,`bench foot drift ${drift}`);
  assert.notEqual(gymPose(2,'full-set')['leftUpper.rotation'],gymPose(2,'fail-six')['leftUpper.rotation']);assert.ok(Math.abs(gymPose(27,'fail-six')['torso.rotation'])>Math.abs(gymPose(27,'full-set')['torso.rotation']));
 });

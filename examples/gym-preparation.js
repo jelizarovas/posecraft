@@ -5,8 +5,8 @@ export function addGymPreparation(scene,{poseAt,makeClip}){
  const pack=scene.packs.atlas,graph=scene.behaviorGraph;
  for(const id of ['breath-mouth','breath-air'])pack.joints.push({id,parent:'head',x:0,y:0,length:0,rotation:0,min:-180,max:180});
  pack.parts.push(
-  {id:'breath-mouth',joint:'breath-mouth',d:'M-4 12Q0 8 4 12Q6 17 0 18Q-6 17-4 12Z',fill:'#382b30',stroke:'#a65f46',strokeWidth:1,opacityChannel:'breath-mouth.opacity',spatial:{order:60}},
-  {id:'breath-air',joint:'breath-air',d:'M-6 24Q0 27 6 24M-9 30Q0 34 9 30M-12 37Q0 42 12 37',fill:'none',stroke:'#e5f3ef',strokeWidth:2,opacityChannel:'breath-air.opacity',spatial:{order:61}}
+  {id:'breath-mouth',joint:'breath-mouth',d:'M-4 12Q0 8 4 12Q6 17 0 18Q-6 17-4 12Z',fill:'#382b30',stroke:'#f4c8a0',strokeWidth:1.8,opacityChannel:'breath-mouth.opacity',spatial:{order:60}},
+  {id:'breath-air',joint:'breath-air',d:'M-6 24Q0 27 6 24M-9 30Q0 34 9 30M-12 37Q0 42 12 37',fill:'none',stroke:'#eefbf8',strokeWidth:3,opacityChannel:'breath-air.opacity',spatial:{order:61}}
  );
  for(const clip of Object.values(pack.clips))for(const id of ['breath-mouth','breath-air'])clip.tracks[id+'.opacity']=[[0,0],[clip.duration,0]];
  pack.clips['tired-breaths']=makeClip(4.8,t=>{
@@ -21,7 +21,7 @@ export function addGymPreparation(scene,{poseAt,makeClip}){
   pose['head.rotation']=(pose['head.rotation']||0)+2*exhale;
   for(const side of ['left','right'])pose[side+'Upper.y']=(pose[side+'Upper.y']||0)-2.4*inhale+2*exhale;
   pose['face-neutral.opacity']=1;pose['face-effort.opacity']=0;pose['face-blink.opacity']=0;
-  pose['breath-mouth.opacity']=exhale;pose['breath-air.opacity']=air;
+  pose['breath-mouth.opacity']=exhale;pose['breath-air.opacity']=air;pose['breath-mouth.z']=80;pose['breath-air.z']=81;
   pose['breath-air.y']=8*travel;
   pose['sweat.opacity']=.3*tired;pose['water-bottle.opacity']=0;
   return pose;

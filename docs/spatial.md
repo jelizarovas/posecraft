@@ -67,3 +67,8 @@ Campfire uses `spatial.hairShell: {width: 43, height: 33, depth: 31, y: -22}` fo
 ## Reuse the supplied rigs
 
 Import `addSpatialRig` and `addOnaArmJoints` from `posecraft/character-rigs`. On a clone of an original Ona pack, call `addSpatialRig(pack, "ona", {studies: false})`, then `addOnaArmJoints(pack)`. Dummy needs only `addSpatialRig(pack, "dummy", {studies: false})`. These functions mutate the clone, preserve original actions, and can be called again safely. Omit `studies: false` to include the extra rotation study clips. Custom rigs need their own joint and artwork setup.
+
+
+### Directional artwork
+
+A part can store `spatial.turnaround.views`, an ordered array of `{angle, d}` paths spanning 0 through 360 degrees. Paths use matching commands and point counts. The first and last view close the turn. The renderer interpolates neighboring contours using the joint's world-facing direction while retaining its roll and pitch. This lets side and rear views have different silhouettes and features without flattening a front drawing. Atlas provides 25 keys at 15-degree spacing. The same saved data renders in Studio, worker playback and website exports.

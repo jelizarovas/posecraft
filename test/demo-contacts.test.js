@@ -6,7 +6,7 @@ import {SceneController} from '../src/scene.js';
 import {assertDocument} from '../src/schema.js';
 test('Atlas grip windows repeat across the full workout and release between stations',()=>{
  const d=assertDocument(createGym()),c=new SceneController(d);
- assert.equal(d.contacts.filter(c=>c.period===60).length,4);assert.equal(d.contacts.filter(c=>c.clip==='bench-failed').length,2);
+ assert.equal(d.contacts.filter(c=>c.period===60&&c.clip==='workout').length,4);assert.equal(d.contacts.filter(c=>c.clip==='bench-failed').length,2);
  for(const [time,count,kind]of [[7,2,'pullup'],[27,0,null],[42,2,'bench'],[67,2,'pullup'],[102,2,'bench'],[127,2,'pullup'],[162,2,'bench']]){
   c.previewClip('atlas','workout',time);const active=c.frame().contacts.filter(v=>v.active);assert.equal(active.length,count);
   for(const contact of active){assert.ok(contact.id.endsWith(kind));assert.ok(contact.error<.2,`${contact.id} gap ${contact.error} at ${time}`);}

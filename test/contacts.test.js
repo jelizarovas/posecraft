@@ -69,7 +69,7 @@ test('contacts survive transactional save and arbitrary seek order without pose 
 });
 
 test('serialized constraints reject malformed chains, targets, windows and unsupported clips',()=>{
- assertDocument(fixture());for(const corrupt of [d=>d.contacts[0].chain.lower='root',d=>d.contacts[0].target={type:'joint',actor:'missing',joint:'end'},d=>d.contacts[0].target={type:'joint',actor:'a',joint:'missing'},d=>d.contacts[0].weight=2,d=>d.contacts[0].period=0,d=>d.contacts[0].period=181,d=>d.contacts[0].bend=0,d=>d.contacts[0].start=181,d=>d.contacts[0].end=-1,d=>d.contacts[0].clip='missing',d=>d.contacts.push(structuredClone(d.contacts[0])),d=>d.contacts=Array.from({length:17},(_,i)=>({...d.contacts[0],id:'contact-'+i}))]){const d=fixture();corrupt(d);assert.equal(validateDocument(d).valid,false,corrupt.toString());}
+ assertDocument(fixture());for(const corrupt of [d=>d.contacts[0].chain.lower='root',d=>d.contacts[0].target={type:'joint',actor:'missing',joint:'end'},d=>d.contacts[0].target={type:'joint',actor:'a',joint:'missing'},d=>d.contacts[0].weight=2,d=>d.contacts[0].period=0,d=>d.contacts[0].period=181,d=>d.contacts[0].bend=0,d=>d.contacts[0].start=181,d=>d.contacts[0].end=-1,d=>d.contacts[0].clip='missing',d=>d.contacts.push(structuredClone(d.contacts[0])),d=>d.contacts=Array.from({length:65},(_,i)=>({...d.contacts[0],id:'contact-'+i}))]){const d=fixture();corrupt(d);assert.equal(validateDocument(d).valid,false,corrupt.toString());}
 });
 
 test('180-second clips and bounded seek support long workouts and late replay events',()=>{

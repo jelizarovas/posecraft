@@ -3,7 +3,7 @@ import {validateInteractions} from './pointer-interactions.js';
 import {validateBehaviorGraph} from './behaviors.js';
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations'], unavailable: ['general-fluid-dynamics', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork'], unavailable: ['general-fluid-dynamics', 'mesh-deformation', 'svg-import', 'attachments','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -20,7 +20,7 @@ function validateStructure(doc) {
   // Bound import cost and reject executable values and prototype-sensitive keys before compilation.
   let count = 0;
   function walk(value, path, depth) {
-    if (++count > 200000 || depth > 24) throw new Error('Document exceeds resource limits.');
+    if (++count > 500000 || depth > 24) throw new Error('Document exceeds resource limits.');
     if (typeof value === 'function' || typeof value === 'undefined' || typeof value === 'symbol' || typeof value === 'bigint') throw new Error(`${path}: only JSON data is accepted.`);
     if (typeof value === 'number' && !Number.isFinite(value)) throw new Error(`${path}: expected a finite number.`);
     if (value && typeof value === 'object') for (const [key, child] of Object.entries(value)) {
@@ -94,6 +94,11 @@ function validateStructure(doc) {
         if(v.facing!==undefined)check(['front','back'].includes(v.facing),q,'Invalid facing.');
         if(v.surface!==undefined)check(record(v.surface)&&finite(v.surface.x,-500,500)&&finite(v.surface.width,1,500)&&finite(v.surface.depth,1,500)&&Math.abs(v.surface.x)<v.surface.width,q,'Invalid curved surface.');
         if(v.mask!==undefined)check(pack.parts.some(p=>p.id===v.mask)&&v.mask!==part.id,q,'Missing mask part.');
+        if(v.turnaround!==undefined){const views=v.turnaround?.views,number=/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g,signature=typeof part.d==='string'?part.d.replace(number,'#'):null;
+          check(record(v.turnaround)&&Array.isArray(views)&&views.length>=3&&views.length<=73&&!v.morph&&!v.softLimb&&!v.hairShell&&!v.surface,q,'Turnaround needs 3..73 compatible directional paths.');
+          if(Array.isArray(views)){let previous=-1;for(const [i,view]of views.entries()){check(record(view)&&finite(view.angle,0,360)&&view.angle>previous&&typeof view.d==='string'&&view.d.length<=20000&&/^[MmZzLlHhVvCcSsQqTtEe0-9.,+\s-]+$/.test(view.d)&&view.d.replace(number,'#')===signature&&(view.d.match(number)||[]).length>0&&(view.d.match(number)||[]).every(n=>finite(Number(n),-10000,10000)),q+'.turnaround.views.'+i,'Expected increasing angles and finite paths with matching commands.');previous=view?.angle;}
+            check(views[0]?.angle===0&&views.at(-1)?.angle===360&&views[0]?.d===views.at(-1)?.d,q,'Turnaround must close from 0 to 360 with matching artwork.');}
+        }
         if(v.softLimb){const e=pack.joints.find(j=>j.id===v.softLimb.elbow),h=pack.joints.find(j=>j.id===v.softLimb.hand);check(record(v.softLimb)&&e?.parent===part.joint&&h?.parent===e?.id&&finite(v.softLimb.radius,1,30)&&!v.morph,q,'Soft limbs require a connected elbow and hand, radius 1..30, and no morph.');}
         if(v.morph){const number=/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g,target=v.morph.target;
           check(typeof target==='string'&&target.length<=200000&&/^[MmZzLlHhVvCcSsQqTtEe0-9.,+\s-]+$/.test(target)&&target.replace(number,'#')===part.d.replace(number,'#')&&(target.match(number)||[]).length>0&&[...(target.match(number)||[]),...(part.d.match(number)||[])].every(n=>Number.isFinite(Number(n)))&&joints.has(v.morph.channel?.split('.')[0])&&v.morph.channel===v.morph.channel?.split('.')[0]+'.bend',q,'Morph paths must have matching commands and coordinates; use a joint bend channel.');
@@ -200,7 +205,7 @@ function validateStructure(doc) {
   if(doc.lighting?.emitter!==undefined)check(typeof doc.lighting.emitter==='string'&&emitterIds.has(doc.lighting.emitter),'lighting.emitter','Missing light emitter.');
   check(doc.contacts===undefined||Array.isArray(doc.contacts),'contacts','Expected contact constraint array.');
   const contacts=Array.isArray(doc.contacts)?doc.contacts:[],contactIds=new Set();
-  check(contacts.length<=16,'contacts','At most 16 contact constraints per scene.');
+  check(contacts.length<=64,'contacts','At most 64 contact constraints per scene.');
   for(const contact of contacts){
    if(!record(contact)){check(false,'contacts','Expected contact constraint.');continue;}
    const p='contacts.'+contact.id,actor=doc.actors.find(a=>a.id===contact.actor),pack=doc.packs[actor?.pack];

@@ -19,12 +19,12 @@ test('tired preparation has three visible breath-outs, planted feet and quiet en
  }assert.equal(pulses,3);}finally{c.dispose();}
 });
 
-test('only tired athletes sometimes prepare with breaths, without awarding reps or recovery',()=>{
+test('only tired athletes sometimes prepare with breaths, recover a little after all three breaths without awarding reps',()=>{
  const doc=createGym(),selected=new Set();
  for(let seed=1;seed<=32;seed++)for(const fatigue of [8,80]){
   const d=structuredClone(doc);d.behaviorGraph.seed=seed*100003;d.behaviorGraph.variables.fatigue=fatigue;const b=new BehaviorRuntime(d);b.tick(.01);
   if(fatigue===8)assert.equal(b.state,'prepare');else selected.add(b.state);
-  if(b.state==='catch-breath-before'){const original={...b.variables};while(b.state==='catch-breath-before'&&b.time<7)b.tick(.01);assert.equal(b.state,'prepare');assert.equal(b.variables.fatigue,original.fatigue);assert.equal(b.variables.reps,0);assert.equal(b.variables.sets,0);}
+  if(b.state==='catch-breath-before'){const original={...b.variables};while(b.state==='catch-breath-before'&&b.time<7)b.tick(.01);assert.equal(b.state,'prepare');assert.equal(b.variables.fatigue,original.fatigue-4);assert.equal(b.variables.reps,0);assert.equal(b.variables.sets,0);}
  }
  assert.deepEqual([...selected].sort(),['catch-breath-before','prepare']);
 });

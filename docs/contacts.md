@@ -12,7 +12,7 @@ Contacts are saved in project JSON and evaluated by the scene worker, plain runt
 
 ## API
 
-Import `applyContacts` and `solveContact` from `posecraft/contacts`. A scene stores at most 16 contacts and lists `contacts` in `requiredFeatures`.
+Import `applyContacts` and `solveContact` from `posecraft/contacts`. A scene stores at most 64 contacts and lists `contacts` in `requiredFeatures`.
 
 ```js
 scene.contacts = [{
