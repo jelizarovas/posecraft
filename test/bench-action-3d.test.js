@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createBenchAction3D} from '../src/bench-action-3d.js';
 import {benchBodyGeometry3D} from '../src/bench-geometry-3d.js';
 import fs from 'node:fs/promises';
-import {Texture,Vector3} from 'three';
+import {Texture,Vector3,Triangle,Ray} from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createCharacter3D} from '../src/gltf-character-3d.js';
 
@@ -86,10 +86,10 @@ test('bench action rejects overlapping chains and mutable ancestors before spars
 
 // Texture decoding is irrelevant to skeleton geometry. Preserve the actual
 // authored joints, mesh bounds and weights while supplying lightweight textures.
-async function imported(file){
+async function imported(file,height=1.8){
  const loader=new GLTFLoader();loader.register(()=>({name:'unit-test-textures',loadTexture:async()=>new Texture()}));
  const bytes=await fs.readFile(new URL('../public/assets/native-3d/'+file+'.glb',import.meta.url));
- return createCharacter3D(await loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),''),{height:1.8});
+ return createCharacter3D(await loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),''),{height});
 }
 function rotate(v,q){const [x,y,z,w]=q,t=[2*(y*v[2]-z*v[1]),2*(z*v[0]-x*v[2]),2*(x*v[1]-y*v[0])];return [v[0]+w*t[0]+y*t[2]-z*t[1],v[1]+w*t[1]+z*t[0]-x*t[2],v[2]+w*t[2]+x*t[1]-y*t[0]];}
 test('both authored characters keep physical palm grips and clear the bench base with their feet',async()=>{
@@ -172,22 +172,49 @@ test('scoots move lifted hips against stationary hand and foot supports on both 
      }
      previous={pelvis,s};
     }
-    assert.ok(horizontalTravel>.4,'Scoot metadata did not produce meaningful horizontal travel');assert.ok(anchors.size>=3,'The full move needs multiple supported pushes');assert.ok(footResets>0&&pushFrames>0);
+    assert.ok(horizontalTravel>.2,'Scoot metadata did not produce meaningful horizontal travel');assert.ok(anchors.size>=2,'The full move needs multiple supported pushes');assert.ok(footResets>0&&pushFrames>0);
     for(const stage of ['plant','lift','shift','settle','recover'])assert.ok(stages.has(stage),`${id} never entered ${stage}`);
    }
    for(const id of ['recline','sit-up']){
     const beat=action.beats.find(b=>b.id===id);assert.ok(beat);
-    const fixed=action.sample(beat.start).world[character.roles.pelvis].position;
-    for(let i=0;i<=80;i++){
-     const f=action.sample(beat.start+(beat.end-beat.start)*i/80),p=f.world[character.roles.pelvis].position;
-     assert.ok(Math.hypot(p[0]-fixed[0],p[2]-fixed[2])<1e-7,`${file} ${id} translated the pelvis instead of rotating about it`);
+    let previous=null,shiftDistance=0,shiftFrames=0,anchors=null;const resetOrder=[];
+    const count=Math.ceil((beat.end-beat.start)*60);
+    for(let i=0;i<=count;i++){
+     const f=action.sample(beat.start+(beat.end-beat.start)*i/count),joint=f.world[character.roles.pelvis],p=joint.position,feet=f.diagnostics.filter(d=>d.id.endsWith('Leg')),hands=f.diagnostics.filter(d=>d.id.endsWith('Arm'));
+     assert.ok(f.valid,`${file} ${id} support is unreachable`);
+     if(f.clearance){
+      assert.ok(feet.some(d=>d.active&&d.error<1e-6),'Both feet lost grounded support during clearance preparation');
+      const moving=feet.filter(d=>!d.active);assert.ok(moving.length<=1,'Clearance reset moves both feet at once');
+      if(moving.length){
+       const reset=moving[0].id;if(resetOrder.at(-1)!==reset)resetOrder.push(reset);
+       assert.equal(f.clearance.rise,0,'A foot resets while the torso rises');assert.ok(hands.every(d=>d.active&&d.error<1e-6),'Foot reset requires both planted hands');
+       const mate=feet.find(d=>d.active),oldMate=previous?.feet.find(d=>d.id===mate.id);
+       assert.ok(Math.abs(mate.actual.position[1]-bench.position[1]-action.measurements.soleHeight)<1e-7,'The planted mate floats during clearance reset');
+       if(oldMate?.active)assert.ok(distance(mate.actual.position,oldMate.actual.position)<1e-7,'The planted mate slides during clearance reset');
+      }
+      if(f.clearance.rise>1e-6)assert.ok(f.clearance.seatLift<1e-6&&f.clearance.handBlend<1e-6,'Torso rises before clearance support has settled');
+     }
+     if(previous){
+      const horizontal=Math.hypot(p[0]-previous.p[0],p[2]-previous.p[2]),rotationChange=1-Math.abs(joint.rotation.reduce((sum,n,k)=>sum+n*previous.rotation[k],0));shiftDistance+=horizontal;
+      if(horizontal>1e-7){
+       shiftFrames++;assert.equal(f.support.seat,false,'Pelvis slides while still claiming cushion contact');
+       assert.ok(hands.every(d=>d.active&&d.error<1e-6)&&feet.every(d=>d.active&&d.error<1e-6),'Both hands and feet must support the reclined shift');
+       assert.ok(rotationChange<1e-10,'Torso rises while still sliding beneath the bar');
+       const points=[...hands,...feet].map(d=>d.actual.position);anchors??=points;
+       for(let k=0;k<points.length;k++)assert.ok(distance(points[k],anchors[k])<1e-7,'A support slides during the clearance shift');
+      }
+      if(rotationChange>1e-9)assert.ok(horizontal<1e-7,'Actual torso rise must retain a stationary pelvis');
+     }
+     previous={p,rotation:joint.rotation,feet};
     }
+    assert.ok(shiftFrames>10&&shiftDistance>.2&&shiftDistance<action.measurements.legReach*.45,'Missing bounded, supported bar-clearance shift');
+    assert.deepEqual(resetOrder,id==='sit-up'?['leftLeg','rightLeg']:['rightLeg','leftLeg'],'Clearance footsteps do not reverse in the declared order');
    }
   }finally{character.dispose();}
  }
 });
 
-test('skinned palms and fingers clear the cushion during scoot preparation and hand resets',async()=>{
+test('skinned palms and fingers clear the cushion during scoots and supported recline transitions',async()=>{
  const reports=[];
  for(const [modelIndex,file]of ['athlete','regular'].entries()){
   const character=await imported(file),yaw=modelIndex?.6:0,bench={position:modelIndex?[.4,.12,-.3]:[0,0,0],rotation:[0,Math.sin(yaw/2),0,Math.cos(yaw/2)],scale:1};
@@ -210,11 +237,11 @@ test('skinned palms and fingers clear the cushion during scoot preparation and h
    const selected=selections.reduce((n,s)=>n+s.vertices.length,0);assert.ok(selected>100,'The regression did not find the authored hand surface');
    const report={file,selected,frames:0,stages:new Set(),insideVertices:0,worst:null},pad=benchBodyGeometry3D(action.bench.size).find(p=>p.id==='pad');
    const inverse=[-bench.rotation[0],-bench.rotation[1],-bench.rotation[2],bench.rotation[3]],vertex=new Vector3();
-   for(const beat of action.beats.filter(b=>['scoot-back','scoot-forward'].includes(b.id))){
+   for(const beat of action.beats.filter(b=>['scoot-back','scoot-forward','recline','sit-up'].includes(b.id))){
     const count=Math.ceil((beat.end-beat.start)*60);
     for(let i=0;i<=count;i++){
-     const time=beat.start+(beat.end-beat.start-.000001)*i/count,frame=action.sample(time),stage=frame.scoot?.stage;
-     if(!['prepare','finish','recover'].includes(stage))continue;
+     const time=beat.start+(beat.end-beat.start-.000001)*i/count,frame=action.sample(time),stage=frame.scoot?.stage??frame.phase;
+     if(!['prepare','finish','recover','recline','sit-up'].includes(stage))continue;
      character.apply(frame.pose,frame.placement);report.frames++;report.stages.add(stage);
      for(const {mesh,vertices}of selections)for(const index of vertices){
       // Three's actual skin/morph evaluation uses the same imported mesh data
@@ -224,12 +251,12 @@ test('skinned palms and fingers clear the cushion during scoot preparation and h
       const penetration=Math.min(...p.map((v,axis)=>pad.size[axis]/2-Math.abs(v-pad.position[axis])));
       if(penetration>1e-5){
        report.insideVertices++;
-       if(!report.worst||penetration>report.worst.penetration)report.worst={time,phase:frame.phase,stage,cycle:frame.scoot.cycle,vertex:index,point:p,penetration};
+       if(!report.worst||penetration>report.worst.penetration)report.worst={time,phase:frame.phase,stage,cycle:frame.scoot?.cycle,vertex:index,point:p,penetration};
       }
      }
     }
    }
-   assert.ok(report.frames>100);assert.deepEqual([...report.stages].sort(),['finish','prepare','recover']);report.stages=[...report.stages];reports.push(report);
+   assert.ok(report.frames>100);assert.deepEqual([...report.stages].sort(),['finish','prepare','recline','recover','sit-up']);report.stages=[...report.stages];reports.push(report);
   }finally{character.dispose();}
  }
  assert.ok(reports.every(r=>r.insideVertices===0),'Actual hand geometry intersects the cushion: '+JSON.stringify(reports));
@@ -283,7 +310,7 @@ test('both authored rigs rise over planted feet before alternating stance resets
 });
 
 
-test('rendered legs and shoes clear the declared bench during the complete exit',async()=>{
+test('rendered legs and shoes clear the declared bench through recline and the complete exit at 60Hz',async()=>{
  const reports=[];
  for(const file of ['athlete','regular']){
   const character=await imported(file);
@@ -303,8 +330,9 @@ test('rendered legs and shoes clear the declared bench during the complete exit'
    });
    const geometry=benchBodyGeometry3D(action.bench.size),vertex=new Vector3(),report={file,frames:0,selected:selections.reduce((n,s)=>n+s.vertices.length,0),insideVertices:0,byPhase:{},worst:null};
    assert.ok(report.selected>100,'No actual leg/shoe surface found');
-   const begin=action.beats.find(b=>b.id==='release').start;
-   for(let time=begin;time<=action.duration;time+=1/20){
+   const recline=action.beats.find(b=>b.id==='recline'),intervals=[[recline.start,recline.end],[action.beats.find(b=>b.id==='release').start,action.duration]];
+   for(const [begin,end]of intervals)for(let i=0,count=Math.ceil((end-begin)*60);i<=count;i++){
+    const time=begin+(end-begin)*i/count;
     const frame=action.sample(time);character.apply(frame.pose,frame.placement);report.frames++;
     for(const {mesh,vertices}of selections)for(const index of vertices){
      mesh.getVertexPosition(index,vertex).applyMatrix4(mesh.matrixWorld);const p=vertex.toArray();
@@ -318,4 +346,62 @@ test('rendered legs and shoes clear the declared bench during the complete exit'
   }finally{character.dispose();}
  }
  assert.ok(reports.every(r=>r.insideVertices===0),'Actual leg/shoe geometry intersects the equipment: '+JSON.stringify(reports));
+});
+
+
+// Distance between finite line segments; independent of the IK/action code.
+function segmentDistanceSq(a,b,c,d){
+ const sub=(p,q)=>p.map((v,i)=>v-q[i]),dot=(p,q)=>p.reduce((n,v,i)=>n+v*q[i],0),u=sub(b,a),v=sub(d,c),w=sub(a,c),aa=dot(u,u),bb=dot(u,v),cc=dot(v,v),dd=dot(u,w),ee=dot(v,w),den=aa*cc-bb*bb;
+ if(cc<1e-14){const t=Math.max(0,Math.min(1,-dd/aa));return dot(w.map((n,i)=>n+t*u[i]),w.map((n,i)=>n+t*u[i]));}
+ let sn=den,sd=den,tn=den,td=den;
+ if(den<1e-14){sn=0;sd=1;tn=ee;td=cc;}else{sn=bb*ee-cc*dd;tn=aa*ee-bb*dd;if(sn<0){sn=0;tn=ee;td=cc;}else if(sn>sd){sn=sd;tn=ee+bb;td=cc;}}
+ if(tn<0){tn=0;if(-dd<0)sn=0;else if(-dd>aa)sn=sd;else{sn=-dd;sd=aa;}}
+ else if(tn>td){tn=td;if(-dd+bb<0)sn=0;else if(-dd+bb>aa)sn=sd;else{sn=-dd+bb;sd=aa;}}
+ const sc=Math.abs(sn)<1e-14?0:sn/sd,tc=Math.abs(tn)<1e-14?0:tn/td;return dot(w.map((n,i)=>n+sc*u[i]-tc*v[i]),w.map((n,i)=>n+sc*u[i]-tc*v[i]));
+}
+
+test('actual head, face and hair surfaces clear the racked bar throughout recline and sit-up',async()=>{
+ // Match the physical shaft in native-three-view.js: local-X length1.85m,
+ // radius18mm. Test a capsule (including end caps), not joint-center clearance.
+ const half=.925,radius=.018,axisA=[-half,0,0],axisB=[half,0,0],aVec=new Vector3(...axisA),bVec=new Vector3(...axisB),ray=new Ray(aVec,new Vector3(1,0,0)),triangle=new Triangle(),nearest=new Vector3(),hit=new Vector3();
+ const reports=[];
+ for(const file of ['athlete','regular'])for(const [height,yaw]of [[1.7,0],[1.8,0],[1.9,.65]]){
+  const character=await imported(file,height),bench={position:yaw?[.4,.12,-.3]:[0,0,0],rotation:[0,Math.sin(yaw/2),0,Math.cos(yaw/2)],scale:1};
+  try{
+   const action=createBenchAction3D({rig:character.rig,roles:character.roles,grips:character.grips,bench}),joints=new Map(character.rig.joints.map(j=>[j.id,j])),head=new Set();
+   for(const joint of character.rig.joints)for(let ancestor=joint;ancestor;ancestor=joints.get(ancestor.parent))if(ancestor.id===character.roles.head){head.add(joint.id);break;}
+   const selections=[];
+   character.root.traverse(mesh=>{
+    if(!mesh.isSkinnedMesh)return;
+    const weights=mesh.geometry.getAttribute('skinWeight'),indices=mesh.geometry.getAttribute('skinIndex'),selected=new Set();
+    for(let i=0;i<weights.count;i++){let amount=0;for(let k=0;k<weights.itemSize;k++)if(head.has(mesh.skeleton.bones[indices.getComponent(i,k)]?.name))amount+=weights.getComponent(i,k);if(amount>.5)selected.add(i);}
+    const index=mesh.geometry.index,faces=[];
+    for(let i=0;i<(index?.count??weights.count);i+=3){const ids=[0,1,2].map(k=>index?index.getX(i+k):i+k);if(ids.every(id=>selected.has(id)))faces.push(ids);}
+    if(faces.length)selections.push({mesh,vertices:[...selected],faces,points:new Map()});
+   });
+   const report={file,height,yaw,frames:0,triangles:selections.reduce((n,s)=>n+s.faces.length,0),collisions:0,byPhase:{},phaseWindows:{},worst:null};assert.ok(report.triangles>100,'Actual head surface was not selected');
+   for(const beat of action.beats.filter(b=>['recline','sit-up'].includes(b.id))){
+    const count=Math.ceil((beat.end-beat.start)*60);
+    for(let i=0;i<=count;i++){
+     const time=beat.start+(beat.end-beat.start)*i/count,frame=action.sample(time),q=frame.bar.rotation,inverse=[-q[0],-q[1],-q[2],q[3]],scale=frame.bar.scale??1;character.apply(frame.pose,frame.placement);report.frames++;
+     for(const selection of selections){
+      for(const id of selection.vertices){selection.mesh.getVertexPosition(id,nearest).applyMatrix4(selection.mesh.matrixWorld);selection.points.set(id,rotate(nearest.toArray().map((n,k)=>n-frame.bar.position[k]),inverse).map(n=>n/scale));}
+      for(const ids of selection.faces){
+       const p=ids.map(id=>selection.points.get(id));
+       if([1,2].some(axis=>Math.min(...p.map(v=>v[axis]))>radius||Math.max(...p.map(v=>v[axis]))< -radius)||Math.min(...p.map(v=>v[0]))>half+radius||Math.max(...p.map(v=>v[0]))< -half-radius)continue;
+       triangle.set(new Vector3(...p[0]),new Vector3(...p[1]),new Vector3(...p[2]));
+       const crossing=ray.intersectTriangle(triangle.a,triangle.b,triangle.c,false,hit);let distanceSq;
+       if(crossing&&hit.x<=half)distanceSq=0;
+       else{distanceSq=Math.min(triangle.closestPointToPoint(aVec,nearest).distanceToSquared(aVec),triangle.closestPointToPoint(bVec,nearest).distanceToSquared(bVec));for(let k=0;k<3;k++)distanceSq=Math.min(distanceSq,segmentDistanceSq(axisA,axisB,p[k],p[(k+1)%3]));}
+       const penetration=(radius-Math.sqrt(Math.max(0,distanceSq)))*scale;
+       if(penetration>1e-5){report.collisions++;report.byPhase[beat.id]=(report.byPhase[beat.id]??0)+1;const window=report.phaseWindows[beat.id]??={first:time,last:time,firstProgress:i/count,lastProgress:i/count};window.last=time;window.lastProgress=i/count;if(!report.worst||penetration>report.worst.penetration)report.worst={phase:beat.id,time,progress:i/count,penetration,vertices:ids,points:p};}
+      }
+     }
+    }
+   }
+   reports.push(report);
+  }finally{character.dispose();}
+ }
+ await fs.mkdir(new URL('../test-results/',import.meta.url),{recursive:true});await fs.writeFile(new URL('../test-results/native-head-bar-clearance.json',import.meta.url),JSON.stringify(reports,null,2));
+ assert.ok(reports.every(r=>r.collisions===0),'Actual head/hair surface intersects the racked bar: '+JSON.stringify(reports));
 });

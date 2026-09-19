@@ -24,7 +24,7 @@ These reviews establish a usable engineering study. They do not establish final 
 
 The relaxed-arm pole now stays behind the shoulder-to-wrist line, including walking turns, so the elbow bends in the anatomical direction. It preserves the imported wrist orientation and fixed arm lengths.
 
-Bench entry and exit use short support cycles: plant open palms and feet, lean forward, lift the pelvis, shift, settle and reposition. Open palms use support heights measured from each imported skin. Seated hands rest above the thighs and lift over the cushion when planting, repositioning or releasing. The pelvis moves along the bench only during the lifted shift; actual wrists and ankles stay fixed throughout each push. Reclining and sitting up keep the pelvis in place. Step count and reach derive from limb measurements. This is authored kinematic support, not a physical muscle simulation.
+Bench entry and exit use short support cycles: plant open palms and feet, lean forward, lift the pelvis, shift, settle and reposition. Open palms use support heights measured from each imported skin. Seated hands rest above the thighs and lift over the cushion when planting, repositioning or releasing. The pelvis moves along the bench only during the lifted shift; actual wrists and ankles stay fixed throughout each push. Reclining and sitting up now include the supported bar-clearance transfer described below. Step count and reach derive from limb measurements. This is authored kinematic support, not a physical muscle simulation.
 
 Regression checks sample both authored bodies at 60 Hz for support drift, seat clearance, foot resets and reachable goals. Hand clearance uses the actual skinned palm and finger vertices against the cushion volume, rather than wrist positions alone. Whole-skeleton continuity is checked at every phase join, including wrist velocity and safe completion. The same sampler runs in Studio, its worker and the exported player.
 
@@ -35,6 +35,12 @@ The default pad is 32cm wide, with a 46cm base, shared by the renderer and movem
 Standing first shifts weight forward while the pelvis remains supported. The hands brace the thighs, the feet stay fixed during leg extension, and only then does the character take two short steps into a relaxed stance. Sitting reverses that sequence. The legs remain outside the cushion until the body has cleared it; closing them during the final scoot previously swept the shins through the pad.
 
 Scoots use smaller, quicker lifts with articulated spine motion. Sit-up leads with the chest and head instead of rotating the torso as a rigid plank. Added tests evaluate actual skinned legs and shoes against every declared bench box throughout the exit, as well as the existing palm and finger checks. Normal-speed front and side review recordings are produced by `test/native-exit-review-browser.mjs`. These remain kinematic motions, not a force or soft-tissue simulation.
+
+## Head clearance at the rack
+
+Before sitting up, the character braces open palms, lifts slightly, resets the feet one at a time, and shifts toward the foot of the bench. Both hands and feet stay planted during that shift. The body settles before the hands release and the torso curls upward. Reclining reverses the same path, so the head is already below the bar before the character moves into pressing position. Seated scoot endpoints match this clearance position; bar grips and pressing position stay unchanged.
+
+Clearance distance scales with leg reach, with a 25cm minimum. Regression checks compare the actual skinned head, face and hair triangles against the rendered bar shaft capsule at 60Hz, for both bundled bodies at 1.7, 1.8 and 1.9m, including a translated and rotated bench. Palm, finger, leg and shoe checks also cover the new transfer. Normal-speed side and oblique recordings of entry and exit are produced by `test/native-clearance-review-browser.mjs`. This is a tested choreography for these bodies, not a general collision planner for arbitrary imported anatomy or equipment.
 
 ## Reproducible checks
 
