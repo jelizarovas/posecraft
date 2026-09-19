@@ -46,6 +46,12 @@ Use **Add Dummy** in the character library. Use **+** beside the Props selector 
 
 The Studio includes [connected skinned surfaces](docs/skinned-mesh.md) with editable joint weights and pose corrections, authored limb rotation, contact constraints, live event graphs, [action variations and stats](docs/actions.md), and a [ship-in-a-bottle slosh model](docs/fluids.md). General fluid dynamics, full physical balance and quadruped locomotion remain later milestones. See the [scope and requirements mapping](docs/mvp-status.md) and [full product brief](POSECRAFT_REQUIREMENTS.md). The portable wwwzard pack uses sampled actions, solid fills, and rigid sleeves; the original demo retains procedural cloth and typing. Ukis has not been migrated.
 
+## Game integration
+
+The [corner shop example](https://jelizarovas.github.io/posecraft/game-demo.html) demonstrates the first Little Lands integration: named actors and targets, awaitable actions, character-specific reactions, cancellable sequences and host-owned dialogue. Use `scene.actor(id)` from the browser/React player or `createGameScene` from `posecraft/game`. `posecraft describe scene.json` reports the actions and targets an agent can use.
+
+Read the [game API and current limits](docs/game-api.md). This adapter uses existing illustrated scene documents with main-thread or worker execution. Native 3D integration, semantic save/restore and per-actor sleep/quality settings are separate follow-ups.
+
 ## Studio controls
 
 Select a body part on the canvas or in the left list. Drag its purple handle or change Rotation, move the playhead, and press **+** to save keyframes for the parts you posed. The Pose tab exposes minimum/maximum angles and pivot coordinates. Tightening limits clamps existing rotation keys in the same undoable edit.

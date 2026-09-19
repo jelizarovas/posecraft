@@ -213,6 +213,14 @@
     "./native-action-worker-client": {
       "types": "./src/native-action-worker-client.d.ts",
       "default": "./src/native-action-worker-client.js"
+    },
+    "./game": {
+      "types": "./src/game.d.ts",
+      "default": "./src/game.js"
+    },
+    "./game-bindings": {
+      "types": "./src/game-bindings.d.ts",
+      "default": "./src/game-bindings.js"
     }
   },
   "bin": {
@@ -269,7 +277,8 @@
     "tools/build-native-runtime.mjs",
     "public/assets/native-3d",
     "docs/native-studio.md",
-    "docs/native-3d-review.md"
+    "docs/native-3d-review.md",
+    "docs/game-api.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -333,7 +342,10 @@
     "test:native-studio": "node test/native-studio-browser.mjs",
     "test:native-export": "node test/native-export-browser.mjs",
     "test:native-worker": "node test/native-action-worker-browser.mjs",
-    "test:native-performance": "node test/native-bench-performance.mjs"
+    "test:native-performance": "node test/native-bench-performance.mjs",
+    "test:game": "node --test test/game.test.js test/game-bindings.test.js test/game-performance.test.js",
+    "test:game-browser": "node test/game-browser.mjs",
+    "test:game-demo": "node test/game-demo-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

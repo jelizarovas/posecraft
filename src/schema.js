@@ -1,3 +1,4 @@
+import {validateGameBindings} from './game-bindings.js';
 import {validateAttachments} from './scene-attachments.js';
 import {validateActorBehaviors} from './actor-behaviors.js';
 import {validateMotionLayers} from './motion-layers.js';
@@ -9,7 +10,7 @@ import {validateInteractions} from './pointer-interactions.js';
 import {validateBehaviorGraph} from './behaviors.js';
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', renderers: ['svg','canvas'], features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings','scene-depth','surface-decals','skinned-mesh','scene-objects','prop-games','motion-layers','scroll-bindings','actor-behaviors','navigation','prop-attachments','contact-targets'], unavailable: ['general-fluid-dynamics', 'svg-import','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', renderers: ['svg','canvas'], features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings','scene-depth','surface-decals','skinned-mesh','scene-objects','prop-games','motion-layers','scroll-bindings','actor-behaviors','navigation','prop-attachments','contact-targets','game-bindings'], unavailable: ['general-fluid-dynamics', 'svg-import','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
@@ -279,6 +280,7 @@ function validateStructure(doc) {
     const sky=doc.actors.find(a=>a.id===e.sky),p=doc.packs[sky?.pack];check(!!p&&[0,1].every(i=>p.joints.some(j=>j.id==='meteor-'+i)&&Array.from({length:16},(_,n)=>'meteor-'+i+'-tail-'+n).every(id=>p.joints.some(j=>j.id===id))),'ensemble.sky','Missing meteor scenery rig.');
    }
   }
+  validateGameBindings(doc,check);
   validateBehaviorGraph(doc,check);
   validateActorBehaviors(doc,check);
   validateInteractions(doc,check);

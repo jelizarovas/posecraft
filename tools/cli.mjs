@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {describeGameScene} from '../src/game-bindings.js';
 import fs from 'node:fs';
 import {assertEpisode,EpisodeController,episodeDuration,episodeCapabilities} from '../src/episode.js';
 import { validateDocument, capabilities } from '../src/schema.js';
@@ -29,12 +30,13 @@ try {
     else{if(!args[0])throw new Error('Supply output SVG path.');const frame=new EpisodeController(project).frame(Number(args[1]||0));fs.writeFileSync(args[0],renderSVG(project.scenes[frame.scene],frame).replace('width="100%" height="100%"',`width="${project.size.width}" height="${project.size.height}"`));console.log(JSON.stringify({output:args[0],time:frame.time,shot:frame.shot}));}
   }
   else if (command === 'capabilities') console.log(JSON.stringify({...capabilities,episode:episodeCapabilities}, null, 2));
-  else if (['inspect','validate','edit','preview','simulate'].includes(command)) {
+  else if (['inspect','describe','validate','edit','preview','simulate'].includes(command)) {
     const doc = read(filename);
     const validation = validateDocument(doc);
     if(command === 'validate') { console.log(JSON.stringify(validation,null,2)); if(!validation.valid) process.exitCode=1; }
     else {
       const store = new DocumentStore(doc);
+      if(command === 'describe') console.log(JSON.stringify(describeGameScene(doc),null,2));
       if(command === 'inspect') console.log(JSON.stringify({id:doc.id,revision:doc.revision,bounds:doc.bounds,actors:doc.actors,packs:Object.fromEntries(Object.entries(doc.packs).map(([id,p])=>[id,{joints:p.joints.map(j=>j.id),inputs:p.inputs,clips:Object.keys(p.clips),states:p.states,reaction:p.reaction,physics:p.physics?{bodies:Object.keys(p.physics.bodies),responses:Object.keys(p.physics.responses)}:null,appearanceDefaults:p.appearanceDefaults}]))},null,2));
       if(command === 'edit') {
         const request=read(args[0]); const result=store.transact(request.commands,request.expectedRevision);
@@ -56,5 +58,5 @@ try {
         console.log(JSON.stringify({engineVersion:'0.1.0',schemaVersion:doc.schemaVersion,revision:doc.revision,seed:0,fixedStep:STEP,frame:runtime.frame(),events},null,2));
       }
     }
-  } else console.log('Posecraft CLI\n  capabilities\n  inspect scene.json\n  validate scene.json\n  edit scene.json transaction.json output.json\n  preview scene.json output.svg [seconds]\n  simulate scene.json scenario.json\n  bake scene.json request.json output.json\n  agent-inspect scene.json\n  agent-validate scene.json [proposal.json]\n  agent-propose scene.json request.json proposal.json\n  agent-apply scene.json proposal.json output.json\n  agent-simulate scene.json scenario.json [proposal.json]\n  agent-preview scene.json output.svg|png [seconds] [proposal.json]\n  episode-validate episode.json\n  episode-inspect episode.json\n  episode-preview episode.json output.svg [seconds]');
+  } else console.log('Posecraft CLI\n  capabilities\n  inspect scene.json\n  describe scene.json\n  validate scene.json\n  edit scene.json transaction.json output.json\n  preview scene.json output.svg [seconds]\n  simulate scene.json scenario.json\n  bake scene.json request.json output.json\n  agent-inspect scene.json\n  agent-validate scene.json [proposal.json]\n  agent-propose scene.json request.json proposal.json\n  agent-apply scene.json proposal.json output.json\n  agent-simulate scene.json scenario.json [proposal.json]\n  agent-preview scene.json output.svg|png [seconds] [proposal.json]\n  episode-validate episode.json\n  episode-inspect episode.json\n  episode-preview episode.json output.svg [seconds]');
 } catch(error) { console.error(JSON.stringify({error:error.message,diagnostics:error.diagnostics})); process.exitCode=1; }

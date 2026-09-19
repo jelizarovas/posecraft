@@ -18,9 +18,18 @@ export function removeGroup(document,id){
  return next;
 }
 export function removeSceneEntity(document,kind,id){
- const field={actor:'actors',prop:'props',emitter:'emitters'}[kind];if(!field)throw new Error('Unknown scene item.');
+ const field={actor:'actors',prop:'props',emitter:'emitters',object:'objects'}[kind];if(!field)throw new Error('Unknown scene item.');
  const next=structuredClone(document);if(!next[field]?.some(n=>n.id===id))throw new Error('Missing scene item.');next[field]=next[field].filter(n=>n.id!==id);
+ if(next.game){
+  if(kind==='actor'&&next.game.actors)delete next.game.actors[id];
+  if(next.game.anchors)next.game.anchors=Object.fromEntries(Object.entries(next.game.anchors).filter(([,target])=>!(kind==='actor'&&target.type==='joint'&&target.actor===id)&&!(kind==='prop'&&target.type==='prop'&&target.prop===id)&&!(kind==='object'&&target.type==='object'&&target.object===id)));
+ }
  if(kind==='prop'&&next.contacts)next.contacts=next.contacts.filter(c=>c.target.type!=='prop'||c.target.prop!==id);
+ if(kind==='object'){
+  if(next.contacts)next.contacts=next.contacts.filter(c=>c.target.type!=='object'||c.target.object!==id);
+  if(next.objectGames)next.objectGames=next.objectGames.filter(game=>game.object!==id);
+  for(const prop of next.props||[])if(prop.attachment?.type==='object'&&prop.attachment.object===id)delete prop.attachment;
+ }
  if(kind==='actor'){
   for(const p of next.props||[])if(p.attachment?.type==='joint'&&p.attachment.actor===id)delete p.attachment;
   if(next.motionLayers)next.motionLayers=next.motionLayers.filter(l=>l.actor!==id);
@@ -37,7 +46,7 @@ export function removeSceneEntity(document,kind,id){
  }
  for(const graph of [next.behaviorGraph,...(next.actorBehaviors||[]).map(s=>s.graph)].filter(Boolean)){
   if(kind==='actor'&&graph.activities)for(const [key,activity]of Object.entries(graph.activities))if(activity.actor===id)delete graph.activities[key];
-  const keep=action=>!(action.type==='object'&&(action.command.actor===id||action.command.from===id))&&!(action.type==='perform'&&!graph.activities?.[action.activity])&&!(action.actor&&action.actor!=='$actor'&&!next.actors.some(a=>a.id===action.actor))&&!(action.type==='emitter'&&!next.emitters?.some(e=>e.id===action.emitter))&&!(action.type==='ensemble'&&!next.ensemble)&&!(action.type==='input'&&action.actor==='$actor'&&!next.actors.some(a=>validBehaviorInput(next,a.id,action.input,action.value)));
+  const keep=action=>!(action.type==='object'&&(kind==='actor'&&(action.command.actor===id||action.command.from===id)||kind==='object'&&action.command.object===id))&&!(action.type==='perform'&&!graph.activities?.[action.activity])&&!(action.actor&&action.actor!=='$actor'&&!next.actors.some(a=>a.id===action.actor))&&!(action.type==='emitter'&&!next.emitters?.some(e=>e.id===action.emitter))&&!(action.type==='ensemble'&&!next.ensemble)&&!(action.type==='input'&&action.actor==='$actor'&&!next.actors.some(a=>validBehaviorInput(next,a.id,action.input,action.value)));
   for(const state of Object.values(graph.states))state.actions=state.actions.filter(keep);
   for(const handler of graph.handlers||[])handler.actions=handler.actions.filter(keep);
   for(const activity of Object.values(graph.activities||{})){for(const key of ['onStart','onSuccess','onFailure'])activity[key]=(activity[key]||[]).filter(keep);for(const variant of [...activity.variants,...activity.failureVariants||[]])if(variant.onSuccess)variant.onSuccess=variant.onSuccess.filter(keep);}

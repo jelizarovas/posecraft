@@ -192,3 +192,14 @@ async function importedNativeCharacter(){const asset=await loadCharacter3D("./at
 
 import {createNativeActionClient} from "posecraft/native-action-worker-client";
 const nativeActionClient=createNativeActionClient(new Worker("worker.js",{type:"module"}));nativeActionClient.dispose();
+
+import {createGameScene, type GameSequenceStep, type SpeechRequest} from "posecraft/game";
+import {describeGameScene} from "posecraft/game-bindings";
+function semanticGameTypes(controller:import("posecraft/scene").SceneController, document:import("posecraft/schema").SceneDocument){
+ const game=createGameScene(controller,{onSpeechRequest:async(request:SpeechRequest)=>{void request.signal;}});
+ const recipe:GameSequenceStep[]=[{actor:"ona",do:"wave"},{actor:"ona",lookAt:"shop.sign"}];
+ const sequence=game.sequence(recipe);sequence.cancel();void sequence.finished;
+ void game.actor("ona").moveTo({type:"point",x:200,y:100});
+ game.object("lamp").set("enabled",true);void describeGameScene(document);game.dispose();
+}
+void semanticGameTypes;

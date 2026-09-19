@@ -1,3 +1,4 @@
+import type {GameCommand} from './game-performance.js';
 import type {ActorBehaviorSnapshot} from './actor-behaviors.js';
 import type {CheckpointOptions,CheckpointStats} from './replay-checkpoints.js';
 import type {ObjectCommand,SceneObject,ObjectOwner} from './scene-objects.js';
@@ -18,6 +19,7 @@ export class SceneController {
  document:SceneDocument;time:number;playing:boolean;animationPlaying:boolean;reducedMotion:boolean;log:unknown[];size?:{width:number;height:number};
  setInput(actor:string,name:string,value:string|number|boolean):void;
  setBehavior(actor:string,settings:BehaviorSettings):void;interact(actor:string,type:Interaction,strength?:number):void;
+ gameCommand(command:GameCommand):boolean;
  objectCommand(command:ObjectCommand):boolean|void;
  fluidInput(command:FluidCommand):Frame;
  pointer(command:PointerCommand):void;

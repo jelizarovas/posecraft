@@ -15,6 +15,7 @@ import { AnimationController, clamp, forwardKinematics, constrainPose, sampleCli
 import { assertDocument } from './schema.js';
 import {poseDefaults,spatialChannels} from './spatial.js';
 import {RecoveryMotion} from './recovery.js';
+import {GamePerformance} from './game-performance.js';
 import { PhysicalCharacter, behaviorConfig, behaviorModes } from './physics.js';
 export const STEP = 1 / 120;
 
@@ -31,6 +32,7 @@ export class SceneController {
     this.listeners = new Set(); this.log = []; this.playing = true; this.animationPlaying = true; this.reset();
   }
   reset() {
+    this.gamePerformance?.cancelAll('Scene reset.');this.gamePerformance=new GamePerformance(this);
     if(!this.replaying)this.checkpoints.clear();this.checkpointRevision=this.document.revision;
     this.log = [];
     this.actors = this.document.actors.map(actor => {
@@ -158,8 +160,10 @@ export class SceneController {
     while (this.accumulator + 1e-10 >= STEP) { this.tick(); this.accumulator -= STEP; }
     return this.frame();
   }
+  gameCommand(command){return this.gamePerformance.command(command);}
   tick() {
     this.time += STEP;
+    this.gamePerformance?.tick(STEP,this.reducedMotion);
     if(this.objects&&!this.reducedMotion&&this.animationPlaying){this.objects.tick(STEP,this.frame());this.propGames?.tick(STEP,this.frame());}
     if(this.fluid&&!this.reducedMotion&&this.animationPlaying)this.fluid.tick(STEP);
     if(this.graph&&this.ensemble){this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));if(this.ensemble.drainEvents)for(const {event,...payload} of this.ensemble.drainEvents())this.graph.dispatch(event,payload);}
@@ -223,11 +227,13 @@ export class SceneController {
     evaluated=applyMotionLayers(this.document,evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
     if(this.actorBehaviors){evaluated.actorBehaviors=this.actorBehaviors.snapshot();evaluated.emitterOverrides={...evaluated.emitterOverrides,...this.actorBehaviors.emitterOverrides()};}
     if(this.propGames)evaluated=this.propGames.apply(evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
+    evaluated=this.gamePerformance?.apply(evaluated)||evaluated;
     if(this.objects&&this.document.contacts?.some(c=>['object','prop'].includes(c.target.type)))evaluated=this.objects.apply(evaluated);
     const constrained=applyContacts(this.document,this.pointers?.apply(evaluated)||evaluated),bound=this.graph?.bindFrame(constrained,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))})||constrained;return this.objects?this.objects.apply(bound):bound;
   }
   seek(time) {
     if(!Number.isFinite(time)||time<0||time>180)throw new Error('Seek range is 0..180 seconds.');
+    this.gamePerformance?.cancelAll('Scene seek.');
     const log=structuredClone(this.log),wasPlaying=this.playing,wasAnimating=this.animationPlaying,wasReduced=this.reducedMotion,pool=this.checkpoints;
     if(this.checkpointRevision!==this.document.revision)pool.clear();pool.syncHistory(log);const checkpoint=pool.enabled?pool.find(time):null;
     this.animationPlaying=true;this.reducedMotion=false;this.replaying=true;this.reset();let cursor=0,lastCheckpoint=0,replayedTicks=0;
@@ -242,5 +248,5 @@ export class SceneController {
     }finally{this.log=log;this.replaying=false;this.playing=wasPlaying;this.animationPlaying=wasAnimating;this.reducedMotion=wasReduced;pool.replayedTicks=replayedTicks;}
     return this.frame();
   }
-  dispose() { this.pause(); this.listeners.clear(); this.checkpoints.clear(); }
+  dispose() { this.gamePerformance?.cancelAll('Scene disposed.');this.pause(); this.listeners.clear(); this.checkpoints.clear(); }
 }

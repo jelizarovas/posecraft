@@ -10,6 +10,12 @@ Following the user's rejection of the Atlas 3D pilot's visual quality, the [engi
 
 Posecraft has reusable character packs, constrained joints, numeric keyframes, expressions and looks, experimental depth rigs, scene lighting, fifteen demos, assisted physical responses, and browser/React embeds. Director adds scenes, shots, camera and placement keys, reference-frame comparison, seeded motion and webcam takes. Project JSON can be saved and reopened. See [Director](director.md), [rigs](spatial.md), [lighting](lighting.md) and [capture](capture.md).
 
+## Little Lands integration
+
+The first [game-facing API](game-api.md) is implemented for illustrated scenes: actor/object handles, awaitable action/move/look/reaction commands, cancellable data sequences, host speech hooks, saved named targets and machine-readable manifests. The corner shop example keeps its quest and dialogue in host code and shares the same main/worker command implementation.
+
+Next, guided by the first game: semantic save/restore, per-actor sleep/wake and quality budgets, floating/planar locomotion, a Studio bindings inspector, and a separately tested native 3D adapter. Seeded procedural idle presets should use the existing behavior machinery once the game's actual character needs are known. These remain planned work; a physics profile alone does not establish good locomotion artwork.
+
 ## A production milestone
 
 Make a 30-second original WWW cartoon with two shots and two characters. Import or draw a prop, have one character pick it up and hand it to the other, speak a short line, walk without sliding, and react. Add recorded dialogue, music and effects. Save the complete project, reopen it on another computer, and export a frame-accurate 1080p movie with synchronized audio. Also export the same character as a small interactive web embed. This exercises the gaps that separate today's demos from a usable studio.
