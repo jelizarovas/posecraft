@@ -324,6 +324,7 @@
     "test:map-browser": "node test/map-browser.mjs",
     "test:map-terrain": "node test/map-terrain-browser.mjs",
     "test:map-running": "node test/map-running-browser.mjs",
+    "test:map-camera": "node test/map-camera-browser.mjs",
     "test:map-package": "node test/map-package.mjs",
     "test:responses": "node test/responses-browser.mjs",
     "test:performance": "node test/performance-browser.mjs",

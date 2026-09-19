@@ -17,6 +17,8 @@ try{
   await page.waitForFunction(()=>mapDemo.events.some(e=>e.type==='map.move.started'&&e.gait==='walk'));
   await page.touchscreen.tap(point.x,point.y);
   await page.waitForFunction(()=>mapDemo.view.controller.actorPosition('hero').running);
+  await page.evaluate(()=>mapDemo.view.stopFollowing());
+  await page.waitForFunction(()=>!mapDemo.view.stats().terrainCache.pending);
   const before=await page.evaluate(()=>mapDemo.view.stats());
   await page.waitForTimeout(350);
   const after=await page.evaluate(()=>mapDemo.view.stats());

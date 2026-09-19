@@ -223,7 +223,8 @@ function mapTypes(host:HTMLElement){
  controller.moveTo('hero',{x:64,y:65},{gait:'run'});
  controller.advance(.016);controller.visibleFrame({x:0,y:0,width:500,height:400});
  controller.actor('hero').moveTo('village-chest',{signal:new AbortController().signal});
- const view:MapView=mountMap(host,map,{onEvent:event=>{void event.type;}});
+ const view:MapView=mountMap(host,map,{followOnMove:true,onCameraChange:state=>{void state.following;},onEvent:event=>{void event.type;}});
+ view.followActor('hero');view.stopFollowing();view.cameraTracking();
  view.restore(view.snapshot());view.mapToScreen({x:64.5,y:64.5});projectMap(map,{x:0,y:0});
  view.dispose();controller.dispose();
 }

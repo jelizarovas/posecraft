@@ -1,9 +1,11 @@
 import type {MapDocument, MapPoint} from './map.js';
 import {MapController} from './map-runtime.js';
 
+export interface MapCameraTracking {actor: string | null; following: boolean}
+
 export interface MapViewSnapshot {
   format: 'posecraft-map-view-state'; version: 1;
-  camera: {x: number; y: number; zoom: number};
+  camera: {x: number; y: number; zoom: number; tracking?: MapCameraTracking};
   scene: ReturnType<MapController['snapshot']>;
 }
 export interface MapViewStats {
@@ -15,7 +17,7 @@ export interface MapViewStats {
   terrainBuilds: number; sceneryBuilds: number; paintMs: number;
   terrainCache: {tiles: number; pixels: number; materials: number; builds: number; pending: boolean; maxPixels: number; rasterScale: number; chunks: number; completed: number; tilePixels: number; tileBuilds: number; visibleChunks: number; workingSetPixels: number};
   backingWidth: number; backingHeight: number;
-  camera: {x: number; y: number; zoom: number};
+  camera: {x: number; y: number; zoom: number; tracking?: MapCameraTracking};
   visitedChunks: number; candidateTiles: number; candidateProps: number;
 }
 export interface MapView {
@@ -29,6 +31,10 @@ export interface MapView {
   zoomTo(value: number): void;
   /** Recenter once; does not lock the camera to the actor. */
   focusActor(id: string): void;
+  /** Smoothly recenter and follow until a drag, pinch, keyboard pan or explicit stop. */
+  followActor(id: string): void;
+  stopFollowing(): void;
+  cameraTracking(): MapCameraTracking;
   /** Coordinates relative to the canvas, in CSS pixels. */
   screenToMap(x: number, y: number): MapPoint;
   mapToScreen(point: MapPoint): MapPoint;
@@ -43,5 +49,8 @@ export function mountMap(element: HTMLElement, map: MapDocument, options?: {
   onError?: (error: Error) => void;
   execution?: 'worker' | 'main';
   autoplay?: boolean;
+  /** Automatically follow accepted movement commands. Defaults to false. */
+  followOnMove?: boolean;
+  onCameraChange?: (tracking: MapCameraTracking) => void;
   reducedMotion?: boolean | 'system';
 }): MapView;

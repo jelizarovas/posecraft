@@ -23,7 +23,9 @@ await view.restore(saved);
 view.dispose();
 ```
 
-Give the host an explicit height. Tap terrain to walk the first actor, or tap a prop to approach it. Double-tap the same area within 340 ms, or Shift-click, to run. Programmatic movement accepts `{gait: "walk" | "run"}`; walking is the default and running uses 1.8 times the actor's walking speed. Drag to pan, scroll or pinch to zoom. Arrow keys pan the focused canvas, plus/minus zoom, and Enter recenters on the first actor. `focusActor(id)` also recenters once. It does not follow a moving actor.
+Give the host an explicit height. Tap terrain to walk the first actor, or tap a prop to approach it. Double-tap the same area within 340 ms, or Shift-click, to run. Programmatic movement accepts `{gait: "walk" | "run"}`; walking is the default and running uses 1.8 times the actor's walking speed. Drag to pan, scroll or pinch to zoom. Arrow keys pan the focused canvas, plus/minus zoom, and Enter recenters on the first actor. `focusActor(id)` recenters once. `followActor(id)` eases the camera toward a character and keeps following as it moves. Dragging, pinching, keyboard panning, `panTo()` or `stopFollowing()` releases the camera. `cameraTracking()` reports the tracked actor and whether following is active. `onCameraChange` receives mode changes.
+
+Pass `followOnMove: true` to resume following whenever an accepted movement command starts, including commands sent directly to the controller. This is enabled in the gallery, where a floating Recenter button appears after panning away. Recenter resumes following without restarting the character's task. The library default is false, preserving manually controlled cameras. Zoom buttons keep following; wheel zoom stays centered while following. Enter resumes following the last tracked actor.
 
 ## Coordinates and rendering
 
@@ -63,7 +65,7 @@ Pathfinding runs in a worker by default. Main-thread execution is available for 
 
 Camera culling removes offscreen artwork from rendering. It does not freeze an offscreen actor's logical journey. Pausing the view, hiding the browser tab or moving the whole host offscreen stops simulation stepping. Commands resume when the view resumes. An idle visible map does not keep an animation loop running. A pending path search wakes the view when it returns.
 
-View snapshots include camera and the controller's semantic state. They do not serialize unfinished promises or path searches. Restore cancels active commands. Use the same map document to restore its snapshot; editing a map requires a new index and controller.
+View snapshots include camera position, zoom, optional tracking state and the controller's semantic state. Older snapshots without tracking state restore to a free camera. They do not serialize unfinished promises or path searches. Restore cancels active commands. Use the same map document to restore its snapshot; editing a map requires a new index and controller.
 
 Dispose the view when leaving a page. This cancels commands and removes the canvas, listeners, observers, worker and scheduled rendering. Prefer handling `AbortError` separately from genuine route or loading failures.
 

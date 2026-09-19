@@ -41,3 +41,5 @@
 
 /* Keep every gallery card readable as the catalog grows. Only the library scrolls. */
 @media(min-width:761px){#demo-list{display:flex;flex-direction:column;overflow-y:auto;gap:6px}.demo-card{min-height:46px}.demo-group{flex-shrink:0;margin-top:10px}}
+
+.map-recenter{position:absolute;right:12px;bottom:48px;z-index:2;min-height:44px;padding:9px 13px;border-radius:24px;background:#fff;color:#6744a4;box-shadow:0 2px 10px #263b3b35;font-size:12px;font-weight:500;gap:7px;touch-action:manipulation}.map-recenter[hidden]{display:none}.map-recenter svg{flex-shrink:0}
