@@ -4,6 +4,8 @@ The first supported game integration uses the illustrated runtime through `posec
 
 Littlelands owns quests, learning progress, rewards, dialogue UI and durable game saves. Posecraft owns scene presentation and the execution of supported character commands. A successful reaction animation should not be the source of truth for a reward. Record the game transaction independently, then request the reaction.
 
+For an explorable isometric world, use the separate [map SDK](map.md): `posecraft/map`, `posecraft/map-runtime` and `posecraft/map-browser`. It supplies seeded terrain, footprint navigation, viewport culling, arrival/interaction events and semantic saves. Its documents and illustrated adventurer are separate from character Studio scenes. The map-only consumer excludes Planck, Three and React; run `npm run test:map-package` to measure the installed browser and worker bundles.
+
 ## Install a specific build
 
 The package is private and is not published to the npm registry. For an integration candidate, check out the chosen commit, run `npm ci`, then `npm pack`. Install that generated tarball into the game project:

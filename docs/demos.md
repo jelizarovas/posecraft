@@ -1,9 +1,10 @@
 # Demo gallery
 
-Open [Posecraft demos](https://jelizarovas.github.io/posecraft/demos.html), or choose **Demos** in the Studio toolbar. Each demo has a live preview, focused controls, a downloadable project and a link to its editor.
+Open [Posecraft demos](https://jelizarovas.github.io/posecraft/demos.html), or choose **Demos** in the Studio toolbar. Each demo has a live preview, focused controls, a downloadable project and a link to its editor where supported.
 
 | Demo | What to try | Editable project |
 | --- | --- | --- |
+| [Littlelands map](https://jelizarovas.github.io/posecraft/demos.html#littlelands-map) | Click to move, drag/pinch camera, approach the chest and inn, save/restore | Map SDK JSON; map editing is not yet supported in Studio |
 | [Ship in a bottle](https://jelizarovas.github.io/posecraft/demos.html#ship-in-a-bottle) | Calm, breeze and gust; rocking hull, articulated canvas, waves and layered glass | Studio scene |
 | [One more flight](https://jelizarovas.github.io/posecraft/demos.html#loveseat-stairs) | Two dummies carrying a loveseat up endless stairs; alternating arm rests and partner compensation | Studio scene |
 | [The corner shop](https://jelizarovas.github.io/posecraft/demos.html#corner-shop) | Repair quest, direct scene clicks, dialogue, exploration and interruptible reactions | Studio scene |
@@ -27,15 +28,15 @@ Episode demos have play/pause, a time slider and direct shot buttons. Interactiv
 
 **Edit in Director** and **Edit in Studio** open a separate local copy. Demo drafts use storage keys ending in `.demo.<id>`, so they do not overwrite your regular Studio or Director draft. Reopening that demo's editor restores your edited copy. Export it to a file to keep or share it. The regular editor link in the gallery header opens your ordinary draft.
 
-On phones the demo cards form a horizontal strip. The preview and controls remain on one page without vertical scrolling at the tested 390×844 layout. On desktop all thirteen cards remain visible. Thumbnails are static; only the selected demo runs a worker. Switching demos terminates the old worker. Hidden pages stop advancing and mute interaction sounds. Reduced-motion preference starts previews paused; Play explicitly starts them. No demo requests camera or microphone access.
+On phones the demo cards form a horizontal strip. The preview and controls remain on one page without vertical scrolling at the tested 390×844 layout. On desktop the library scrolls within its column so every card stays readable. Thumbnails are static; only the selected demo runs a worker. Switching demos terminates the old worker. Hidden pages stop advancing and mute interaction sounds. Reduced-motion preference starts previews paused; Play explicitly starts them. No demo requests camera or microphone access.
 
 ## Reusable examples
 
-`examples/showcase.js` exports `demoCatalog`, `findDemo(id)` and `createDemo(id)`. The factory returns a fresh `kind: 'scene'` or `kind: 'episode'` document containing the required character packs. Existing schema, episode, SVG, browser and React APIs consume the scene data. The factory does not share mutable actor inputs or artwork between calls.
+`examples/showcase.js` exports `demoCatalog`, `findDemo(id)` and `createDemo(id)`. The factory returns a fresh scene or episode containing the required character packs. The `littlelands-map` entry has catalog kind `map` and returns a separate `format: 'posecraft-map'` document. Consume it with `mountMap` from `posecraft/map-browser`, not `SceneController` or the scene schema. Existing schema, episode, SVG, browser and React APIs consume the scene data. The factory does not share mutable actor inputs or artwork between calls.
 
 The scenes reuse the existing owner-provided characters. Their original provenance remains inside the packs. Background sets and choreography are authored here as MIT example data. No assets or dialogue from an existing TV episode are included.
 
-`npm test` validates all thirteen project round trips, samples finite poses within joint limits, verifies factory isolation and proves all three lab dummies contact their platforms. `npm run test:demos` checks actual browser playback, shot/set changes, independent facial inputs, live physics, container dragging, opt-in sound, exports, a single active worker, separate editor storage and desktop/mobile layouts. Existing Studio and Director browser suites cover their entry points after adding the gallery links.
+`npm test` validates all seventeen project round trips, samples finite poses within joint limits, verifies factory isolation and proves all three lab dummies contact their platforms. `npm run test:demos` checks actual browser playback, shot/set changes, independent facial inputs, live physics, container dragging, opt-in sound, exports, a single active worker, separate editor storage and desktop/mobile layouts. Existing Studio and Director browser suites cover their entry points after adding the gallery links.
 
 ## Campfire night
 
@@ -109,3 +110,11 @@ The live graph can choose a tilted one-hand rest and switch hands between pull-u
 Clover offers a wrapped gift, Moss reaches and takes it, then returns it. The ten-second live cycle uses editable give/receive clips, object-target contacts with a fade-in, and ordinary graph transfer commands. The parcel has one shared circle body; five attached rectangles form its box, lid and ribbon. Transfers require both grip points to meet within 0.5 scene units. Moving the recipient beyond reach leaves the gift with its current owner.
 
 The gallery offers four paused acting beats and **Play exchange**. Open the demo in Studio to edit character contact windows, prop attachments or the event graph. The factory is `createHandoff()` in `examples/handoff.js`; the gallery ID is `a-little-handoff`. This is a repeatable authored exchange, not a general social planner.
+
+## Littlelands map
+
+The map demo creates a seeded 128 by 128 world with a chest, inn, roads, water and blocked prop footprints. It renders visible tiles and props through a spatial index. The counter inside the viewport reports the current draw counts. Static offscreen props remain in the map document but are not submitted for drawing. The gallery thumbnail is a small hand-authored SVG, not another running map.
+
+Click or tap to walk, drag to pan, and use the wheel, pinch gesture or zoom control. Center hero returns the camera to the character. Find chest and Visit inn use semantic object destinations; the runtime routes to an accessible interaction cell. Save stores the entire generated map and its runtime snapshot on this device. Restore restores that saved map even after generating another seed. Download project exports the map document for the map SDK, not a Studio scene.
+
+Map generation and map editing are distinct from character Studio authoring. This preview does not expose an Edit in Studio link. The map is an SDK example and uses a lightweight map character, not the native gym rig.

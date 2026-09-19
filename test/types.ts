@@ -210,3 +210,18 @@ import {createWorkoutGame,type WorkoutCommandView} from "posecraft/workout-game"
 const workoutProject=createWorkoutProject3D();const workoutStore=new WorkoutProject3DStore(workoutProject);
 function workoutGameTypes(view:WorkoutCommandView){const game=createWorkoutGame(view);void game.actor("atlas").do("bench",{target:"bench"});const seq=game.actor("atlas").sequence([{do:"drink"},{do:"rest"}]);seq.cancel();game.dispose();}
 void workoutStore;void createWorkout3D;void workoutGameTypes;
+
+import {generateMap, MapIndex, MapPathJob, projectMap} from 'posecraft/map';
+import {MapController} from 'posecraft/map-runtime';
+import {mountMap, type MapView} from 'posecraft/map-browser';
+function mapTypes(host:HTMLElement){
+ const map=generateMap({width:128,height:128,seed:42});
+ const index=new MapIndex(map);new MapPathJob(map,index,{x:64.5,y:64.5},[{x:60.5,y:60.5}]).step(64);
+ const controller=new MapController(map,{execution:'main'});
+ controller.advance(.016);controller.visibleFrame({x:0,y:0,width:500,height:400});
+ controller.actor('hero').moveTo('village-chest',{signal:new AbortController().signal});
+ const view:MapView=mountMap(host,map,{onEvent:event=>{void event.type;}});
+ view.restore(view.snapshot());view.mapToScreen({x:64.5,y:64.5});projectMap(map,{x:0,y:0});
+ view.dispose();controller.dispose();
+}
+void mapTypes;

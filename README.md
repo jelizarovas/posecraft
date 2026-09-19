@@ -131,12 +131,16 @@ Director now includes **Perform** for local webcam acting: calibration, face/han
 
 ## Try the demos
 
-The [demo gallery](https://jelizarovas.github.io/posecraft/demos.html) includes WWW after hours, Neon rehearsal, Rusty in the park, a three-dummy drop lab, Zero gravity, and a four-character expression lineup. Every demo opens as a separate editable project and can be downloaded as JSON. See [the demo guide](docs/demos.md) for controls, limitations and reusable example factories.
+The [demo gallery](https://jelizarovas.github.io/posecraft/demos.html) includes WWW after hours, Neon rehearsal, Rusty in the park, a three-dummy drop lab, Zero gravity, and a four-character expression lineup. Demos can be downloaded as JSON and open in their editor where supported. See [the demo guide](docs/demos.md) for controls, limitations and reusable example factories.
 
 
 Catch also has a [walking-around-obstacles variant](https://jelizarovas.github.io/posecraft/demos.html?obstacles=1#game-of-catch). Studio exposes its [walking area and route budget](docs/navigation-authoring.md). **Motion & website** includes optional [actor depth rendering](docs/renderers.md) and [physical-motion recording into editable clips](docs/physics-baking.md).
 
 [A little handoff](https://jelizarovas.github.io/posecraft/demos.html#a-little-handoff) demonstrates one shared gift, contact-based transfers and attached artwork. Studio can author [moving grip targets and attachment offsets](docs/attachments.md), with contact fade windows and Undo.
+
+## Isometric maps
+
+The [Littlelands map](https://jelizarovas.github.io/posecraft/demos.html#littlelands-map) demonstrates seeded isometric terrain, obstacle-aware movement and object interactions. Its separate [map SDK](docs/map.md) draws only the viewport, with worker pathfinding and save/restore. Map documents can be downloaded from the gallery; map editing is not yet part of character Studio.
 
 ## Reusable native workout
 

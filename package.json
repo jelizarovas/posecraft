@@ -6,6 +6,9 @@
   "license": "MIT",
   "type": "module",
   "exports": {
+    "./map": {"types":"./src/map.d.ts","default":"./src/map.js"},
+    "./map-runtime": {"types":"./src/map-runtime.d.ts","default":"./src/map-runtime.js"},
+    "./map-browser": {"types":"./src/map-browser.d.ts","default":"./src/map-browser.js"},
     ".": {
       "types": "./src/index.d.ts",
       "default": "./src/index.js"
@@ -304,6 +307,7 @@
     "docs/native-3d-review.md",
     "docs/game-api.md",
     "docs/littlelands-integration.md",
+    "docs/map.md",
     "docs/workout.md"
   ],
   "scripts": {
@@ -315,6 +319,9 @@
     "check:package": "npm pack --dry-run",
     "test:consumer": "node test/package-consumer.mjs",
     "test:types": "tsc --noEmit --strict --module nodenext --target es2022 test/types.ts",
+    "test:map": "node --test test/map.test.js test/map-runtime.test.js",
+    "test:map-browser": "node test/map-browser.mjs",
+    "test:map-package": "node test/map-package.mjs",
     "test:responses": "node test/responses-browser.mjs",
     "test:performance": "node test/performance-browser.mjs",
     "test:director": "node test/director-browser.mjs",
