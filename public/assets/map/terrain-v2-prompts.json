@@ -1,0 +1,14 @@
+{
+  "tool": "built-in image_gen",
+  "date": "2026-09-19",
+  "assets": [
+    {
+      "file": "terrain/meadow-v2.webp",
+      "prompt": "Create a seamless repeating square top-down ground texture for a premium hand-painted medieval isometric strategy game. This is the meadow grass material only, full bleed, no border, no objects, no perspective. Rich naturally varied muted olive, sage and forest green grass, patches of fine clover, sparse tiny pale wildflowers, tufts, occasional dry straw blades and soft bare-earth speckles. Broad organic value variation with coherent patches and crisp painted medium-scale details that remain readable when downsampled; match richly painted medieval timber-and-stone inns and realistic painted tree sprites. Soft diffuse daylight, no large cast shadows. No path, buildings, trees, text or grid. Edges must tile seamlessly. 1024 square."
+    },
+    {
+      "file": "terrain/road-v2.webp",
+      "prompt": "Create one seamless repeating square top-down ground texture for a premium hand-painted medieval isometric strategy game: worn village dirt road surface, full bleed. Warm desaturated ochre and umber compacted earth, small irregular worn pebbles, subtle hoof marks and shallow weathered ruts. Broad soft patches of dry dust versus damp earth, sparse modest blue-gray shallow puddles with muddy irregular edges. Painted natural detail matching a richly painted medieval timber-and-stone inn, readable at small size. NO road edges or grass border: whole square is road material. No perspective, no horizon, no large stones, no grid, no text. Diffuse daylight with delicate texture highlights. Edges seamless. 1024 square."
+    }
+  ]
+}

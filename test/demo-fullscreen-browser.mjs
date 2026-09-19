@@ -15,7 +15,7 @@ try{
   await page.waitForFunction(()=>document.fullscreenElement?.id==='demo-player');
   assert.equal(await toggle.getAttribute('aria-label'),'Exit fullscreen');
   assert.equal(await page.evaluate(()=>mapDemo.view===originalMapView),true);
-  await page.locator('#map-inn').click();
+  await page.evaluate(()=>{mapDemo.view.moveTo('hero','village-house').catch(()=>{});});
   await page.waitForFunction(()=>mapDemo.events.some(e=>e.type==='map.actor.arrived'&&e.target==='village-house'),{},{timeout:20000});
   // Browser-driven exit must update the toggle and restore the surrounding page.
   await page.evaluate(()=>document.exitFullscreen());
@@ -31,7 +31,7 @@ try{
       return{player:rect('demo-player'),stage:rect('demo-stage'),button:rect('demo-fullscreen'),w:innerWidth,h:innerHeight,overflow:document.documentElement.scrollWidth>innerWidth};
     });
     assert.equal(b.overflow,false);assert.equal(Math.round(b.player.w),b.w);assert.equal(Math.round(b.player.h),b.h);
-    assert.ok(b.stage.h>150);assert.ok(b.button.b<=b.h&&b.button.right<=b.w,JSON.stringify(b));assert.ok(b.button.h>=44);
+    assert.equal(b.stage.x,0);assert.equal(b.stage.y,0);assert.equal(Math.round(b.stage.w),b.w);assert.equal(Math.round(b.stage.h),b.h);assert.equal(await page.locator('#demo-player button:visible').count(),1);assert.ok(b.button.b<=b.h&&b.button.right<=b.w,JSON.stringify(b));assert.ok(b.button.h>=44);
   }
   await fits();await page.screenshot({path:'test-results/demo-fullscreen-mobile.png'});
   await page.setViewportSize({width:844,height:390});await fits();

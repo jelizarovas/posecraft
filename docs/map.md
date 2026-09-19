@@ -29,6 +29,12 @@ Pass `followOnMove: true` to resume following whenever an accepted movement comm
 
 ## Coordinates and rendering
 
+Zoom ranges from 0.45× to 5× through the slider, wheel, pinch or `zoomTo()`. Gallery fullscreen fills the viewport without padding and shows only the exit toggle at the top right. Recenter and other controls return when fullscreen closes; gestures and movement remain active throughout.
+
+The generated woodland uses seeded groves with sparse edges, open clearings and solid, impassable forest cores. Roads and the starting village remain clear. Generation changes apply to new maps; existing saved maps retain their authored layout.
+
+Static prop shadows are small reusable raster stamps composed beneath scenery, retained until the camera, artwork or object state changes. The actor draws a small contact shadow while moving. These are ground-contact approximations rather than light-simulated shadows; they do not require shadow maps, blur filters or per-frame lighting calculations.
+
 Grid X and Y are ground-plane coordinates. A tile occupies `[x, x + 1] × [y, y + 1]`; its center is `{x: x + .5, y: y + .5}`. Actors and navigation paths already contain continuous center coordinates. Prop X/Y are footprint origins, and width/height are footprint sizes in cells.
 
 `projectMap` and `unprojectMap` convert grid coordinates to isometric world pixels and back. `view.mapToScreen(point)` and `view.screenToMap(x, y)` additionally apply the camera and zoom. Screen coordinates use canvas-local CSS pixels.
@@ -82,3 +88,5 @@ Terrain and props are held in memory. Rendering is virtualized, but this is not 
 On September 19, 2026, local headless Chromium measured the previous textured renderer at median frame intervals of 66.7 ms for a 390 by 844 viewport at DPR 2 and 116.6 ms for desktop panning at DPR 1. The chunked renderer, with the smaller elevated terrain enabled, measured 16.7 ms in both layouts. Panning CPU callback p95 was 9.1 ms for portrait and 12.1 ms for desktop. Idle maps produced no frames after preparation completed.
 
 These are desktop measurements with mobile-sized emulation, not physical phone benchmarks. New terrain prepares progressively rather than blocking on a whole-map raster. Run `node test/map-render-performance.mjs` against a local development server to record frame cadence, CPU submission time and cache sizes without hardware-dependent pass/fail thresholds.
+
+The painted-terrain and forest refresh was measured separately in the same layouts: 290 portrait pan frames and 279 desktop pan frames over five seconds, with 16.7 ms median intervals and zero idle frames. Initial terrain preparation took about 1.9 seconds for portrait and 5.7 seconds for the wider desktop view. New-chunk preparation still causes occasional slower frames; portrait/desktop pan CPU callback p95 was 21.4/23.3 ms. Terrain chunks now paint directly into retained surfaces, avoiding a second projected-tile canvas for each unique hill slope. Close zoom uses higher-resolution materials within the existing 12-megapixel chunk-cache ceiling.

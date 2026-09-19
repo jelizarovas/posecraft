@@ -2,10 +2,10 @@ import {projectMap} from './map.js';
 import {artTerrainSelection} from './map-art-layout.js';
 
 const smooth=v=>{v=Math.max(0,Math.min(1,v));return v*v*(3-2*v);};
-const SIZE=48,PAD=4;
+const PAD=4;
 /** Bounded, lazy material and projected-tile caches. Never rasterize the entire map. */
 export function createMapTerrainPainter(map,doc,art){
-  const materials=new Map(),tiles=new Map();let pixels=0,builds=0,pending=false,spent=0,rasterScale=1,maxPixels=4*1024*1024;
+  let SIZE=48;const materials=new Map(),tiles=new Map();let pixels=0,builds=0,pending=false,spent=0,rasterScale=1,maxPixels=4*1024*1024;
   const layer=doc.createElement('canvas'),mask=doc.createElement('canvas');layer.width=layer.height=mask.width=mask.height=SIZE;
   const layerCtx=layer.getContext('2d',{willReadFrequently:true}),maskCtx=mask.getContext('2d',{willReadFrequently:true});
   const evict=()=>{while(pixels>maxPixels&&tiles.size){const first=tiles.keys().next().value,old=tiles.get(first);pixels-=old.pixels;old.surface.width=old.surface.height=1;tiles.delete(first);}};
@@ -15,8 +15,8 @@ export function createMapTerrainPainter(map,doc,art){
     // World phase is preserved for arbitrary authored repeat sizes.
     const selections=[0,1,2,3].map(t=>artTerrainSelection(map,t));
     if(!selections[tile.terrain]||!art.image(selections[tile.terrain].id))return null;
-    const phase=selections.map(s=>s?[tile.x%(s.image.width/64),tile.y%(s.image.height/64)]:[]);
-    const key=JSON.stringify([neighbors,phase]);
+    const needed=new Set([0,...neighbors]);const phase=selections.map((s,i)=>s&&needed.has(i)?[tile.x%(s.image.width/64),tile.y%(s.image.height/64)]:[]);
+    const key=JSON.stringify([SIZE,neighbors,phase]);
     if(materials.has(key)){const result=materials.get(key);materials.delete(key);materials.set(key,result);return result;}
     if(spent>=6){pending=true;return null;}
     const started=performance.now(),output=doc.createElement('canvas');output.width=output.height=SIZE;const ctx=output.getContext('2d',{willReadFrequently:true});
@@ -25,6 +25,7 @@ export function createMapTerrainPainter(map,doc,art){
     for(const kind of [3,2,1]){
       const selected=selections[kind],belongs=v=>kind===3?v===2||v===3:v===kind;
       if(!selected||!art.image(selected.id)||!neighbors.some(belongs))continue;
+      if(neighbors.every(belongs)){texture(ctx,selected.id);continue;}
       layerCtx.clearRect(0,0,SIZE,SIZE);texture(layerCtx,selected.id);
       const alpha=maskCtx.createImageData(SIZE,SIZE);
       for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
@@ -35,6 +36,18 @@ export function createMapTerrainPainter(map,doc,art){
         alpha.data[(y*SIZE+x)*4+3]=Math.round(a*255);
       }
       maskCtx.putImageData(alpha,0,0);layerCtx.globalCompositeOperation='destination-in';layerCtx.drawImage(mask,0,0);layerCtx.globalCompositeOperation='source-over';ctx.drawImage(layer,0,0);
+    }
+    if(tile.terrain===1){
+      // Continuous cart ruts follow road edges, not the orientation of a texture.
+      // Each edge lane carries one wheel track; junctions remain unmarked.
+      const horizontal=neighbors[3]===1&&neighbors[5]===1&&(neighbors[1]!==1||neighbors[7]!==1);
+      const vertical=neighbors[1]===1&&neighbors[7]===1&&(neighbors[3]!==1||neighbors[5]!==1);
+      if(horizontal!==vertical){
+        ctx.save();if(vertical){ctx.translate(SIZE,0);ctx.rotate(Math.PI/2);}
+        const edge=horizontal?(neighbors[1]!==1):(neighbors[5]!==1),y=SIZE*(edge?.67:.33);
+        ctx.strokeStyle='#49382745';ctx.lineWidth=SIZE*.035;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(SIZE,y);ctx.stroke();
+        ctx.strokeStyle='#f0d5a02b';ctx.lineWidth=SIZE*.015;ctx.beginPath();ctx.moveTo(0,y+SIZE*.035);ctx.lineTo(SIZE,y+SIZE*.035);ctx.stroke();ctx.restore();
+      }
     }
     // Extrude actual edge texels. Stretching the material changes its coordinate
     // phase and leaves partially transparent samples along projected joins.
@@ -58,13 +71,25 @@ export function createMapTerrainPainter(map,doc,art){
     ctx.drawImage(image,-PAD,-PAD);ctx.restore();
   }
   return{
-    beginFrame(scale=1,viewportPixels=0){spent=0;pending=false;rasterScale=scale>1.25?2:1;maxPixels=Math.max(4*1024*1024,Math.min(8*1024*1024,viewportPixels*2));evict();},
-    drawReady(ctx,tile){
+    beginFrame(scale=1,viewportPixels=0){const size=scale>2.5?96:48;if(size!==SIZE){SIZE=size;layer.width=layer.height=mask.width=mask.height=SIZE;}spent=0;pending=false;rasterScale=scale>2.5?4:scale>1.25?2:1;maxPixels=Math.max(4*1024*1024,Math.min(8*1024*1024,viewportPixels*2));evict();},
+    drawReady(ctx,tile,{direct=false}={}){
       const image=material(tile);if(!image){
         return pending?null:false;
       }
       const origin=projectMap(map,{x:tile.x,y:tile.y});
       const points=[[0,0],[1,0],[1,1],[0,1]].map(([x,y])=>{const p=projectMap(map,{x:tile.x+x,y:tile.y+y});return{x:p.x-origin.x,y:p.y-origin.y};});
+      if(direct){
+        // The caller already retains a terrain chunk. Avoid allocating another
+        // projected canvas for every distinct hill slope inside that chunk.
+        const started=performance.now();ctx.save();ctx.translate(origin.x,origin.y);
+        triangle(ctx,image,points[0],points[1],points[2],true);triangle(ctx,image,points[0],points[2],points[3],false);
+        if(map.elevations){
+          const stride=map.width+1,i=tile.y*stride+tile.x,h=map.elevations,dx=(h[i+1]+h[i+stride+1]-h[i]-h[i+stride])/2,dy=(h[i+stride]+h[i+stride+1]-h[i]-h[i+1])/2;
+          const shade=Math.max(-.22,Math.min(.22,(dx+dy)*.5));
+          ctx.beginPath();points.forEach((p,j)=>j?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=shade>0?`rgba(255,244,200,${shade})`:`rgba(20,42,34,${-shade})`;ctx.fill();
+        }
+        ctx.restore();spent+=performance.now()-started;builds++;return true;
+      }
       const key=image.materialKey+':'+rasterScale+':'+points.map(p=>(Math.round(p.y*32)/32).toFixed(5)).join(',');let cached=tiles.get(key);
       if(cached){tiles.delete(key);tiles.set(key,cached);}
       else{

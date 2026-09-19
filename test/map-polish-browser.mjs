@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
+import {chromium} from '@playwright/test';
+const base=(process.env.POSECRAFT_URL||'http://127.0.0.1:5246').replace(/\/$/,'');
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+await mkdir('test-results',{recursive:true});
+try{
+ const page=await browser.newPage({viewport:{width:1100,height:800}}),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base+'/demos.html#littlelands-map');
+ await page.waitForFunction(()=>window.mapDemo?.view.stats().art.loaded===10&&!mapDemo.view.stats().terrainCache.pending);
+ await page.locator('#demo-fullscreen').click();
+ await page.evaluate(()=>{mapDemo.view.panTo(64,64);mapDemo.view.zoomTo(3);});
+ await page.waitForFunction(()=>!mapDemo.view.stats().terrainCache.pending);
+ await page.screenshot({path:'test-results/map-woodland-village.png'});
+ await page.evaluate(()=>mapDemo.view.zoomTo(5));
+ await page.waitForFunction(()=>mapDemo.view.stats().camera.zoom===5&&!mapDemo.view.stats().terrainCache.pending);
+ const zoom=await page.evaluate(async()=>{const s=mapDemo.view.snapshot();await mapDemo.view.restore(s);return mapDemo.view.snapshot().camera.zoom;});
+ assert.equal(zoom,5);
+ const stats=await page.evaluate(()=>mapDemo.view.stats());
+ assert.ok(stats.terrainCache.pixels<=stats.terrainCache.maxPixels);
+ await page.screenshot({path:'test-results/map-woodland-zoom5.png'});
+ await page.evaluate(()=>{const trees=mapDemo.map.props.filter(p=>p.kind==='tree');const tree=trees.find(p=>p.x>45&&p.x<58&&p.y>45&&p.y<60)||trees[0];mapDemo.view.panTo(tree.x,tree.y);mapDemo.view.zoomTo(1.6);});
+ await page.waitForFunction(()=>!mapDemo.view.stats().terrainCache.pending);
+ await page.screenshot({path:'test-results/map-woodland-groves.png'});
+ await page.setViewportSize({width:390,height:844});
+ await page.evaluate(()=>mapDemo.view.zoomTo(2));
+ await page.waitForFunction(()=>!mapDemo.view.stats().terrainCache.pending);
+ await page.screenshot({path:'test-results/map-woodland-mobile.png'});
+ const rect=await page.locator('#demo-art canvas').boundingBox();assert.deepEqual(rect,{x:0,y:0,width:390,height:844});
+ assert.equal(await page.locator('#demo-player button:visible').count(),1);
+ assert.equal(await page.locator('.map-stats').isVisible(),false);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({passed:true,zoom:5,zoomSave:true,boundedCache:true,edgeToEdge:true,onlyExitButton:true}));
+}finally{await browser.close();}

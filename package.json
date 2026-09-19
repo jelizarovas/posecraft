@@ -326,6 +326,7 @@
     "test:map-running": "node test/map-running-browser.mjs",
     "test:map-camera": "node test/map-camera-browser.mjs",
     "test:map-picking": "node test/map-picking-browser.mjs",
+    "test:map-polish": "node test/map-polish-browser.mjs",
     "test:map-package": "node test/map-package.mjs",
     "test:responses": "node test/responses-browser.mjs",
     "test:performance": "node test/performance-browser.mjs",

@@ -28,7 +28,7 @@ try{
     for(let i=1;i<=5;i++)await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:box.x+80+i*20,y:box.y+150+i*8}]});
     await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   }
-  await swipe();await page.locator('#map-recenter').waitFor({state:'visible'});
+  await swipe();assert.equal(await page.locator('#map-recenter').isVisible(),false);await page.locator('#demo-fullscreen').click();await page.locator('#map-recenter').waitFor({state:'visible'});
   const detached=await page.evaluate(()=>({camera:mapDemo.view.snapshot().camera,actor:mapDemo.view.controller.actorPosition('hero'),commands:mapDemo.events.filter(e=>e.type==='map.move.started').length}));
   await page.waitForTimeout(350);
   assert.deepEqual(await page.evaluate(()=>mapDemo.view.snapshot().camera),detached.camera,'Camera must not pull back after a swipe');

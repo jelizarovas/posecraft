@@ -119,6 +119,16 @@ export function generateMap({ width = 128, height = 128, seed = 1, elevation = f
   const lakes = Array.from({ length: Math.max(1, Math.floor(width * height / 1800)) }, () => ({ x: random() * width, y: random() * height, r: 2 + random() * 5 }));
   // Bucket lakes to keep generation linear as maps grow.
   const lakeBuckets = new Map();
+  // A coarse field produces clearings, loose groves and solid forest cores.
+  // Each cell consults nine nearby grove centers, independent of map size.
+  const groveHash=(x,y)=>{let h=Math.imul(x+seed,374761393)^Math.imul(y-seed,668265263);h=Math.imul(h^(h>>>13),1274126177);return((h^(h>>>16))>>>0)/4294967296;};
+  function forestAt(x,y){let field=0;const gx=Math.floor(x/16),gy=Math.floor(y/16);
+    for(let j=gy-1;j<=gy+1;j++)for(let i=gx-1;i<=gx+1;i++){
+      if(groveHash(i,j)<.48)continue;
+      const px=i*16+3+groveHash(i+91,j)*10,py=j*16+3+groveHash(i,j+73)*10,r=3.5+groveHash(i+47,j-37)*4.5;
+      field=Math.max(field,1-Math.hypot((x-px)/r,(y-py)/(r*.8)));
+    }return Math.max(0,field);
+  }
   for (const lake of lakes) for (let y = Math.floor((lake.y - lake.r - 1) / 16); y <= Math.floor((lake.y + lake.r + 1) / 16); y++) for (let x = Math.floor((lake.x - lake.r - 1) / 16); x <= Math.floor((lake.x + lake.r + 1) / 16); x++) {
     const key = `${x},${y}`;
     if (!lakeBuckets.has(key)) lakeBuckets.set(key, []);
@@ -135,12 +145,13 @@ export function generateMap({ width = 128, height = 128, seed = 1, elevation = f
     }
     terrain[y * width + x] = t;
     const chance = random();
-    if (!nearVillage && !road && t !== 2 && chance < .13) props.push({ id: `scenery-${x}-${y}`, kind: chance < .111 ? 'tree' : 'rock', x, y, width: 1, height: 1 });
+    const forest=forestAt(x,y),density=forest>.48?1:forest>0?.12+forest*1.5:.008;
+    if (!nearVillage && !road && t !== 2 && chance < density+.008) props.push({ id: `scenery-${x}-${y}`, kind: chance < density ? 'tree' : 'rock', x, y, width: 1, height: 1 });
   }
   const house = { id: 'village-house', kind: 'house', x: Math.min(width - 2, cx + 2), y: Math.max(0, cy - 3), width: 2, height: 2 };
   const chest = { id: 'village-chest', kind: 'chest', x: Math.max(0, cx - 3), y: Math.min(height - 1, cy + 2), width: 1, height: 1 };
   props.push(house, chest);
-  const map={ format: 'posecraft-map', version: 1, id: `map-${seed}`, name: 'The wandering wood', width, height, seed, tileSize: { width: 72, height: 36 }, terrain, props, actors: [{ id: 'hero', x: cx + .5, y: cy + .5, speed: 3.2, color: '#8665be' }] };
+  const map={ format: 'posecraft-map', version: 1, id: `map-${seed}`, name: 'The wandering wood', width, height, seed, tileSize: { width: 72, height: 36 }, terrain, props, actors: [{ id: 'hero', x: cx + .5, y: cy + .5, speed: 3.2, color: '#68734b' }] };
   if(elevation)map.elevations=generatedElevations(map);
   return assertMap(map);
 }

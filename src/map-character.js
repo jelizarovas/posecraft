@@ -42,7 +42,7 @@ function shell(ctx,sample,{width,depth,bottom,top,color,offset=0}){
   for(let i=0;i<lower.length;i++){const next=(i+1)%lower.length;faces.push({points:[upper[i],upper[next],lower[next],lower[i]],depth:(lower[i].depth+lower[next].depth)/2,i});}
   ctx.save();ctx.translate(sample.forward.x*offset,sample.forward.y*offset);
   polygon(ctx,lower,color);faces.sort((a,b)=>a.depth-b.depth);
-  for(const face of faces){polygon(ctx,face.points,color);if(face.i<8)polygon(ctx,face.points,'#ffffff0b');else polygon(ctx,face.points,'#162d391a');}
+  for(const face of faces){polygon(ctx,face.points,color);const a=(face.i+.5)*TAU/lower.length,nx=sample.right.x*Math.cos(a)+sample.forward.x*Math.sin(a),ny=sample.right.y*Math.cos(a)+sample.forward.y*Math.sin(a),lit=-nx*.6-ny;polygon(ctx,face.points,lit>0?'#ffebb51a':'#18221838');}
   polygon(ctx,upper,color);ctx.restore();
 }
 function drawPack(ctx,sample){
@@ -58,28 +58,28 @@ function drawArm(ctx,sample,limb){
   ellipse(ctx,limb.hand.x,limb.hand.y,2,2.1,'#e6bf90');
 }
 function drawLeg(ctx,sample,limb){
-  line(ctx,[limb.hip,limb.knee,limb.foot],'#344753',4.1);
-  line(ctx,[limb.hip,limb.knee],limb.depth<0?'#3e5361':'#506976',3.7);
+  line(ctx,[limb.hip,limb.knee,limb.foot],'#393b31',4.1);
+  line(ctx,[limb.hip,limb.knee],limb.depth<0?'#454534':'#656049',3.7);
   const right=sample.right,front=sample.forward,p=limb.foot;
   // Shoes occupy a small oriented rectangle on the ground, not a screen-facing dash.
-  polygon(ctx,[[-1.7,-1],[1.7,-1],[2,3.2],[-2,3.2]].map(([l,d])=>({x:p.x+right.x*l+front.x*d,y:p.y+right.y*l+front.y*d-1})), '#283c43','#26373e');
+  polygon(ctx,[[-1.7,-1],[1.7,-1],[2,3.2],[-2,3.2]].map(([l,d])=>({x:p.x+right.x*l+front.x*d,y:p.y+right.y*l+front.y*d-1})), '#59432d','#302d22');
 }
 function drawHead(ctx,sample){
-  const height=33+sample.bob,c=sample.point(0,0,height),front=sample.forward;
-  ellipse(ctx,c.x,c.y,6.1,7.3,'#d6ad80');
+  const height=32+sample.bob,c=sample.point(0,0,height),front=sample.forward;
+  const skin=ctx.createLinearGradient(c.x-5,c.y-6,c.x+5,c.y+5);skin.addColorStop(0,'#e0bd8c');skin.addColorStop(1,'#9c704c');ellipse(ctx,c.x,c.y,5.1,6.3,skin);
   // Project the facial surface around an ellipsoid. Only forward-facing features show.
-  ctx.save();ctx.beginPath();ctx.ellipse(c.x,c.y,6.2,7.4,0,0,TAU);ctx.clip();
+  ctx.save();ctx.beginPath();ctx.ellipse(c.x,c.y,5.2,6.4,0,0,TAU);ctx.clip();
   const frontAmount=Math.max(0,Math.min(1,front.y*2+.5));
   const faceCenter={x:c.x+front.x*3,y:c.y+front.y*2};
-  ellipse(ctx,faceCenter.x,faceCenter.y+1,4.2,5.8,'#e8c69b');
+  ellipse(ctx,faceCenter.x,faceCenter.y+1,3.8,5.1,skin);
   // Back hair wraps around the skull; the face opening shifts with yaw without scaling the head.
   const faceNormal=front.y*2;
   const hairCoverage=Math.max(0,Math.min(1,(.35-faceNormal)/.65));
-  if(hairCoverage>0){ctx.globalAlpha=hairCoverage;ellipse(ctx,c.x-front.x*2,c.y-1,6.4,7.5,'#504737');ctx.globalAlpha=1;}
+  if(hairCoverage>0){ctx.globalAlpha=hairCoverage;ellipse(ctx,c.x-front.x*2,c.y-1,5.4,6.5,'#504737');ctx.globalAlpha=1;}
   polygon(ctx,[{x:c.x-6.5,y:c.y-2},{x:c.x-5,y:c.y-6},{x:c.x-1,y:c.y-8},{x:c.x+4.5,y:c.y-6.8},{x:c.x+6.7,y:c.y-2.2},{x:c.x+front.x*2+2,y:c.y-3.7},{x:c.x+front.x*2-1,y:c.y-2},{x:c.x-3,y:c.y-3.8}], '#504737');
   if(frontAmount>0){
     ctx.globalAlpha=frontAmount;
-    for(const side of [-1,1]){const p=sample.point(side*2.4,5,33+sample.bob);const visible=Math.max(0,Math.min(1,(front.y*.8+side*sample.right.y*.6)*3));ctx.globalAlpha=frontAmount*visible;ellipse(ctx,p.x,p.y,.68,1.05,'#34403a');}
+    for(const side of [-1,1]){const p=sample.point(side*2.4,5,33+sample.bob);const visible=Math.max(0,Math.min(1,(front.y*.8+side*sample.right.y*.6)*3));ctx.globalAlpha=frontAmount*visible;ellipse(ctx,p.x,p.y,.5,.75,'#34403a');}
     ctx.globalAlpha=frontAmount;const mouth=sample.point(0,5,30+sample.bob);line(ctx,[{x:mouth.x-1,y:mouth.y},{x:mouth.x+1,y:mouth.y}], '#a67754',.7);
   }
   ctx.restore();
@@ -91,12 +91,15 @@ function drawHead(ctx,sample){
 /** Lightweight directional map adventurer; all joints share a projected body basis. */
 export function drawMapActor(ctx,map,actor,definition,reduced=false,{shadow=true}={}){
   const sample=sampleMapActor(actor,reduced),position=projectMap(map,actor),scale=map.tileSize.width/64;
-  sample.color=definition?.color||'#8665be';ctx.save();ctx.translate(position.x,position.y);ctx.scale(scale,scale);
-  if(shadow)ellipse(ctx,0,1,10,3.5,'#213d3d30');
+  sample.color=definition?.color||'#68734b';ctx.save();ctx.translate(position.x,position.y);ctx.scale(scale,scale);
+  if(shadow){ellipse(ctx,5,2,12,3.8,'#19271c20');ellipse(ctx,0,1,7,2.5,'#13221b55');}
   const limbs=[...sample.limbs].sort((a,b)=>a.foot.depth-b.foot.depth);for(const limb of limbs)drawLeg(ctx,sample,limb);
   for(const limb of sample.limbs.filter(limb=>limb.depth<0))drawArm(ctx,sample,limb);
   if(sample.forward.y>=0)drawPack(ctx,sample);
   shell(ctx,sample,{width:5.4,depth:3.6,bottom:12.5+sample.bob,top:26+sample.bob,color:sample.color});
+  // Shoulder straps and a leather hip pouch tie the traveler to the woodland palette.
+  for(const side of [-1,1])line(ctx,[sample.point(side*3.5,2.7,25+sample.bob),sample.point(side*3,3.7,17+sample.bob)],'#a68a59',1.2);
+  const pouch=sample.point(4,2,14+sample.bob);ellipse(ctx,pouch.x,pouch.y,2.3,2.8,'#85633e');
   const belt=ring(sample,5.6,3.7,14+sample.bob);line(ctx,[...belt,belt[0]],'#b99c64',1.2);
   if(sample.forward.y<0)drawPack(ctx,sample);
   for(const limb of sample.limbs.filter(limb=>limb.depth>=0))drawArm(ctx,sample,limb);

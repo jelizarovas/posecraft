@@ -21,7 +21,7 @@ export function createMapTerrainChunks(map,doc,art,fallback){
   }
   function flat(ctx,tile){const points=[[0,0],[1,0],[1,1],[0,1]].map(([x,y])=>projectMap(map,{x:tile.x+x,y:tile.y+y}));ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=COLORS[tile.terrain];ctx.fill();}
   function configure(tiles,scale,viewportPixels){
-    const budget=Math.max(4*MIB,Math.min(12*MIB,Math.max(0,viewportPixels)*5));
+    const budget=Math.max(4*MIB,Math.min(12*MIB,Math.max(0,viewportPixels)*(scale>2.5?8:5)));
     if(lastTiles===tiles&&maxPixels===budget&&plan.requestedScale===scale)return;
     const hadPlan=lastTiles!==null,previousScale=rasterScale;
     lastTiles=tiles;maxPixels=budget;const wanted=new Map();
@@ -30,7 +30,7 @@ export function createMapTerrainChunks(map,doc,art,fallback){
     // Fit the entire visible working set before allocating. LRU alone would
     // repeatedly discard chunks that the same viewport needs next frame.
     const cost=s=>list.reduce((sum,d)=>sum+Math.max(1,Math.ceil(d.width*s))*Math.max(1,Math.ceil(d.height*s)),0);
-    rasterScale=scale>1.25?2:1;while(cost(rasterScale)>maxPixels&&rasterScale>1/64)rasterScale/=2;
+    rasterScale=scale>2.5?4:scale>1.25?2:1;while(cost(rasterScale)>maxPixels&&rasterScale>1/64)rasterScale/=2;
     // Avoid rebuilding every visible chunk when a small camera move makes a
     // higher resolution only barely fit. Upgrade once there is real headroom.
     if(hadPlan&&rasterScale>previousScale&&cost(rasterScale)>maxPixels*.65)rasterScale=previousScale;
@@ -57,7 +57,7 @@ export function createMapTerrainChunks(map,doc,art,fallback){
         let entry=cache.get(d.key);if(!entry){if(performance.now()-started>=6){preview(ctx,d);pending=true;continue;}entry=allocate(d);}else{cache.delete(d.key);cache.set(d.key,entry);}
         while(entry.cursor<entry.tiles.length){
           if(performance.now()-started>=6){pending=true;break;}
-          const tile=entry.tiles[entry.cursor],result=painter.drawReady(entry.ctx,tile);
+          const tile=entry.tiles[entry.cursor],result=painter.drawReady(entry.ctx,tile,{direct:true});
           if(result===null){pending=true;break;}
           if(result===false){if(fallback)fallback(entry.ctx,tile);else flat(entry.ctx,tile);}
           entry.cursor++;if(entry.cursor===entry.tiles.length)completed++;

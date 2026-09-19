@@ -3,8 +3,8 @@ import {generateMap} from '../src/map.js';
 // URLs are relative to the host page. Copy assets/map with exported map JSON.
 export const woodlandArt={
  images:{
-  meadow:{src:'./assets/map/terrain/meadow.webp',width:128,height:128,anchorX:0,anchorY:0},
-  road:{src:'./assets/map/terrain/road.webp',width:128,height:128,anchorX:0,anchorY:0},
+  meadow:{src:'./assets/map/terrain/meadow-v2.webp',width:512,height:512,anchorX:0,anchorY:0},
+  road:{src:'./assets/map/terrain/road-v2.webp',width:384,height:384,anchorX:0,anchorY:0},
   water:{src:'./assets/map/terrain/water.webp',width:128,height:128,anchorX:0,anchorY:0},
   sand:{src:'./assets/map/terrain/sand.webp',width:128,height:128,anchorX:0,anchorY:0},
   oak:{src:'./assets/map/trees/oak.webp',width:100,height:91.39,anchorX:.52,anchorY:.9},
