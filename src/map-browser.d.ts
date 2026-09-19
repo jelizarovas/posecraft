@@ -10,6 +10,7 @@ export interface MapViewStats {
   visibleTiles: number; visibleProps: number; visibleActors: number;
   candidateActors: number; candidateRouteSegments: number;
   occlusionCandidates: number; maskedActors: number; scratchPixels: number;
+  art: {requested: number; loaded: number; failed: number};
   totalTiles: number; totalProps: number; drawnFrames: number;
   backingWidth: number; backingHeight: number;
   camera: {x: number; y: number; zoom: number};
@@ -17,6 +18,8 @@ export interface MapViewStats {
 }
 export interface MapView {
   controller: MapController;
+  /** Settles after referenced image loads finish; failed images use fallback art and call onError. */
+  ready: Promise<void>;
   moveTo: MapController['moveTo'];
   /** Center the camera on continuous grid coordinates. */
   panTo(x: number, y: number): void;

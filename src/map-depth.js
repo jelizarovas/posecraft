@@ -1,4 +1,5 @@
 import {projectMap} from './map.js';
+import {artPropSelection, mapImageBounds} from './map-art-layout.js';
 
 /** A point beyond either camera-facing edge is in front of the solid footprint. */
 export function mapPropOccludesActor(prop,actor){
@@ -7,6 +8,11 @@ export function mapPropOccludesActor(prop,actor){
 }
 
 export function mapPropArtBounds(map,prop){
+  const fallback=mapPropFallbackBounds(map,prop),selected=artPropSelection(map,prop);if(!selected)return fallback;
+  const image=mapImageBounds(map,{x:prop.x+prop.width/2,y:prop.y+prop.height/2},selected.image),x=Math.min(fallback.x,image.x),y=Math.min(fallback.y,image.y);
+  return{x,y,width:Math.max(fallback.x+fallback.width,image.x+image.width)-x,height:Math.max(fallback.y+fallback.height,image.y+image.height)-y};
+}
+function mapPropFallbackBounds(map,prop){
   const s=map.tileSize.width/64,p=projectMap(map,{x:prop.x+prop.width/2,y:prop.y+prop.height/2});
   if(prop.kind==='house'){
     const halfWidth=(prop.width+prop.height)*map.tileSize.width/4,halfHeight=(prop.width+prop.height)*map.tileSize.height/4;

@@ -31,11 +31,19 @@ Grid X and Y are ground-plane coordinates. A tile occupies `[x, x + 1] × [y, y 
 
 `projectMap` and `unprojectMap` convert grid coordinates to isometric world pixels and back. `view.mapToScreen(point)` and `view.screenToMap(x, y)` additionally apply the camera and zoom. Screen coordinates use canvas-local CSS pixels.
 
-`MapIndex` groups terrain and prop references into chunks. Each render queries chunks intersecting the camera rectangle, plus a margin for tall artwork and near-edge tiles. Actor occlusion uses prop footprints, so someone outside a building's front wall remains in front even beside its door. When scenery hides a character, a tinted silhouette appears only inside the foreground artwork's opaque pixels. Ground shadows do not occlude characters. Static scenery is code-drawn vector artwork: grass, paths, water, sand, trees, rocks, chests and cottages.
+`MapIndex` groups terrain and prop references into chunks. Each render queries chunks intersecting the camera rectangle, plus a margin for tall artwork and near-edge tiles. Actor occlusion uses prop footprints, so someone outside a building's front wall remains in front even beside its door. When scenery hides a character, a tinted silhouette appears only inside the foreground artwork's opaque pixels. Ground shadows do not occlude characters. Scenery uses optional image artwork, with procedural fallbacks for grass, paths, water, sand, trees, rocks, chests and cottages.
 
 Walking uses rounded route corners with continuous obstacle-clearance checks. Body yaw turns at a bounded rate, and reversing direction turns the character before travel. The procedural adventurer projects its limbs and feet in the direction of travel, with front, profile and rear views. Gait phase follows distance travelled rather than a timer.
 
 `view.stats()` exposes visible and total tile/prop counts, candidate counts, visited chunks, backing dimensions and drawn frames. These measure the work performed. They are not estimates derived only from camera area.
+
+## Image artwork
+
+Maps can optionally store `art.images`, `art.props` and `art.terrain`. Images declare a URL, display width/height at a 64-pixel tile width, and a normalized ground anchor. Prop bindings choose from named images deterministically, so saved maps keep their tree and rock variations. Terrain bindings cover grass, road, water and sand. Terrain image dimensions set repeat size in the ground plane; anchors are ignored for terrain. The renderer accepts PNG or WebP with alpha, uses that alpha for silhouettes, and includes image overhang in viewport culling.
+
+The [woodland example](../examples/woodland-map.js) supplies three trees, two rocks, an inn and four terrain textures. Original PNGs, WebP derivatives and generation prompts are in [the asset directory](../public/assets/map/README.md). Copy `public/assets/map` into the host's `assets/map` directory when using a downloaded woodland map elsewhere, or replace its image URLs. A map JSON file contains references, not embedded pixels.
+
+`await view.ready` waits for artwork loading. `view.controller.ready` waits for the navigation worker. Missing images report `onError` and retain procedural fallback artwork; other assets still load. Decoded images are shared by URL between mounted views and released when the last view is disposed. Unthemed maps do not request artwork.
 
 ## Movement and lifecycle
 

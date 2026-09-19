@@ -1,8 +1,8 @@
-import {generateMap} from '../src/map.js';
+import {createWoodlandMap as generateMap,withWoodlandArt} from './woodland-map.js';
 import {mountMap} from '../src/map-browser.js';
 
 // Gallery artwork does not construct a map, controller or hidden renderer.
-export const mapThumbnail = '<svg viewBox="0 0 120 76" width="100%" height="100%" aria-hidden="true"><rect width="120" height="76" fill="#adbc8a"/><path d="M0 32 60 4 120 32 60 62Z" fill="#83a56b"/><path d="m0 57 75-37 15 7-75 37Z" fill="#d5c69a"/><path d="m69 16 16-8 18 9v24l-18 9-16-9Z" fill="#cba576"/><path d="m63 19 20-18 27 19-24 12Z" fill="#744e4d"/><path d="m20 39 11-28 12 28-12 7Z" fill="#3f7354"/><circle cx="53" cy="44" r="5" fill="#eed2a6"/><path d="m47 49 12 0 2 12-16 0Z" fill="#7655a5"/></svg>';
+export const mapThumbnail = '<img src="./assets/map/thumbnail.webp" alt="Painted woodland map" width="120" height="76" loading="lazy" style="width:100%;height:100%;object-fit:cover">';
 
 /** Gallery host policy: map data and semantic runtime state are saved together. */
 export function mountMapDemo(documentData, {playing=true,onPlayingChange=()=>{},onError=()=>{}}={}) {
@@ -16,7 +16,7 @@ export function mountMapDemo(documentData, {playing=true,onPlayingChange=()=>{},
   function updateStats(){if(disposed||!view||document.hidden)return;const s=view.stats();if(!Number.isFinite(s.visibleTiles))return;const caption=`${map.width} by ${map.height} world - seed ${map.seed} - only the viewport is drawn`;if($('demo-caption').textContent!==caption)$('demo-caption').textContent=caption;$('map-zoom').value=s.camera.zoom;}
   function status(message){if(!disposed)$('demo-status').textContent=message;}
   function event(e){events.push(e);if(events.length>100)events.shift();if(e.type==='map.object.interacted')status(e.object==='village-chest'||e.prop==='village-chest'?'Chest opened.':e.object==='village-house'?'Arrived at the inn.':'Reached '+(e.kind||'object')+'.');else if(e.type==='map.actor.arrived')status(e.target==='village-chest'?'Chest opened.':e.target==='village-house'?'Arrived at the inn.':'Destination reached.');}
-  function install(next){view?.dispose();art.replaceChildren();map=next;view=mountMap(art,map,{autoplay:playing,onEvent:event,onError:error=>{status(error.message);onError(error);}});status('Click the map to explore. Drag to pan.');updateStats();}
+  function install(next){view?.dispose();art.replaceChildren();map=withWoodlandArt(next);view=mountMap(art,map,{autoplay:playing,onEvent:event,onError:error=>{status(error.message);onError(error);}});status('Click the map to explore. Drag to pan.');updateStats();}
   function run(target){playing=true;view.play();onPlayingChange(true);status('Finding a routeâ€¦');Promise.resolve(view.moveTo('hero',target)).catch(error=>{if(error.name!=='AbortError')status(error.message);});}
   $('map-home').onclick=()=>{view.focusActor('hero');status('Camera centered on hero.');updateStats();};
   $('map-chest').onclick=()=>run('village-chest');$('map-inn').onclick=()=>run('village-house');

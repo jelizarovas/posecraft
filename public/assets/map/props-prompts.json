@@ -1,0 +1,201 @@
+{
+  "created": "2026-09-19",
+  "notes": "Original generated painterly map props. Each asset generated separately using the built-in image_gen tool. Originals copied unchanged; RGBA alpha preserved. Transparent pixels may contain RGB color which must be ignored by compositors. Web derivatives resized proportionally for runtime download and decoding; original PNG files remain unchanged.",
+  "assets": [
+    {
+      "id": "oak",
+      "file": "trees/oak.webp",
+      "source": "trees/oak.png",
+      "tool": "image_gen built-in",
+      "prompt": "Use case: stylized-concept. Asset type: a single transparent game-map prop PNG cutout. Create ONE original painterly fantasy oak tree for an isometric adventure strategy map, evocative of richly painted late-1990s fantasy strategy games but not copied from any existing game. Dimetric 2:1 map camera, looking down 30 degrees above ground, parallel projection, no perspective. A mature rounded oak with broad irregular crown, golden olive and forest-green leaf clusters with rich hand-painted texture, a sturdy branching brown trunk clearly visible beneath the crown. Warm light from upper left, darker cool foliage underneath. Richly modeled small readable forms, no heavy outlines, not low-poly, not flat vector. Transparent background with genuine alpha, every pixel outside the tree transparent. One tree centered, entire crown and roots fully visible, trunk base near lower center with 8 percent clear transparent margin on all sides. No grassy island, no soil patch, no ground plane, no cast ground shadow, no frame, no text, no watermark. Final asset must be a clean isolated tree sprite suitable for drawing above arbitrary grass tiles.",
+      "original": "trees/oak.png",
+      "width": 1312,
+      "height": 1199,
+      "visibleBounds": [
+        53,
+        50,
+        1265,
+        1152
+      ],
+      "suggestedAnchor": [
+        0.52,
+        0.9
+      ],
+      "anchorNote": "Trunk ground contact within root spread",
+      "conversion": {
+        "tool": "Sharp",
+        "format": "webp",
+        "quality": 86,
+        "alphaQuality": 100,
+        "effort": 5,
+        "resized": true,
+        "cropped": false
+      },
+      "alphaZeroPixels": 687660,
+      "bytes": 147930,
+      "webDerivative": {
+        "width": 640,
+        "height": 585,
+        "format": "WebP",
+        "quality": 86,
+        "alphaQuality": 100
+      }
+    },
+    {
+      "id": "fir",
+      "file": "trees/fir.webp",
+      "source": "trees/fir.png",
+      "tool": "image_gen built-in",
+      "prompt": "Use case: stylized-concept. Asset type: single isolated PNG prop sprite for a painterly isometric fantasy adventure map. Create ONE tall mature fir tree with a tapered but irregular silhouette, tiered sweeping blue-green needles, visible gnarled brown trunk and exposed roots. Camera is parallel dimetric 2:1 game-map view looking down 30 degrees above the ground. Rich original hand-painted fantasy strategy game art, detailed needle clusters but large readable masses at small display size. Warm sunlight from upper left, cool dark underside. Fully transparent RGBA background with real alpha, not a checkerboard or black background. Entire tree centered and fully visible with clear transparent margin on all sides; base of trunk near lower center. No ground shadow, no terrain patch, no grassy island, no ground plane, no other trees, no border, no text. Not vector, not cartoon outlines, not copied game art.",
+      "original": "trees/fir.png",
+      "width": 1024,
+      "height": 1536,
+      "visibleBounds": [
+        70,
+        14,
+        956,
+        1514
+      ],
+      "suggestedAnchor": [
+        0.505,
+        0.915
+      ],
+      "anchorNote": "Trunk ground contact within root spread",
+      "conversion": {
+        "tool": "Sharp",
+        "format": "webp",
+        "quality": 86,
+        "alphaQuality": 100,
+        "effort": 5,
+        "resized": true,
+        "cropped": false
+      },
+      "alphaZeroPixels": 920807,
+      "bytes": 90170,
+      "webDerivative": {
+        "width": 427,
+        "height": 640,
+        "format": "WebP",
+        "quality": 86,
+        "alphaQuality": 100
+      }
+    },
+    {
+      "id": "birch",
+      "file": "trees/birch.webp",
+      "source": "trees/birch.png",
+      "tool": "image_gen built-in",
+      "prompt": "Use case: stylized-concept. Asset type: single transparent PNG prop sprite for an original painterly isometric fantasy adventure map. Create ONE graceful slightly bent birch tree with white bark and charcoal horizontal markings, trunk bending gently right, airy asymmetrical crown of sage-green and gold-green leaves. One tree only, not a cluster. Dimetric 2:1 map projection, parallel camera looking down 30 degrees above ground, matching classic richly painted fantasy strategy maps without copying any asset. Warm upper-left sun with cool shaded right side. Deliberately painted leaf clusters and clear branch structure readable at small size. Background must be genuinely transparent RGBA with transparent pixels between branches. Centered complete tree, fully visible canopy and small roots, clear transparent margin all around, trunk base near lower center. No grass patch, no soil mound, no cast ground shadow, no ground plane, no other objects, no frame, no text, no watermark, no heavy outline.",
+      "original": "trees/birch.png",
+      "width": 1145,
+      "height": 1374,
+      "visibleBounds": [
+        26,
+        39,
+        1130,
+        1330
+      ],
+      "suggestedAnchor": [
+        0.455,
+        0.92
+      ],
+      "anchorNote": "Trunk ground contact within root spread",
+      "conversion": {
+        "tool": "Sharp",
+        "format": "webp",
+        "quality": 86,
+        "alphaQuality": 100,
+        "effort": 5,
+        "resized": true,
+        "cropped": false
+      },
+      "alphaZeroPixels": 966437,
+      "bytes": 127536,
+      "webDerivative": {
+        "width": 533,
+        "height": 640,
+        "format": "WebP",
+        "quality": 86,
+        "alphaQuality": 100
+      }
+    },
+    {
+      "id": "mossy-boulder",
+      "file": "rocks/mossy-boulder.webp",
+      "source": "rocks/mossy-boulder.png",
+      "tool": "image_gen built-in",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated transparent PNG prop for a painterly isometric fantasy strategy adventure map. Create ONE broad low mossy boulder, weathered gray stone with warm highlights and cool cracks, irregular readable silhouette, small patches of rich olive moss integrated onto the stone only. Dimetric 2:1 camera, parallel projection looking down 30 degrees above ground. Original hand-painted fantasy game art with richly painted natural surfaces that read at 60 pixels tall. Warm sunlight from upper left. Fully visible centered boulder on a GENUINELY TRANSPARENT RGBA background, every pixel outside the boulder transparent. Base near lower center with a clean transparent margin. No ground plane, no grassy island, no soil, no cast ground shadow, no extra props, no outlined cartoon style, no text, no frame, no watermark. Only the actual boulder silhouette may be opaque. Landscape canvas.",
+      "original": "rocks/mossy-boulder.png",
+      "width": 1536,
+      "height": 1024,
+      "visibleBounds": [
+        178,
+        174,
+        1360,
+        879
+      ],
+      "suggestedAnchor": [
+        0.5,
+        0.75
+      ],
+      "anchorNote": "Ground footprint center beneath rock",
+      "conversion": {
+        "tool": "Sharp",
+        "format": "webp",
+        "quality": 86,
+        "alphaQuality": 100,
+        "effort": 5,
+        "resized": true,
+        "cropped": false
+      },
+      "alphaZeroPixels": 979334,
+      "bytes": 20694,
+      "webDerivative": {
+        "width": 384,
+        "height": 256,
+        "format": "WebP",
+        "quality": 86,
+        "alphaQuality": 100
+      }
+    },
+    {
+      "id": "granite-cluster",
+      "file": "rocks/granite-cluster.webp",
+      "source": "rocks/granite-cluster.png",
+      "tool": "image_gen built-in",
+      "prompt": "Use case: stylized-concept. Asset type: one isolated transparent PNG map prop containing three touching rocks. Original painterly fantasy strategy game art, dimetric 2:1 map camera in parallel projection looking down 30 degrees above ground, warm upper-left sunlight. Create ONE compact cluster of THREE angular weathered granite stones: one large central rock, a medium rock behind-left, and a small lower-right stone. Cool blue-gray granite with pale warm top facets, rich painted cracks, tiny muted moss accents, clear chunky silhouette readable at small map scale. No heavy outline, no low-poly vector look, no copied game assets. Transparent RGBA background with actual alpha, all pixels beyond the three-rock silhouette transparent. Entire cluster centered and fully visible with clear transparent margins. Do not include ground, grassy island, soil patch, cast ground shadow, text, border, watermark or other objects. Landscape canvas.",
+      "original": "rocks/granite-cluster.png",
+      "width": 1536,
+      "height": 1024,
+      "visibleBounds": [
+        212,
+        163,
+        1328,
+        857
+      ],
+      "suggestedAnchor": [
+        0.51,
+        0.75
+      ],
+      "anchorNote": "Ground footprint center beneath rock",
+      "conversion": {
+        "tool": "Sharp",
+        "format": "webp",
+        "quality": 86,
+        "alphaQuality": 100,
+        "effort": 5,
+        "resized": true,
+        "cropped": false
+      },
+      "alphaZeroPixels": 1035165,
+      "bytes": 19922,
+      "webDerivative": {
+        "width": 384,
+        "height": 256,
+        "format": "WebP",
+        "quality": 86,
+        "alphaQuality": 100
+      }
+    }
+  ]
+}

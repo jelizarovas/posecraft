@@ -1,7 +1,35 @@
+import {artPropSelection,mapImageBounds} from './map-art-layout.js';
+
 /** Serializable isometric maps. Coordinates are cells; renderers use projected pixels. */
 const integer = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
 const point = p => p && Number.isFinite(p.x) && Number.isFinite(p.y);
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+
+const record = value => value && typeof value === 'object' && !Array.isArray(value);
+const boundsUnion = (a,b) => ({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.max(a.x+a.width,b.x+b.width)-Math.min(a.x,b.x),height:Math.max(a.y+a.height,b.y+b.height)-Math.min(a.y,b.y)});
+function validArtURL(src) {
+  if(typeof src!=='string'||!src||src.length>4096||/[\\\x00-\x20]/.test(src)||src.startsWith('//'))return false;
+  try {
+    const url=new URL(src,'https://posecraft.invalid/');
+    if(url.username||url.password)return false;
+    return url.protocol==='https:'||(url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname));
+  } catch { return false; }
+}
+function assertArt(art,fail) {
+  if(!record(art)||!record(art.images)||Object.keys(art.images).length>64)fail('art requires at most 64 images');
+  for(const [id,image]of Object.entries(art.images)) {
+    if(!id||!record(image)||!validArtURL(image.src)||!Number.isFinite(image.width)||image.width<=0||image.width>1024||!Number.isFinite(image.height)||image.height<=0||image.height>1024||!Number.isFinite(image.anchorX)||image.anchorX<0||image.anchorX>1||!Number.isFinite(image.anchorY)||image.anchorY<0||image.anchorY>1)fail(`invalid art image ${id}`);
+  }
+  const reference=id=>typeof id==='string'&&Object.hasOwn(art.images,id);
+  if(art.props!==undefined) {
+    if(!record(art.props))fail('invalid art prop bindings');
+    for(const [kind,variants]of Object.entries(art.props))if(!['tree','rock','house','chest'].includes(kind)||!Array.isArray(variants)||!variants.length||variants.length>64||Array.from(variants).some(id=>!reference(id)))fail(`invalid art prop binding ${kind}`);
+  }
+  if(art.terrain!==undefined) {
+    if(!record(art.terrain))fail('invalid terrain art bindings');
+    for(const [kind,id]of Object.entries(art.terrain))if(!['grass','road','water','sand'].includes(kind)||!reference(id))fail(`invalid terrain art binding ${kind}`);
+  }
+}
 
 export function assertMap(map) {
   const fail = message => { throw new TypeError(`Invalid map: ${message}`); };
@@ -9,6 +37,7 @@ export function assertMap(map) {
   if (typeof map.id !== 'string' || !map.id || typeof map.name !== 'string') fail('id and name are required');
   if (!integer(map.width, 1, 512) || !integer(map.height, 1, 512)) fail('dimensions must be integers between 1 and 512');
   if (!Number.isSafeInteger(map.seed)) fail('seed must be a safe integer');
+  if (map.art !== undefined) assertArt(map.art, fail);
   if (!map.tileSize || !Number.isFinite(map.tileSize.width) || !Number.isFinite(map.tileSize.height)) fail('tileSize is required');
   if (!integer(map.tileSize.width, 8, 512) || !integer(map.tileSize.height, 4, 256)) fail('invalid tileSize');
   if (!Array.isArray(map.terrain) || map.terrain.length !== map.width * map.height) fail('terrain must contain one valid terrain value per cell');
@@ -88,9 +117,22 @@ export class MapIndex {
     this.chunks = new Map();
     this.props = new Map();
     this.blocked = new Uint8Array(map.width * map.height);
+    const tw=map.tileSize.width,th=map.tileSize.height,scale=tw/64;
+    this.artBounds=new Map();
+    this.propReach={left:0,right:0,top:0,bottom:0};
+    // Terrain images repeat on the ground plane and remain clipped to tiles.
+    this.tileBounds=Array.from({length:4},()=>({x:-tw/2,y:-th/2,width:tw,height:th}));
+    this.tileReach=this.tileBounds.reduce((r,b)=>({left:Math.max(r.left,-b.x),right:Math.max(r.right,b.x+b.width),top:Math.max(r.top,-b.y),bottom:Math.max(r.bottom,b.y+b.height)}),{left:0,right:0,top:0,bottom:0});
     for (let i = 0; i < map.terrain.length; i++) this.blocked[i] = map.terrain[i] === 2 ? 1 : 0;
     for (const p of map.props) {
       this.props.set(p.id, p);
+      const location={x:p.x+p.width/2,y:p.y+p.height/2},center=projectMap(map,location);
+      const rx=(p.width+p.height)*tw/4,ry=(p.width+p.height)*th/4;
+      const fallback={x:center.x-rx-tw/2,y:center.y-ry-110*scale,width:2*rx+tw,height:2*ry+110*scale};
+      const selected=artPropSelection(map,p),bounds=selected?boundsUnion(fallback,mapImageBounds(map,location,selected.image)):fallback;
+      this.artBounds.set(p.id,bounds);
+      this.propReach.left=Math.max(this.propReach.left,center.x-bounds.x);this.propReach.right=Math.max(this.propReach.right,bounds.x+bounds.width-center.x);
+      this.propReach.top=Math.max(this.propReach.top,center.y-bounds.y);this.propReach.bottom=Math.max(this.propReach.bottom,bounds.y+bounds.height-center.y);
       for (let y = p.y; y < p.y + p.height; y++) for (let x = p.x; x < p.x + p.width; x++) this.blocked[y * map.width + x] = 1;
       for (let y = Math.floor(p.y / chunkSize); y <= Math.floor((p.y + p.height - 1) / chunkSize); y++) for (let x = Math.floor(p.x / chunkSize); x <= Math.floor((p.x + p.width - 1) / chunkSize); x++) {
         const key = `${x},${y}`;
@@ -106,32 +148,33 @@ export class MapIndex {
   prop(id) { return this.props.get(id); }
   visible(rect, overscan = 128) {
     if (!point(rect) || !Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0 || !Number.isFinite(overscan) || overscan < 0 || overscan > 2048) throw new TypeError('Invalid map viewport');
-    const map = this.map, tw = map.tileSize.width, th = map.tileSize.height;
-    // Map-browser props scale with tile width. Include roofs and canopies whose
-    // footprints sit below the viewport, even with large authored tile sizes.
-    const propHeight = 110 * tw / 64;
+    const map = this.map;
     const view = { x: rect.x - overscan, y: rect.y - overscan, width: rect.width + overscan * 2, height: rect.height + overscan * 2 };
-    const corners = [{ x: view.x - tw, y: view.y - th }, { x: view.x + view.width + tw, y: view.y - th }, { x: view.x - tw, y: view.y + view.height + propHeight }, { x: view.x + view.width + tw, y: view.y + view.height + propHeight }].map(p => unprojectMap(map, p));
-    const minX = clamp(Math.floor(Math.min(...corners.map(p => p.x))), 0, map.width - 1);
-    const maxX = clamp(Math.ceil(Math.max(...corners.map(p => p.x))), 0, map.width - 1);
-    const minY = clamp(Math.floor(Math.min(...corners.map(p => p.y))), 0, map.height - 1);
-    const maxY = clamp(Math.ceil(Math.max(...corners.map(p => p.y))), 0, map.height - 1);
+    const range=reach=>{
+      const left=view.x-reach.right,right=view.x+view.width+reach.left,top=view.y-reach.bottom,bottom=view.y+view.height+reach.top;
+      const corners=[{x:left,y:top},{x:right,y:top},{x:left,y:bottom},{x:right,y:bottom}].map(p=>unprojectMap(map,p));
+      return {
+        minX:clamp(Math.floor(Math.min(...corners.map(p=>p.x))),0,map.width-1),maxX:clamp(Math.ceil(Math.max(...corners.map(p=>p.x))),0,map.width-1),
+        minY:clamp(Math.floor(Math.min(...corners.map(p=>p.y))),0,map.height-1),maxY:clamp(Math.ceil(Math.max(...corners.map(p=>p.y))),0,map.height-1),
+      };
+    };
     const tiles = [], props = [], found = new Set();
     const stats = { visitedChunks: 0, candidateTiles: 0, candidateProps: 0 };
     const intersects = (left, top, right, bottom) => right >= view.x && bottom >= view.y && left <= view.x + view.width && top <= view.y + view.height;
-    for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
+    const tileRange=range(this.tileReach);
+    for (let y = tileRange.minY; y <= tileRange.maxY; y++) for (let x = tileRange.minX; x <= tileRange.maxX; x++) {
       stats.candidateTiles++;
-      const p = projectMap(map, { x: x + .5, y: y + .5 });
-      if (intersects(p.x - tw / 2, p.y - th / 2, p.x + tw / 2, p.y + th / 2)) tiles.push({ x, y, terrain: map.terrain[y * map.width + x] });
+      const terrain=map.terrain[y*map.width+x],p = projectMap(map, { x: x + .5, y: y + .5 }),bounds=this.tileBounds[terrain];
+      if (intersects(p.x+bounds.x,p.y+bounds.y,p.x+bounds.x+bounds.width,p.y+bounds.y+bounds.height)) tiles.push({ x, y, terrain });
     }
-    for (let cy = Math.floor(minY / this.chunkSize); cy <= Math.floor(maxY / this.chunkSize); cy++) for (let cx = Math.floor(minX / this.chunkSize); cx <= Math.floor(maxX / this.chunkSize); cx++) {
+    const propRange=range(this.propReach);
+    for (let cy = Math.floor(propRange.minY / this.chunkSize); cy <= Math.floor(propRange.maxY / this.chunkSize); cy++) for (let cx = Math.floor(propRange.minX / this.chunkSize); cx <= Math.floor(propRange.maxX / this.chunkSize); cx++) {
       stats.visitedChunks++;
       for (const prop of this.chunks.get(`${cx},${cy}`) || []) {
         if (found.has(prop.id)) continue;
         found.add(prop.id); stats.candidateProps++;
-        const center = projectMap(map, { x: prop.x + prop.width / 2, y: prop.y + prop.height / 2 });
-        const rx = (prop.width + prop.height) * tw / 4, ry = (prop.width + prop.height) * th / 4;
-        if (intersects(center.x - rx - tw / 2, center.y - ry - propHeight, center.x + rx + tw / 2, center.y + ry)) props.push(prop);
+        const bounds=this.artBounds.get(prop.id);
+        if (intersects(bounds.x,bounds.y,bounds.x+bounds.width,bounds.y+bounds.height)) props.push(prop);
       }
     }
     return { tiles, props, stats };

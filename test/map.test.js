@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertMap, generateMap, projectMap, unprojectMap, MapIndex, MapPathJob, approachTiles } from '../src/map.js';
+import { artPropSelection, artTerrainSelection, mapImageBounds } from '../src/map-art-layout.js';
 
 function empty(width = 16, height = 16) {
   return { format: 'posecraft-map', version: 1, id: 'test', name: 'Test', width, height, seed: 1, tileSize: { width: 72, height: 36 }, terrain: Array(width * height).fill(0), props: [], actors: [] };
@@ -127,4 +128,65 @@ test('invalid imported maps fail before index allocation', () => {
   }
   const map = empty(); map.terrain[0] = 2; map.actors.push({ id: 'hero', x: .5, y: .5, speed: 2 });
   assert.throws(() => assertMap(map), /blocked cell/);
+});
+
+function mapArt() {
+  return { images: {
+    pine: { src: './art/pine.png', width: 80, height: 160, anchorX: .5, anchorY: .95 },
+    oak: { src: 'https://example.com/oak.png', width: 120, height: 130, anchorX: .5, anchorY: 1 },
+    grass: { src: 'http://127.0.0.1:4173/grass.png', width: 64, height: 32, anchorX: .5, anchorY: .5 },
+  }, props: { tree: ['pine', 'oak'] }, terrain: { grass: 'grass' } };
+}
+
+test('optional art survives JSON round trips and prop variants remain deterministic', () => {
+  const map = generateMap({ seed: 2026 }); map.art = mapArt();
+  const reopened = assertMap(JSON.parse(JSON.stringify(map)));
+  assert.deepEqual(reopened.art, map.art);
+  const trees = map.props.filter(p => p.kind === 'tree').slice(0, 20);
+  const before = trees.map(p => artPropSelection(map, p).id);
+  const after = trees.map(p => artPropSelection(reopened, p).id);
+  assert.deepEqual(after, before);assert.equal(new Set(before).size, 2);
+  assert.equal(artTerrainSelection(map, 0).id, 'grass');
+  assert.equal(artTerrainSelection(map, 2), null);
+  assert.equal(artPropSelection(map, map.props.find(p => p.kind === 'house')), null);
+});
+
+test('custom image culling includes large sprites with offscreen bases in every direction', () => {
+  const map = empty(128, 128), prop = { id: 'large', kind: 'tree', x: 60, y: 60, width: 1, height: 1 };
+  map.props.push(prop);
+  for (const anchor of [0, 1]) {
+    map.art = { images: { huge: { src: './huge.png', width: 1024, height: 1024, anchorX: anchor, anchorY: anchor } }, props: { tree: ['huge'] } };
+    const bounds = mapImageBounds(map, { x: 60.5, y: 60.5 }, map.art.images.huge);
+    const rect = { x: bounds.x + (anchor ? 20 : bounds.width - 60), y: bounds.y + (anchor ? 20 : bounds.height - 60), width: 40, height: 40 };
+    const visible = new MapIndex(map).visible(rect, 0);
+    assert.ok(visible.props.some(p => p.id === 'large'));
+    assert.ok(!visible.tiles.some(p => p.x === 60 && p.y === 60));
+    const plain = structuredClone(map);delete plain.art;
+    assert.equal(visible.stats.candidateTiles, new MapIndex(plain).visible(rect, 0).stats.candidateTiles, 'prop image size does not inflate terrain query work');
+  }
+});
+
+test('large terrain texture dimensions do not expand tile geometry or viewport work', () => {
+  const map = empty(64, 64);
+  map.terrain.fill(1);map.terrain[30 * 64 + 30] = 0;
+  map.art = { images: { grass: { src: './grass.png', width: 64, height: 512, anchorX: .5, anchorY: 1 } }, terrain: { grass: 'grass' } };
+  const center = projectMap(map, { x: 30.5, y: 30.5 });
+  const view = new MapIndex(map).visible({ x: center.x - 10, y: center.y - 500, width: 20, height: 30 }, 0);
+  assert.ok(!view.tiles.some(p => p.x === 30 && p.y === 30));
+  const plain=structuredClone(map);delete plain.art;
+  const baseline=new MapIndex(plain).visible({ x: center.x - 10, y: center.y - 500, width: 20, height: 30 }, 0);
+  assert.equal(view.stats.candidateTiles,baseline.stats.candidateTiles);
+});
+
+test('invalid image references, URLs and dimensions fail before loading', () => {
+  const edits = [
+    a => { a.props.tree = ['missing']; }, a => { a.terrain.water = 'missing'; },
+    a => { a.images.pine.width = 1025; }, a => { a.images.pine.height = 0; },
+    a => { a.images.pine.anchorX = -1; }, a => { a.images.pine.anchorY = NaN; },
+    a => { a.props.tree = []; }, a => { a.props.tree = Array(1); },
+    a => { for (let i = 0; i < 65; i++) a.images[`extra-${i}`] = { ...a.images.pine }; },
+  ];
+  for (const src of ['javascript:alert(1)', 'file:///tmp/pine.png', '//evil.example/tree.png', 'http://example.com/tree.png', 'https://user:password@example.com/tree.png', 'data:image/png;base64,AAAA', 'https:\\example.com\\tree.png']) edits.push(a => { a.images.pine.src = src; });
+  for (const edit of edits) { const map = empty();map.art = mapArt();edit(map.art);assert.throws(() => assertMap(map), /Invalid map/); }
+  for (const src of ['./tree.png', '/assets/tree.png', 'https://example.com/tree.png', 'http://localhost:4173/tree.png', 'http://127.0.0.1/tree.png', 'http://[::1]/tree.png']) { const map = empty();map.art = mapArt();map.art.images.pine.src = src;assert.doesNotThrow(() => assertMap(map)); }
 });

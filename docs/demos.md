@@ -113,7 +113,7 @@ The gallery offers four paused acting beats and **Play exchange**. Open the demo
 
 ## Littlelands map
 
-The map demo creates a seeded 128 by 128 world with a chest, inn, roads, water and blocked prop footprints. It renders visible tiles and props through a spatial index. The counter inside the viewport reports the current draw counts. Static offscreen props remain in the map document but are not submitted for drawing. The gallery thumbnail is a small hand-authored SVG, not another running map.
+The map demo creates a seeded 128 by 128 world with painted grass, paths, water and sand, three tree variations, two rock formations and a woodland inn. Original PNG artwork and optimized WebP copies are included in `public/assets/map`; their image references and anchors are stored in the map document. A chest, inn and blocked prop footprints support navigation and interactions. It renders visible tiles and props through a spatial index. The counter inside the viewport reports the current draw counts. Static offscreen props remain in the map document but are not submitted for drawing. The gallery thumbnail is a small static WebP, not another running map.
 
 Click or tap to walk, drag to pan, and use the wheel, pinch gesture or zoom control. Center hero returns the camera to the character. Find chest and Visit inn use semantic object destinations; the runtime routes to an accessible interaction cell. Save stores the entire generated map and its runtime snapshot on this device. Restore restores that saved map even after generating another seed. Download project exports the map document for the map SDK, not a Studio scene.
 

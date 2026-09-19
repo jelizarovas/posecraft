@@ -11,6 +11,8 @@ try {
   await page.addInitScript(()=>{window.mapWorkers=0;const WorkerOriginal=window.Worker;window.Worker=class extends WorkerOriginal{constructor(...args){super(...args);this.alive=true;window.mapWorkers++;}terminate(){if(this.alive){this.alive=false;window.mapWorkers--;}super.terminate();}};});
   await page.goto(base+'/demos.html#littlelands-map');
   await page.waitForFunction(()=>window.mapDemo?.view.stats().visibleTiles>0);
+  await page.evaluate(()=>mapDemo.view.ready);
+  await page.waitForFunction(()=>mapDemo.view.stats().art.loaded===10);
   const initial=await page.evaluate(()=>mapDemo.view.stats());
   assert.equal(initial.totalTiles,16384);assert.ok(initial.visibleTiles<2000);assert.ok(initial.visibleProps<initial.totalProps/2);assert.equal(await page.locator('#edit-demo').isHidden(),true);
   assert.equal(await page.evaluate(()=>mapWorkers),1);

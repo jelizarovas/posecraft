@@ -2,6 +2,22 @@ export interface MapPoint { x: number; y: number }
 export interface MapRect extends MapPoint { width: number; height: number }
 export interface MapProp extends MapRect { id: string; kind: 'tree' | 'rock' | 'chest' | 'house' }
 export interface MapActor extends MapPoint { id: string; speed: number; color?: string }
+export interface MapImage {
+  /** Relative or HTTPS URL. HTTP is allowed for localhost development. */
+  src: string;
+  /** Positive pixels at a 64-pixel tile width, at most 1024 on either axis. */
+  width: number; height: number;
+  /** Ground anchor as a fraction of image dimensions, between zero and one. */
+  anchorX: number; anchorY: number;
+}
+export interface MapArt {
+  /** At most 64 images. All referenced image IDs must exist. */
+  images: Record<string, MapImage>;
+  /** Seeded stable variants for each prop kind. */
+  props?: Partial<Record<MapProp['kind'], string[]>>;
+  /** Ground-plane textures clipped to tiles. Image dimensions control repeat scale; anchors are unused. */
+  terrain?: Partial<Record<'grass' | 'road' | 'water' | 'sand', string>>;
+}
 export interface MapDocument {
   format: 'posecraft-map'; version: 1; id: string; name: string;
   width: number; height: number; seed: number;
@@ -10,6 +26,7 @@ export interface MapDocument {
   terrain: number[];
   props: MapProp[];
   actors: MapActor[];
+  art?: MapArt;
 }
 export interface VisibleMap {
   tiles: Array<{ x: number; y: number; terrain: number }>;

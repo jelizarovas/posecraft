@@ -303,6 +303,7 @@
     "docs/native-3d.md",
     "tools/build-native-runtime.mjs",
     "public/assets/native-3d",
+    "public/assets/map",
     "docs/native-studio.md",
     "docs/native-3d-review.md",
     "docs/game-api.md",
