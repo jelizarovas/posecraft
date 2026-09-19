@@ -1,31 +1,32 @@
 import {mountScene} from '../src/browser.js';
-import {createGameExample} from './game-scene.js';
-import './game-demo.css';
-const $=id=>document.getElementById(id),scene=createGameExample();let player,sequence,busy=false,session=0;
-const captions={'actor.arrived':'Reached the shop','actor.look.completed':'Noticed the sign','actor.action.completed':'Action finished','actor.reaction.completed':'Reaction finished','actor.command.cancelled':'Action cancelled'};
-function event(e){if(!captions[e.type])return;const item=document.createElement('li');item.textContent=captions[e.type];$('events').prepend(item);while($('events').children.length>6)$('events').lastChild.remove();}
-function speech({actor,text,signal}){
- $('speech').textContent=`${actor==='friend'?'Rusty':'Ona'}: ${text}`;$('continue').hidden=false;
- return new Promise((resolve,reject)=>{
-  const cleanup=()=>{$('continue').hidden=true;$('continue').removeEventListener('click',done);signal.removeEventListener('abort',cancel);};
-  const done=()=>{cleanup();resolve();},cancel=()=>{cleanup();reject(Object.assign(new Error('Dialogue cancelled.'),{name:'AbortError'}));};
-  $('continue').addEventListener('click',done);signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
- });
+
+/** Host-owned quest and dialogue. Performances use the public game API. */
+export function mountGameDemo(scene,{playing=true,onPlayingChange=()=>{},onEvent=()=>{},onError=()=>{}}={}){
+ const $=id=>document.getElementById(id),art=$('demo-art');let player,sequence,session=0,disposed=false,light=false,repaired=false;
+ art.classList.add('corner-game');art.innerHTML='<div id="corner-scene"></div><button id="sign" class="corner-sign" aria-label="Repair the shop sign">CORNER SH—P</button><button id="shop-lamp" class="corner-lamp" aria-label="Switch the shop light" aria-pressed="false" title="Switch the light"></button><button id="pet-rusty" class="corner-rusty" aria-label="Play with Rusty" title="Play with Rusty"></button><div id="quest" class="corner-quest" role="status">The shop sign needs a little help.</div>';
+ $('demo-controls').innerHTML='<div class="demo-actions corner-actions"><button id="repair">Fix the sign</button><button id="encourage">Say hello</button><button id="explore">Explore the yard</button><button id="play-rusty">Play with Rusty</button><button id="lights">Switch light</button><button id="cancel" disabled>Stop</button></div><div class="corner-dialogue" aria-live="polite"><span id="speech">Choose an interaction, or tap something in the scene.</span><button id="continue" hidden>Continue</button></div>';
+ $('demo-scrub').hidden=true;$('demo-caption').textContent='Fix the sign · tap Rusty · switch the light';$('demo-status').textContent='Ready · choose an interaction';
+ function speech({actor,text,signal}){
+  $('speech').textContent=`${actor==='friend'?'Rusty':'Ona'}: ${text}`;$('continue').hidden=false;
+  return new Promise((resolve,reject)=>{const cleanup=()=>{$('continue').hidden=true;$('continue').removeEventListener('click',done);signal.removeEventListener('abort',cancel);};const done=()=>{cleanup();resolve();},cancel=()=>{cleanup();reject(Object.assign(new Error('Dialogue cancelled.'),{name:'AbortError'}));};$('continue').addEventListener('click',done);signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();});
+ }
+ function stop(){session++;sequence?.cancel();sequence=null;player?.actor('shopkeeper').cancel();player?.actor('friend').cancel();$('cancel').disabled=true;}
+ function cue(message,run){
+  stop();const current=session;playing=true;player.play();onPlayingChange(true);$('cancel').disabled=false;$('speech').textContent=message;$('demo-status').textContent=message;
+  Promise.resolve().then(()=>{if(disposed||current!==session)return;return run(current);}).catch(error=>{if(!disposed&&current===session&&error.name!=='AbortError'){$('demo-status').textContent=error.message;onError(error);}}).finally(()=>{if(!disposed&&current===session)$('cancel').disabled=true;});
+ }
+ function event(e){onEvent(e);if(e.type==='actor.arrived')$('demo-caption').textContent='Ona reached her destination';if(e.type==='actor.command.cancelled')$('demo-caption').textContent='Changing plans…';}
+ function setLight(value){light=value;player.object('shop-light').set('enabled',value);$('shop-lamp').classList.toggle('lit',value);$('shop-lamp').setAttribute('aria-pressed',String(value));}
+ function repair(){cue('Ona is coming to inspect your repair.',async current=>{
+  repaired=true;$('sign').textContent='CORNER SHOP';$('quest').textContent='Sign repaired. Let’s show Ona.';
+  sequence=player.sequence([{actor:'shopkeeper',do:'notice'},{actor:'shopkeeper',lookAt:'shop.sign'},{actor:'shopkeeper',moveTo:'shop.front'},{actor:'shopkeeper',do:'inspect'},{actor:'shopkeeper',react:'success'},{actor:'shopkeeper',say:'You fixed it! Shall we open the shop?'}]);await sequence.finished;if(disposed||current!==session)return;setLight(true);await player.actor('friend').react('success');if(disposed||current!==session)return;$('quest').textContent='The shop is open.';$('speech').textContent='Shop open! Try the light, explore, or play with Rusty.';$('demo-status').textContent='Quest complete · both characters responded.';
+ });}
+ function greet(){cue('Ona and Rusty say hello.',async()=>{await Promise.all([player.actor('shopkeeper').react('encourage'),player.actor('friend').react('success')]);});}
+ function explore(){cue('Ona explores the yard, then returns to the shop.',async()=>{sequence=player.sequence([{actor:'shopkeeper',moveTo:'home'},{actor:'shopkeeper',lookAt:'friend'},{actor:'shopkeeper',do:'wave'},{actor:'shopkeeper',moveTo:'shop.front'},{actor:'shopkeeper',do:'bow'}]);await sequence.finished;});}
+ function pet(){cue('Rusty has something to show you.',async current=>{await Promise.all([player.actor('shopkeeper').lookAt('friend'),player.actor('friend').do('paw')]);if(disposed||current!==session)return;await player.actor('friend').do('bounce');if(disposed||current!==session)return;await player.actor('friend').react('success');});}
+ function lights(){cue(light?'Who turned out the light?':'The shop light is back on.',async()=>{setLight(!light);$('quest').textContent=light?(repaired?'The shop is open.':'The light works. The sign still needs fixing.'):'The light is off. Tap the lamp to bring it back.';await Promise.all([player.actor('shopkeeper').react(light?'success':'surprise'),player.actor('friend').react(light?'success':'surprise')]);});}
+ $('repair').onclick=$('sign').onclick=repair;$('encourage').onclick=greet;$('explore').onclick=explore;$('play-rusty').onclick=$('pet-rusty').onclick=pet;$('lights').onclick=$('shop-lamp').onclick=lights;$('cancel').onclick=()=>{stop();$('speech').textContent='Stopped. Choose another interaction.';$('demo-status').textContent='Sequence cancelled.';};
+ player=mountScene($('corner-scene'),scene,{execution:'worker',autoplay:playing,onSpeechRequest:speech,onEvent:event,onError});window.gameDemo={player,scene};
+ if(playing)greet();
+ return {play(){playing=true;player.play();},pause(){playing=false;player.pause();},reset(){stop();player.reset();light=false;repaired=false;$('shop-lamp').classList.remove('lit');$('shop-lamp').setAttribute('aria-pressed','false');$('sign').textContent='CORNER SH—P';$('quest').textContent='The shop sign needs a little help.';$('speech').textContent='Choose an interaction, or tap something in the scene.';$('demo-status').textContent='Ready · choose an interaction';$('demo-caption').textContent='Fix the sign · tap Rusty · switch the light';},dispose(){if(disposed)return;stop();disposed=true;player.dispose();art.classList.remove('corner-game');delete window.gameDemo;}};
 }
-function mount(){player?.dispose();player=mountScene($('scene'),scene,{execution:'worker',reducedMotion:$('reduced').checked,onSpeechRequest:speech,onEvent:event,onError:fail});window.gameDemo={player,scene};}
-function setBusy(value){busy=value;$('repair').disabled=value;$('encourage').disabled=value;$('cancel').disabled=!value;}
-function fail(error){$('quest').textContent=error.message;setBusy(false);}
-$('repair').onclick=async()=>{
- const current=++session;setBusy(true);$('sign').textContent='CORNER SHOP';$('quest').textContent='Sign repaired. Let’s show Ona.';
- sequence=player.sequence([{actor:'shopkeeper',do:'notice'},{actor:'shopkeeper',lookAt:'shop.sign'},{actor:'shopkeeper',moveTo:'shop.front'},{actor:'shopkeeper',do:'inspect'},{actor:'shopkeeper',react:'success'},{actor:'shopkeeper',say:'You fixed it! The shop is ready to open.'}]);
- try{await sequence.finished;if(current!==session)return;player.object('shop-light').set('enabled',true);await player.actor('friend').react('success');if(current===session){$('quest').textContent='The shop is open.';$('speech').textContent='Quest complete. Little Lands can award the reward here.';}}
- catch(error){if(current===session)$('quest').textContent=error.name==='AbortError'?'Stopped. The repaired sign belongs to the game.':error.message;}
- finally{if(current===session)setBusy(false);}
-};
-$('encourage').onclick=async()=>{const current=++session;setBusy(true);try{await Promise.all([player.actor('shopkeeper').react('encourage'),player.actor('friend').react('encourage')]);}catch(error){if(current===session)$('quest').textContent=error.message;}finally{if(current===session)setBusy(false);}};
-$('cancel').onclick=()=>{session++;sequence?.cancel();player.actor('shopkeeper').cancel();player.actor('friend').cancel();setBusy(false);$('quest').textContent='Stopped. Ready for another cue.';$('speech').textContent='Choose an interaction to direct the scene.';};
-function reset(){session++;sequence?.cancel();mount();setBusy(false);$('sign').textContent='CORNER SH—P';$('quest').textContent='The shop sign needs a little help.';$('speech').textContent='Choose an interaction to direct the scene.';$('events').replaceChildren();}
-$('reset').onclick=reset;$('reduced').onchange=reset;
-$('manifest-toggle').onclick=()=>{const hidden=!$('manifest').hidden;$('manifest').hidden=hidden;$('manifest-toggle').setAttribute('aria-expanded',String(!hidden));if(!hidden)$('manifest').textContent=JSON.stringify(player.describe(),null,2);};
-$('download').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(scene,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='corner-shop.posecraft.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
-window.addEventListener('pagehide',()=>player?.dispose());mount();

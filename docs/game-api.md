@@ -2,7 +2,7 @@
 
 Little Lands owns quests, learning, rewards and saved world state. Posecraft owns the visible performance. The semantic API lets game code request actions without selecting animation tracks or joint coordinates.
 
-This first adapter supports Posecraft's existing illustrated 2D/2.5D scene documents, in both main-thread and worker execution. The native workout has a separate [mechanism-backed adapter](workout.md) with named actions and safe completion. Try the [corner shop example](https://jelizarovas.github.io/posecraft/game-demo.html).
+This first adapter supports Posecraft's existing illustrated 2D/2.5D scene documents, in both main-thread and worker execution. The native workout has a separate [mechanism-backed adapter](workout.md) with named actions and safe completion. Try the [corner shop example](https://jelizarovas.github.io/posecraft/demos.html#corner-shop).
 
 ## Browser and React
 

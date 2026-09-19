@@ -48,7 +48,7 @@ The Studio includes [connected skinned surfaces](docs/skinned-mesh.md) with edit
 
 ## Game integration
 
-The [corner shop example](https://jelizarovas.github.io/posecraft/game-demo.html) demonstrates the first Little Lands integration: named actors and targets, awaitable actions, character-specific reactions, cancellable sequences and host-owned dialogue. Use `scene.actor(id)` from the browser/React player or `createGameScene` from `posecraft/game`. `posecraft describe scene.json` reports the actions and targets an agent can use.
+The [corner shop example](https://jelizarovas.github.io/posecraft/demos.html#corner-shop) demonstrates the first Little Lands integration: named actors and targets, awaitable actions, character-specific reactions, cancellable sequences and host-owned dialogue. Use `scene.actor(id)` from the browser/React player or `createGameScene` from `posecraft/game`. `posecraft describe scene.json` reports the actions and targets an agent can use.
 
 Read the [game API and current limits](docs/game-api.md). This adapter uses existing illustrated scene documents with main-thread or worker execution. Native 3D integration, semantic save/restore and per-actor sleep/quality settings are separate follow-ups.
 
