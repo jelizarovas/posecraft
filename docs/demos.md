@@ -6,7 +6,7 @@ Open [Posecraft demos](https://jelizarovas.github.io/posecraft/demos.html), or c
 | --- | --- | --- |
 | [Ship in a bottle](https://jelizarovas.github.io/posecraft/demos.html#ship-in-a-bottle) | Calm, breeze and gust; rocking hull, articulated canvas, waves and layered glass | Studio scene |
 | [One more flight](https://jelizarovas.github.io/posecraft/demos.html#loveseat-stairs) | Two dummies carrying a loveseat up endless stairs; alternating arm rests and partner compensation | Studio scene |
-| [One more rep](https://jelizarovas.github.io/posecraft/demos.html#gym-routine) | Live fatigue/thirst, variable reps, one-hand jump catches, release/celebration variations and water breaks | Studio scene |
+| [One more rep](https://jelizarovas.github.io/posecraft/demos.html#gym-routine) | Native grips/supports, equipment-relative actions, fatigue/thirst, recovery and water breaks | [Native workout Studio](https://jelizarovas.github.io/posecraft/native-studio.html?demo=gym-routine) |
 | [Campfire night](https://jelizarovas.github.io/posecraft/demos.html#campfire-night) | Four friends around a flickering fire, attention-driven cooking, conversations, shared meteor reactions and occasional food handoffs | Studio scene |
 | [Light & shade](https://jelizarovas.github.io/posecraft/demos.html#light-and-shade) | Move the light, adjust highlights and reflections, compare warm/cool/flat treatments, and jump to see contact shadows fade | Studio scene |
 | [Turn & pose](https://jelizarovas.github.io/posecraft/demos.html#turn-and-pose) | Turn heads/bodies, send limbs behind the torso, blend Ona's arm shape and lift Dummy's knees in depth | Studio scene |

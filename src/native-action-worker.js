@@ -1,8 +1,9 @@
 import {createBenchAction3D} from './bench-action-3d.js';
+import {createWorkout3D} from './workout-3d.js';
 
 // Dedicated worker entry. Rendering and imported asset resources stay on the
 // host; only cloneable rig data and solved frames cross this boundary.
-let generation=0,action=null,recovery=null;
+let generation=0,action=null,recovery=null,workout=false;
 self.addEventListener('message',event=>{
  const message=event.data,{id,type}=message??{};
  try{
@@ -11,15 +12,24 @@ self.addEventListener('message',event=>{
   if(type==='configure'){
    if(message.generation<generation)throw Object.assign(new Error('Stale native action configuration.'),{name:'AbortError'});
    generation=message.generation;action=null;recovery=null;
-   action=createBenchAction3D(message.config);
+   workout=message.config?.project?.kind==='workout3d';
+   action=workout?createWorkout3D(message.config):createBenchAction3D(message.config);
   }else{
    if(message.generation!==generation)throw Object.assign(new Error('Native action project has changed.'),{name:'AbortError'});
    if(!action)throw new Error('Configure a native action before sampling it.');
    if(type==='sample')result=(recovery??action).sample(message.time);
    else if(type==='finishSafely'){
-    if(recovery)result={supported:false,reason:'The action is already completing a safe recovery.'};
+    if(workout){result=action.interrupt(message.time);}
+    else if(recovery)result={supported:false,reason:'The action is already completing a safe recovery.'};
     else {const next=action.interrupt(message.time);if(next.supported){recovery=next;result={supported:true,duration:next.duration};}else result={supported:false,reason:next.reason};}
-   }else if(type==='reset')recovery=null;
+   }else if(type==='reset'){recovery=null;if(workout)action.reset();}
+   else if(workout&&['setVariable','request','cancel'].includes(type)){
+    if(!Number.isFinite(message.time))throw new TypeError('Workout command time must be finite.');
+    action.sample(message.time);
+    if(type==='setVariable')result=action.setVariable(message.name,message.value);
+    else if(type==='request')result=action.request(message.action,message.options);
+    else result=action.cancel(message.request);
+   }
    else throw new Error(`Unknown native action command: ${String(type)}.`);
   }
   self.postMessage({id,generation:message.generation,ok:true,result});

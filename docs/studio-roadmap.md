@@ -104,3 +104,7 @@ Contacts now target moving shared objects and scene props, with explicit fade-in
 Whole-clip retiming now scales authored keys, markers, matching clip-filtered contacts and authored scroll windows in one revision-checked transaction. Unsupported live timing dependencies fail explicitly. Studio adds marker creation/editing/seeking and cached onion-skin artwork plus selected-joint paths while paused. The same pure preview and retiming operations are public SDK modules. See [timeline tools and limits](timeline.md).
 
 This does not complete film timing: Director cues in other files remain separate, live graphs are not globally retimed or baked, and dialogue/audio output and curve handles remain future work.
+
+## Native workout migration
+
+One More Rep now uses a saved `workout3d` project and reusable world-space actions. Gallery, native Studio, the motion worker and website export share the director. Workout order, recovery thresholds, repetition range and equipment placement are editable. Named game requests resolve from completion events and cancel at safe boundaries. The recorded 2D workout remains an explicit comparison. See [workout contract and remaining motion scope](workout.md).

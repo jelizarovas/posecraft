@@ -203,3 +203,10 @@ function semanticGameTypes(controller:import("posecraft/scene").SceneController,
  game.object("lamp").set("enabled",true);void describeGameScene(document);game.dispose();
 }
 void semanticGameTypes;
+
+import {createWorkoutProject3D,WorkoutProject3DStore} from "posecraft/workout-project-3d";
+import {createWorkout3D} from "posecraft/workout-3d";
+import {createWorkoutGame,type WorkoutCommandView} from "posecraft/workout-game";
+const workoutProject=createWorkoutProject3D();const workoutStore=new WorkoutProject3DStore(workoutProject);
+function workoutGameTypes(view:WorkoutCommandView){const game=createWorkoutGame(view);void game.actor("atlas").do("bench",{target:"bench"});const seq=game.actor("atlas").sequence([{do:"drink"},{do:"rest"}]);seq.cancel();game.dispose();}
+void workoutStore;void createWorkout3D;void workoutGameTypes;

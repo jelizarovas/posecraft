@@ -10,7 +10,7 @@ export async function buildNativeRuntime(outDir='dist/runtime'){
   if(!bundle)throw new Error('Native player bundle is missing.');
   await fs.mkdir(outDir,{recursive:true});await fs.writeFile(path.join(outDir,'native-three-player.js'),bundle.code);
   const modules=Object.keys(bundle.modules).map(id=>id.replaceAll('\\','/').replace(root.replaceAll('\\','/'),''));
-  const manifest={format:'posecraft-native-player',version:1,bytes:Buffer.byteLength(bundle.code),features:['gltf-skinning','native-3d-rig','two-bone-contacts','bench-action'],modules};
+  const manifest={format:'posecraft-native-player',version:1,bytes:Buffer.byteLength(bundle.code),features:['gltf-skinning','native-3d-rig','two-bone-contacts','bench-action','workout-director','pullup-action','ground-locomotion','game-commands'],modules};
   if(modules.some(id=>/node_modules\/planck|src\/physics\.js|examples\/gym\.js/.test(id)))throw new Error('Native player accidentally included the legacy demo or physics engine.');
   await fs.writeFile(path.join(outDir,'native-three-manifest.json'),JSON.stringify(manifest,null,2));return manifest;
 }

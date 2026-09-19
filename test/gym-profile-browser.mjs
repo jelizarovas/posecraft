@@ -3,7 +3,7 @@ import {chromium} from '@playwright/test';
 const base=(process.env.POSECRAFT_URL||'http://127.0.0.1:5199').replace(/\/$/,''),browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
 try{
  const page=await browser.newPage({viewport:{width:1366,height:900},reducedMotion:'reduce'}),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(base+'/demos.html#gym-routine');await page.locator('#scene-full-set').click();
+ await page.goto(base+'/demos.html?legacy=1#gym-routine');await page.locator('#scene-full-set').click();
  for(const [name,time]of [['profile-right',31.52],['profile-left',55],['raised-arms',6.8],['reclining',42]]){
   await page.locator('#demo-scrub').fill(String(time));await page.locator('#demo-scrub').dispatchEvent('input');await page.waitForFunction(t=>Math.abs(Number(document.querySelector('#demo-art svg')?.dataset.sceneTime)-t)<.03,time);
   assert.equal(await page.locator('#demo-art [data-part="trunk"]').count(),1);

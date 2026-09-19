@@ -17,3 +17,8 @@
 #demo-frame .material-symbols-outlined{transform:rotate(180deg)}
 
 .demo-group{margin:18px 4px 8px;font-weight:600}.demo-group:first-child{margin-top:4px}@media(max-width:800px){.demo-group{display:none}}
+
+#demo-art.native-workout{position:relative;overflow:hidden}#demo-art.native-workout canvas{display:block;width:100%;height:100%;touch-action:none}#workout-actions .demo-edit{padding:6px 8px;font-size:10px}
+@media(max-width:760px){#demo-stage.native-workout-stage{aspect-ratio:auto;height:100%;width:100%}}
+
+.demo-thumb img{display:block;width:100%;height:100%;object-fit:cover}

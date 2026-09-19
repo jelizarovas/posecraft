@@ -2,7 +2,7 @@
 
 Little Lands owns quests, learning, rewards and saved world state. Posecraft owns the visible performance. The semantic API lets game code request actions without selecting animation tracks or joint coordinates.
 
-This first adapter supports Posecraft's existing illustrated 2D/2.5D scene documents, in both main-thread and worker execution. It does not wrap the separate native 3D bench project. Try the [corner shop example](https://jelizarovas.github.io/posecraft/game-demo.html).
+This first adapter supports Posecraft's existing illustrated 2D/2.5D scene documents, in both main-thread and worker execution. The native workout has a separate [mechanism-backed adapter](workout.md) with named actions and safe completion. Try the [corner shop example](https://jelizarovas.github.io/posecraft/game-demo.html).
 
 ## Browser and React
 
@@ -143,4 +143,4 @@ Public completion events include `actor.action.completed`, `actor.arrived`, `act
 
 Use a tested Git commit or local package for the game integration. This repository remains private to npm publication and is not a registry release.
 
-The next consumer-driven additions are semantic save/restore, actor sleep/wake with measured costs, per-actor quality levels, floating/planar navigation, and a Studio bindings editor. Existing scene-level offscreen suspension is not actor-level sleep. Existing seeded behavior graphs remain available; this pass does not add a generic procedural-idle generator. The native 3D adapter needs its own character/action contract before it can share these command names honestly.
+The next consumer-driven additions are semantic save/restore, actor sleep/wake with measured costs, per-actor quality levels, floating/planar navigation, and a Studio bindings editor. Existing scene-level offscreen suspension is not actor-level sleep. Existing seeded behavior graphs remain available; this pass does not add a generic procedural-idle generator. The native workout adapter now implements its own character/action contract; general native scene commands remain separate.

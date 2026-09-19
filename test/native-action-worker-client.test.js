@@ -37,3 +37,18 @@ test('configuration and worker failures reject promises, and disposal terminates
  await assert.rejects(client.configure({}),/worker crashed/);
  client.dispose();client.dispose();assert.equal(worker.terminated,1);await assert.rejects(client.sample(0),/disposed/);
 });
+
+
+test('workout commands preserve caller IDs, payloads and journal times behind ordered acknowledgments',async()=>{
+ const {worker,client}=await configured();
+ const old=client.sample(7).catch(e=>e),changed=client.setVariable('fatigue',84,7);
+ assert.equal((await old).name,'AbortError');const setting=worker.messages.at(-1);
+ assert.deepEqual({type:setting.type,name:setting.name,value:setting.value,time:setting.time},{type:'setVariable',name:'fatigue',value:84,time:7});
+ const requested=client.request('drink',{request:'host-water',target:'bottle'},7),cancelled=client.cancel('host-water',7),sample=client.sample(8);
+ assert.equal(worker.messages.at(-1),setting);worker.reply(setting);await changed;
+ const request=worker.messages.at(-1);assert.equal(request.action,'drink');assert.deepEqual(request.options,{request:'host-water',target:'bottle'});assert.equal(request.time,7);
+ worker.reply(request,'host-water');assert.equal(await requested,'host-water');
+ const cancel=worker.messages.at(-1);assert.equal(cancel.type,'cancel');assert.equal(cancel.request,'host-water');worker.reply(cancel);await cancelled;
+ worker.reply(worker.messages.at(-1),{time:8,workout:{stats:{fatigue:84}}});assert.equal((await sample).workout.stats.fatigue,84);
+ await assert.rejects(client.request('drink',{},NaN),/finite/);client.dispose();
+});

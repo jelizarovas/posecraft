@@ -9,3 +9,5 @@
 .play-buttons .button-label{display:none}
 
 #finish-safely{min-height:20px;padding:1px 6px;font-size:9px;margin-left:5px}#finish-safely[hidden]{display:none}
+
+.workout-requests{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0}.workout-requests button{font:inherit;padding:8px;border:1px solid var(--border,#c9d4d1);border-radius:8px;background:#fff;color:inherit}.native-nav [hidden],.timeline [hidden]{display:none!important}

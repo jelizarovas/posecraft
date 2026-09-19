@@ -16,8 +16,8 @@ export function createNativeActionClient(worker){
  }
  function cancelAll(error){for(const entry of tasks.values())entry.reject(error);tasks.clear();controls.length=0;activeControl=null;activeSample=null;latestSample=null;}
  function post(entry){
-  const {id,generation,type,config,time}=entry;
-  try{worker.postMessage({id,generation,type,...(type==='configure'?{config}:{}),...(time===undefined?{}:{time})});}
+  const {id,generation,type,config,time,name,value,action,options,request}=entry;
+  try{worker.postMessage({id,generation,type,...(type==='configure'?{config}:{}),...(time===undefined?{}:{time}),...(type==='setVariable'?{name,value}:{}),...(type==='request'?{action,options}:{}),...(type==='cancel'?{request}:{})});}
   catch(error){complete(entry,false,error);}
  }
  function pump(){
@@ -48,9 +48,9 @@ export function createNativeActionClient(worker){
  }
  worker.addEventListener('message',onMessage);worker.addEventListener('error',onError);worker.addEventListener('messageerror',onError);
  const available=()=>disposed?new Error('Native action client is disposed.'):!configured?new Error('Configure the native action before using it.'):configurationError;
- function control(type,time){
+ function control(type,time,values={}){
   const error=available();if(error)return Promise.reject(error);
-  cancelSamples('Native action playback mode changed.');const entry=task(type,{time});controls.push(entry.id);pump();return entry.promise;
+  cancelSamples('Native action playback mode changed.');const entry=task(type,{time,...values});controls.push(entry.id);pump();return entry.promise;
  }
  return {
   configure(config){
@@ -67,6 +67,9 @@ export function createNativeActionClient(worker){
   },
   finishSafely(time){if(!Number.isFinite(time))return Promise.reject(new TypeError('Native action interruption time must be finite.'));return control('finishSafely',time);},
   reset(){return control('reset');},
+  setVariable(name,value,time){if(!Number.isFinite(time))return Promise.reject(new TypeError('Workout command time must be finite.'));return control('setVariable',time,{name,value});},
+  request(action,options,time){if(!Number.isFinite(time))return Promise.reject(new TypeError('Workout command time must be finite.'));return control('request',time,{action,options});},
+  cancel(request,time){if(!Number.isFinite(time))return Promise.reject(new TypeError('Workout command time must be finite.'));return control('cancel',time,{request});},
   dispose(){
    if(disposed)return;disposed=true;cancelAll(aborted('Native action client disposed.'));
    worker.removeEventListener('message',onMessage);worker.removeEventListener('error',onError);worker.removeEventListener('messageerror',onError);worker.terminate();

@@ -6,7 +6,7 @@ const base=(process.env.POSECRAFT_URL||'http://127.0.0.1:5178').replace(/\/$/,''
 page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(20000);
 const part=(actor,name,root='#demo-art')=>page.locator(`${root} [data-actor="${actor}"] [data-part="${name}"]`).first();
 async function seek(t,studio=false){const slider=page.locator(studio?'#scene-time':'#demo-scrub');if(!studio&&await slider.isHidden())await page.locator('#bottle-review').click();await slider.fill(String(t));await slider.dispatchEvent('input');await page.waitForFunction(({t,root})=>Math.abs(+document.querySelector(root+' svg').dataset.sceneTime-t)<.03,{t,root:studio?'#art':'#demo-art'});}
-async function select(id){await page.goto(base+'/demos.html#'+id);await page.locator('#demo-art svg').waitFor();}
+async function select(id){await page.goto(base+'/demos.html?legacy=1#'+id);await page.locator('#demo-art svg').waitFor();}
 const point=async(actor,name)=>part(actor,name).evaluate(e=>{const m=e.getCTM();return {x:m.e,y:m.f};}),dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 async function snapshot(name){await page.locator('#demo-art').screenshot({path:`test-results/new-demo-${name}.png`});}
 async function download(id){const pending=page.waitForEvent('download');await page.locator('#download-demo').click();const path=`test-results/${id}-roundtrip.json`;await(await pending).saveAs(path);return assertDocument(JSON.parse(fs.readFileSync(path,'utf8')));}

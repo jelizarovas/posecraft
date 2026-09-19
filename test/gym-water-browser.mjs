@@ -7,7 +7,7 @@ import {sampleClip} from '../src/index.js';
 const base=(process.env.POSECRAFT_URL||'http://127.0.0.1:5181').replace(/\/$/,''),browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
 try{
  const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'}),errors=[];
- page.setDefaultTimeout(30000);page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/demos.html#gym-routine');
+ page.setDefaultTimeout(30000);page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/demos.html?legacy=1#gym-routine');
  const pending=page.waitForEvent('download');await page.locator('#download-demo').click();const doc=JSON.parse(await fs.readFile(await(await pending).path(),'utf8'));
  assert.equal(doc.poseBindings[0].joint,'water-bottle');
  const variants=doc.behaviorGraph.activities['drink-bar'].variants;assert.ok(variants.length>=6);assert.equal(new Set(variants.map(v=>v.when.value)).size,3);

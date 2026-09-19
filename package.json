@@ -221,6 +221,30 @@
     "./game-bindings": {
       "types": "./src/game-bindings.d.ts",
       "default": "./src/game-bindings.js"
+    },
+    "./workout-game": {
+      "types": "./src/workout-game.d.ts",
+      "default": "./src/workout-game.js"
+    },
+    "./workout-3d": {
+      "types": "./src/workout-3d.d.ts",
+      "default": "./src/workout-3d.js"
+    },
+    "./workout-project-3d": {
+      "types": "./src/workout-project-3d.d.ts",
+      "default": "./src/workout-project-3d.js"
+    },
+    "./locomotion-action-3d": {
+      "types": "./src/locomotion-action-3d.d.ts",
+      "default": "./src/locomotion-action-3d.js"
+    },
+    "./pullup-action-3d": {
+      "types": "./src/pullup-action-3d.d.ts",
+      "default": "./src/pullup-action-3d.js"
+    },
+    "./drink-action-3d": {
+      "types": "./src/drink-action-3d.d.ts",
+      "default": "./src/drink-action-3d.js"
     }
   },
   "bin": {
@@ -278,7 +302,8 @@
     "public/assets/native-3d",
     "docs/native-studio.md",
     "docs/native-3d-review.md",
-    "docs/game-api.md"
+    "docs/game-api.md",
+    "docs/workout.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -345,7 +370,9 @@
     "test:native-performance": "node test/native-bench-performance.mjs",
     "test:game": "node --test test/game.test.js test/game-bindings.test.js test/game-performance.test.js",
     "test:game-browser": "node test/game-browser.mjs",
-    "test:game-demo": "node test/game-demo-browser.mjs"
+    "test:game-demo": "node test/game-demo-browser.mjs",
+    "test:workout": "node --test test/workout*.test.js test/native-mechanical-actions.test.js",
+    "test:workout-browser": "node test/workout-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"
