@@ -1,3 +1,4 @@
+import {createHangingDynamics3D} from './hanging-dynamics-3d.js';
 import {Quaternion,Vector3} from 'three';
 import {evaluateRig3D} from './rig-3d.js';
 import {wristTargetForGrip3D,applyGripPose3D} from './grip-3d.js';
@@ -27,7 +28,7 @@ export function createPullupAction3D({rig,roles,grips={},bar,settings={}}){
  }
  if(variation!=='balanced'){add('release-hand','Let go with one hand',.45/tempo,{side:other});add('one-hand-exit','Pause before dropping',.6/tempo,{side:other});}
  add('release','Release the bar',.25/tempo);add('land','Land softly',.55/tempo);add('finish','Stand',.25/tempo);const duration=clock;
- function sample(time){
+ function plan(time){
   if(!Number.isFinite(time))throw Error('Action time must be finite.');
   const t=Math.max(0,Math.min(duration,time)),beat=beats.find(b=>t<b.end)??beats.at(-1),u=Math.max(0,Math.min(1,(t-beat.start)/(beat.end-beat.start))),phase=t===duration?'complete':beat.id.startsWith('pull-')?(beat.failed?'attempt-failed':'pull-up'):beat.id.replace(/-\d+$/,'');
   let height=0,pull=0,lean=0,asymmetry=0;const grip={left:0,right:0},f=actionSmooth(u),hanging=['hang','pull-up','attempt-failed','one-hand-entry','second-grip','rest-release','one-hand-rest','regrip','release-hand','one-hand-exit','release'].includes(phase);
@@ -56,25 +57,33 @@ export function createPullupAction3D({rig,roles,grips={},bar,settings={}}){
   }
   if(phase==='release'){grip.left*=1-f;grip.right*=1-f;lean*=1-f;height=hangHeight*(1-.2*f);}
   if(phase==='land')height=hangHeight*.8*(1-f)-.035*Math.sin(Math.PI*u)**2;
-  // Roll around the shoulder line, so the pelvis hangs toward the supporting hand.
-  // The original shoulder span and bone lengths are retained throughout the transfer.
-  const pivotY=(standing.world[context.limbs.leftArm.chain.root].position[1]+standing.world[context.limbs.rightArm.chain.root].position[1])/2-floorY;
-  const roll=new Quaternion().setFromAxisAngle(new Vector3(0,0,1),lean),rot=q.clone().multiply(roll),offset=actionPoint([0,pivotY,0]).sub(actionPoint([0,pivotY,0]).applyQuaternion(roll)).applyQuaternion(q);
-  const placement={...standingPlacement,position:actionPoint(standingPlacement.position).add(offset).add(new Vector3(0,height,0)).toArray(),rotation:rot.toArray()},world=evaluateRig3D(context.compiled,{},placement),goals=[];
+  return {t,beat,u,phase,height,pull,lean,asymmetry,grip,single,supportSide,strain,breath};
+ }
+ const inverse=q.clone().invert(),hipBind=actionPoint(standing.world[roles.pelvis].position),localHip=hipBind.clone().sub(actionPoint(position)).applyQuaternion(inverse),legLength=Math.min(context.limbs.leftLeg.length,context.limbs.rightLeg.length);
+ const dynamics=createHangingDynamics3D({duration,driver(time){const p=plan(time),sum=p.grip.left+p.grip.right,support=sum?halfGrip*(p.grip.left-p.grip.right)/sum:0;return {length:Math.max(.3,-localHip.y-p.height),offset:[support-localHip.x,localHip.z],legLength,armLength:Math.min(context.limbs.leftArm.length,context.limbs.rightArm.length),activation:Math.max(p.grip.left,p.grip.right),stiffness:[sum>1?8*(sum-1):.4,20],damping:[sum>1?1.5+2*(sum-1):.8,2.8],limits:[.36,.10]};}});
+ function sample(time){
+  const {t,beat,u,phase,height,pull,asymmetry,grip,single,supportSide,strain,breath}=plan(time),physics=dynamics.sample(t),sum=grip.left+grip.right,weight=phase==='release'?1:phase==='land'?1-actionSmooth(u):phase==='finish'||phase==='complete'||phase==='ready'?0:Math.max(grip.left,grip.right),support=sum?halfGrip*(grip.left-grip.right)/sum:variation==='balanced'?0:(other==='left'?halfGrip:-halfGrip);
+  const lean=physics.angle[0]*weight,pitch=physics.angle[1]*weight;
+  const swing=new Quaternion().setFromAxisAngle(new Vector3(0,0,1),lean).multiply(new Quaternion().setFromAxisAngle(new Vector3(1,0,0),pitch)),rot=q.clone().multiply(swing),pivot=actionPoint([support,0,0]).applyQuaternion(q).add(actionPoint(position));
+  const base=actionPoint(standingPlacement.position).add(new Vector3(0,height,0)),body=base.clone().sub(pivot).applyQuaternion(inverse).applyQuaternion(swing).applyQuaternion(q).add(pivot);
+  const placement={...standingPlacement,position:body.toArray(),rotation:rot.toArray()},world=evaluateRig3D(context.compiled,{},placement),goals=[];
   for(const side of ['left','right']){
-   const limb=context.limbs[side+'Leg'],hip=actionPoint(world[limb.chain.root].position),foot=actionPoint(standing.world[limb.chain.tip].position).sub(actionPoint(standingPlacement.position)).applyQuaternion(q.clone().invert()).applyQuaternion(roll).applyQuaternion(q).add(actionPoint(placement.position)).toArray(),ground=height<=.005;
+   const limb=context.limbs[side+'Leg'],hip=actionPoint(world[limb.chain.root].position),foot=actionPoint(standing.world[limb.chain.tip].position).sub(actionPoint(standingPlacement.position)).applyQuaternion(q.clone().invert()).applyQuaternion(swing).applyQuaternion(q).add(actionPoint(placement.position)).toArray(),ground=height<=.005;
+   if(!ground&&weight>0){const passive=new Quaternion().setFromAxisAngle(new Vector3(0,0,1),physics.legAngle[0]*weight).multiply(new Quaternion().setFromAxisAngle(new Vector3(1,0,0),physics.legAngle[1]*weight));const down=actionPoint([0,-limb.length*.975,0]).applyQuaternion(passive).applyQuaternion(q);const trailing=hip.clone().add(down);for(let i=0;i<3;i++)foot[i]=foot[i]*(1-weight)+trailing.toArray()[i]*weight;}
    const ankleRotation=rot.clone().multiply(new Quaternion().setFromAxisAngle(new Vector3(1,0,0),.36*actionSmooth(Math.max(0,height)/hangHeight))).multiply(q.clone().invert()).multiply(actionQuat(standing.world[limb.chain.tip].rotation)).toArray();
    goals.push({id:side+'Leg',target:{position:foot,rotation:ankleRotation},pole:hip.add(actionPoint([0,-.1,limb.length]).applyQuaternion(rot)).toArray(),active:ground});
   }
   const relaxed=nativeRelaxedGoals(context,world,heading);
   for(const goal of relaxed){
-   const side=goal.id.startsWith('left')?'left':'right',limb=context.limbs[goal.id],target=targets[side],weight=grip[side];goal.target.position=actionPoint(goal.target.position).lerp(actionPoint(target.position),weight).toArray();
-   goal.target.rotation=rot.clone().multiply(q.clone().invert()).multiply(actionQuat(standing.world[limb.chain.tip].rotation)).slerp(actionQuat(target.rotation),weight).toArray();
-   const shoulder=actionPoint(world[limb.chain.root].position),sign=side==='left'?1:-1,barPole=shoulder.add(actionPoint([sign*limb.length,-.15,.2+asymmetry*sign*2]).applyQuaternion(q));goal.pole=actionPoint(goal.pole).lerp(barPole,weight).toArray();goal.active=weight>=1-1e-8;goals.push(goal);
+   const side=goal.id.startsWith('left')?'left':'right',limb=context.limbs[goal.id],target=targets[side],gripWeight=grip[side];
+   const shoulderPosition=actionPoint(world[limb.chain.root].position),passive=new Quaternion().setFromAxisAngle(new Vector3(0,0,1),physics.armAngle[0]*weight).multiply(new Quaternion().setFromAxisAngle(new Vector3(1,0,0),physics.armAngle[1]*weight));
+   goal.target.position=actionPoint(goal.target.position).sub(shoulderPosition).applyQuaternion(inverse).applyQuaternion(passive).applyQuaternion(q).add(shoulderPosition).lerp(actionPoint(target.position),gripWeight).toArray();
+   goal.target.rotation=rot.clone().multiply(q.clone().invert()).multiply(actionQuat(standing.world[limb.chain.tip].rotation)).slerp(actionQuat(target.rotation),gripWeight).toArray();
+   const shoulder=actionPoint(world[limb.chain.root].position),sign=side==='left'?1:-1,barPole=shoulder.add(actionPoint([sign*limb.length,-.15,.2+asymmetry*sign*2]).applyQuaternion(q));goal.pole=actionPoint(goal.pole).lerp(barPole,gripWeight).toArray();goal.active=gripWeight>=1-1e-8;goals.push(goal);
   }
   let solved=nativeActionSolve(context,{},placement,goals);for(const side of ['left','right'])if(grips[side])solved.pose=applyGripPose3D(context.rig,solved.pose,grips[side],grip[side]);solved.world=evaluateRig3D(context.compiled,solved.pose,placement);
   if(t===0||t===duration){solved.pose=structuredClone(standingPose);solved.placement=structuredClone(standingPlacement);solved.world=evaluateRig3D(context.compiled,solved.pose,standingPlacement);}
-  return{time:t,duration,phase,rep:beat.rep??null,effort,...solved,apparatus:{type:'pullup-bar',position:[...position],rotation:[...rotation],width},outcome:beat.rep?{success:!beat.failed}:null,hang:single>0?{side:supportSide,lean}:null,exertion:{intensity:strain,breath,asymmetry,left:Math.max(0,strain+asymmetry),right:Math.max(0,strain-asymmetry)},support:{seat:false,feet:solved.contacts.filter(d=>d.id.endsWith('Leg')).map(d=>d.actual.position)}};
+  return{time:t,duration,phase,rep:beat.rep??null,effort,...solved,apparatus:{type:'pullup-bar',position:[...position],rotation:[...rotation],width},outcome:beat.rep?{success:!beat.failed}:null,hang:single>0?{side:supportSide,lean}:null,physics:{...physics,pivot:pivot.toArray(),active:weight>0},exertion:{intensity:strain,breath,asymmetry,left:Math.max(0,strain+asymmetry),right:Math.max(0,strain-asymmetry)},support:{seat:false,feet:solved.contacts.filter(d=>d.id.endsWith('Leg')).map(d=>d.actual.position)}};
  }
  return{duration,beats,sample,standingPlacement,standingPose,measurements:{hangHeight,topHeight,halfGrip,gripTargets:targets}};
 }

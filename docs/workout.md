@@ -58,3 +58,12 @@ Studio's Pull-up grip and Bench entry controls can fix a variation or vary each 
 Walking includes hip/chest counter-rotation, lateral weight shift, arm swing and head glances. Resting includes breathing and looking around. `frame.face` supplies deterministic blink, strain, tiredness and relief controls. The imported adapter uses existing named facial morphs where present and calibrated eye/brow deformations for the bundled characters. Their assets do not yet include mouth/jaw morphs; `breath`/`jawOpen` controls can drive an imported model that has them.
 
 The shared native view adds the gym's wood floor, overhead beam and two hanging lights above the equipment. Drag a shade with a mouse or finger; its cable stays taut, it swings after release, and its spotlight follows. Dragging empty space still orbits the camera. Lamp motion is transient interaction state and resets with the scene; the authored equipment positions determine the anchors. The standalone bench study retains its neutral environment.
+
+
+## Hanging dynamics
+
+Pull-ups now use a fixed-step suspended-body simulation around the loaded grip. Gravity acts on the offset between the grip and the pelvis, muscle resistance and damping oppose that torque, and angular velocity continues through grip transfers. Passive arm and leg links respond to torso acceleration with their own pendulum periods. Active palm contacts are solved against the bar after the body simulation. No limb stretches are introduced.
+
+`PullupFrame3D.physics` reports angles, angular velocities, gravity/muscle/damping contributions and the support pivot. The simulation runs at 120 Hz with cached states, so render frame rate and backwards seeking do not change the result. It runs in the existing motion worker and is included in native exports.
+
+This models suspension and passive limb motion. Repetition height remains muscle choreography; it is not a complete collision ragdoll or a force-driven lifting simulation. Grounded approach and landing still use the authored action transitions.
