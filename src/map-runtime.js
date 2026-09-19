@@ -4,13 +4,13 @@ import {assertMap,MapIndex,MapPathJob,approachTiles,projectMap,unprojectMap} fro
 const abortError=message=>Object.assign(new Error(message),{name:'AbortError'});
 const point=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y);
 const cell=p=>({x:Math.floor(p.x)+.5,y:Math.floor(p.y)+.5});
-function signature(map){let hash=2166136261;const text=JSON.stringify([map.width,map.height,map.tileSize,map.terrain,map.props,map.actors]);for(let i=0;i<text.length;i++)hash=Math.imul(hash^text.charCodeAt(i),16777619);return `map1-${map.id}-${(hash>>>0).toString(16)}-${text.length}`;}
+function signature(map){let hash=2166136261;const fields=[map.width,map.height,map.tileSize,map.terrain,map.props,map.actors];if(map.elevations!==undefined)fields.push(map.elevations);const text=JSON.stringify(fields);for(let i=0;i<text.length;i++)hash=Math.imul(hash^text.charCodeAt(i),16777619);return `map1-${map.id}-${(hash>>>0).toString(16)}-${text.length}`;}
 
 /** Logical map movement. Rendering and camera changes never affect navigation. */
 export class MapController {
  constructor(document,{execution='worker',onEvent,onError}={}){
   this.map=structuredClone(assertMap(document));this.index=new MapIndex(this.map);this.signature=signature(this.map);
-  this.actors=new Map(this.map.actors.map(a=>[a.id,{...a,facing:Math.PI/4,travelFacing:Math.PI/4,gaitWeight:0,walking:false,phase:0}]));
+  this.actors=new Map(this.map.actors.map(a=>[a.id,{...a,facing:Math.PI/4,travelFacing:Math.PI/4,gaitWeight:0,gait:'walk',running:false,walking:false,phase:0}]));
   this.actorChunks=new Map();this.actorChunkKeys=new Map();for(const actor of this.actors.values())this.indexActor(actor);
   this.objects=Object.create(null);this.active=new Map();this.listeners=new Set();this.serial=0;this.disposed=false;this.timer=null;this.onError=onError;if(onEvent)this.listeners.add(onEvent);
   this.stats={execution:'main',expanded:0,pending:0};
@@ -30,8 +30,9 @@ export class MapController {
  emit(event){for(const listener of this.listeners)try{listener(event);}catch(error){try{this.onError?.(error);}catch{}}}
  fail(error){this.failed=error;this.rejectReady?.(error);for(const job of [...this.active.values()])this.finish(job,error);this.worker?.terminate();clearTimeout(this.timer);this.timer=null;try{this.onError?.(error);}catch{}this.emit({type:'map.error',message:error.message});}
  actor(id){this.check();if(!this.actors.has(id))throw Error('Unknown map actor.');return {moveTo:(target,options)=>this.moveTo(id,target,options),cancel:()=>this.cancel(id)};}
- moveTo(id,target,{signal}={}){
+ moveTo(id,target,{signal,gait='walk'}={}){
   this.check();const actor=this.actors.get(id);if(!actor)throw Error('Unknown map actor.');
+  if(gait!=='walk'&&gait!=='run')throw TypeError('Map gait must be walk or run.');
   if(signal!==undefined&&(!signal||typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw Error('Expected AbortSignal.');
   const prop=typeof target==='string'?this.index.prop(target):null;
   if(typeof target==='string'&&!prop)throw Error('Unknown map object.');
@@ -42,8 +43,8 @@ export class MapController {
   if(this.active.size>=16&&!this.active.has(id))return Promise.reject(Error('At most 16 map movements may be active.'));
   // Reject invalid destinations before replacing a valid movement.
   const previous=this.active.get(id),request='map-'+(++this.serial);let job;
-  const promise=new Promise((resolve,reject)=>{const abort=()=>this.cancelRequest(id,request);job={actor:id,request,target:typeof target==='string'?target:cell(target),prop,goals,start:{x:actor.x,y:actor.y},resolve,reject,signal,abort,route:null,index:1,velocity:0};signal?.addEventListener('abort',abort,{once:true});this.active.set(id,job);});
-  promise.catch(()=>{});if(previous)this.finish(previous,abortError('Movement replaced.'));if(this.active.get(id)!==job)return promise;this.emit({type:'map.move.started',actor:id,request,target:job.target});
+  const promise=new Promise((resolve,reject)=>{const abort=()=>this.cancelRequest(id,request);job={actor:id,request,gait,target:typeof target==='string'?target:cell(target),prop,goals,start:{x:actor.x,y:actor.y},resolve,reject,signal,abort,route:null,index:1,velocity:0};signal?.addEventListener('abort',abort,{once:true});this.active.set(id,job);});
+  promise.catch(()=>{});if(previous)this.finish(previous,abortError('Movement replaced.'));if(this.active.get(id)!==job)return promise;actor.walking=false;actor.running=false;actor.gaitWeight=0;actor.gait=gait;this.emit({type:'map.move.started',actor:id,request,target:job.target,gait});
   this.ready.then(()=>{if(this.disposed||this.active.get(id)!==job)return;if(this.worker)this.worker.postMessage({type:'path',request,start:job.start,goals});else{job.planning=true;this.schedulePaths();}}).catch(error=>this.finish(job,error));
   return promise;
  }
@@ -74,23 +75,23 @@ export class MapController {
   if(this.active.get(job.actor)!==job)return;
   const prepared=job.preparation,actor=this.actors.get(job.actor);
   job.route=prepared.route;job.routeChunks=prepared.routeChunks;job.remaining=prepared.remaining;job.index=1;job.preparation=null;
-  actor.walking=job.route.length>1;
-  this.emit({type:'map.route.ready',actor:job.actor,request:job.request,points:job.route.length});
+  actor.walking=job.route.length>1;actor.gait=job.gait;actor.running=actor.walking&&job.gait==='run';
+  this.emit({type:'map.route.ready',actor:job.actor,request:job.request,points:job.route.length,gait:job.gait});
   if(job.route.length===1&&this.active.get(job.actor)===job)this.arrive(job);
  }
 
  cancelRequest(id,request){const job=this.active.get(id);if(job?.request===request)this.finish(job,abortError('Movement cancelled.'));}
  cancel(id){const job=this.active.get(id);if(job)this.finish(job,abortError('Movement cancelled.'));}
- finish(job,error,event){if(job.done)return;job.done=true;if(this.active.get(job.actor)===job){this.active.delete(job.actor);this.actors.get(job.actor).walking=false;this.actors.get(job.actor).gaitWeight=0;}job.signal?.removeEventListener('abort',job.abort);if(error){this.worker?.postMessage({type:'cancel',request:job.request});job.reject(error);this.emit({type:error.name==='AbortError'?'map.command.cancelled':'map.command.failed',actor:job.actor,request:job.request,message:error.message});}else{job.resolve(event);this.emit(event);}}
- arrive(job){const actor=this.actors.get(job.actor),event={type:'map.actor.arrived',actor:job.actor,request:job.request,target:job.target,x:actor.x,y:actor.y};if(job.prop?.kind==='chest')Object.defineProperty(this.objects,job.prop.id,{value:{opened:true},enumerable:true,configurable:true,writable:true});this.finish(job,null,event);if(job.prop&&!this.disposed)this.emit({type:'map.object.interacted',actor:job.actor,object:job.prop.id,kind:job.prop.kind,request:job.request});}
+ finish(job,error,event){if(job.done)return;job.done=true;if(this.active.get(job.actor)===job){this.active.delete(job.actor);Object.assign(this.actors.get(job.actor),{walking:false,running:false,gait:'walk',gaitWeight:0});}job.signal?.removeEventListener('abort',job.abort);if(error){this.worker?.postMessage({type:'cancel',request:job.request});job.reject(error);this.emit({type:error.name==='AbortError'?'map.command.cancelled':'map.command.failed',actor:job.actor,request:job.request,message:error.message});}else{job.resolve(event);this.emit(event);}}
+ arrive(job){const actor=this.actors.get(job.actor),event={type:'map.actor.arrived',actor:job.actor,request:job.request,target:job.target,x:actor.x,y:actor.y,gait:job.gait};if(job.prop?.kind==='chest')Object.defineProperty(this.objects,job.prop.id,{value:{opened:true},enumerable:true,configurable:true,writable:true});this.finish(job,null,event);if(job.prop&&!this.disposed)this.emit({type:'map.object.interacted',actor:job.actor,object:job.prop.id,kind:job.prop.kind,request:job.request});}
  advance(dt){
   this.check();if(!Number.isFinite(dt)||dt<0)throw Error('Map step must be finite and nonnegative.');dt=Math.min(dt,.1);
   for(const job of [...this.active.values()]){
    if(!job.route||this.active.get(job.actor)!==job)continue;
-   const actor=this.actors.get(job.actor),speed=actor.speed??3.5,acceleration=speed*5;
+   const actor=this.actors.get(job.actor),speed=(actor.speed??3.5)*(job.gait==='run'?1.8:1),acceleration=speed*5;
    // Each integration step covers at most .04 cells and 1/120 second. Turns
    // therefore constrain movement through curves even at the maximum speed.
-   const steps=Math.max(1,Math.ceil(dt/Math.min(1/120,.04/speed))),h=dt/steps;
+   const frequency=120*Math.max(1,Math.ceil(speed/(.04*120))),steps=Math.max(1,Math.ceil(dt*frequency)),h=dt/steps;
    let travelled=0;
    for(let n=0;n<steps&&job.index<job.route.length;n++){
     const target=job.route[job.index],direct=Math.atan2(target.y-actor.y,target.x-actor.x),ahead=angleDelta(direct,routeHeading(actor,job.route,job.index));
@@ -143,7 +144,7 @@ export class MapController {
   this.restoring=true;
   try{
    for(const job of [...this.active.values()])this.finish(job,abortError('Map restored.'));
-   for(const a of state.actors){Object.assign(this.actors.get(a.id),{x:a.x,y:a.y,facing:a.facing,travelFacing:a.facing,gaitWeight:0,walking:false,phase:0});this.indexActor(this.actors.get(a.id));}
+   for(const a of state.actors){Object.assign(this.actors.get(a.id),{x:a.x,y:a.y,facing:a.facing,travelFacing:a.facing,gaitWeight:0,gait:'walk',running:false,walking:false,phase:0});this.indexActor(this.actors.get(a.id));}
    this.objects=Object.assign(Object.create(null),state.objects);
   }finally{this.restoring=false;}
   this.emit({type:'map.restored'});return this.frame();

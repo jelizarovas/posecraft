@@ -1,6 +1,7 @@
 import type {MapDocument,MapPoint,MapIndex,MapRect,MapProp} from './map.js';
 export interface MapEvent {type:string;actor?:string;request?:string;object?:string;target?:string|MapPoint;message?:string;[key:string]:unknown}
-export interface MapFrame {actors:Array<{id:string;x:number;y:number;speed:number;color?:string;facing:number;travelFacing:number;gaitWeight:number;walking:boolean;phase:number}>;objects:Record<string,{opened:true}>;route:MapPoint[]|null;pending:number}
+export interface MapFrame {actors:Array<{id:string;x:number;y:number;speed:number;color?:string;facing:number;travelFacing:number;gaitWeight:number;gait:'walk'|'run';running:boolean;walking:boolean;phase:number}>;objects:Record<string,{opened:true}>;route:MapPoint[]|null;pending:number}
+export interface MapMoveOptions {signal?:AbortSignal;gait?:'walk'|'run'}
 export interface MapState {format:'posecraft-map-state';version:1;map:string;actors:Array<{id:string;x:number;y:number;facing:number}>;objects:Record<string,{opened:true}>}
 export interface MapOptions {execution?:'worker'|'main';onEvent?:(event:MapEvent)=>void;onError?:(error:Error)=>void}
 export class MapController {
@@ -10,7 +11,7 @@ export class MapController {
  readonly isMoving:boolean;actorPosition(id:string):MapFrame['actors'][number];advance(dt:number):void;
  visibleFrame(rect:MapRect,props?:MapProp[]):MapFrame&{routeSegments:Array<{from:MapPoint;to:MapPoint}>;candidateActors:number;candidateRouteSegments:number};
  subscribe(listener:(event:MapEvent)=>void):()=>void;
- actor(id:string):{moveTo(target:string|MapPoint,options?:{signal?:AbortSignal}):Promise<MapEvent>;cancel():void};
- moveTo(actor:string,target:string|MapPoint,options?:{signal?:AbortSignal}):Promise<MapEvent>;
+ actor(id:string):{moveTo(target:string|MapPoint,options?:MapMoveOptions):Promise<MapEvent>;cancel():void};
+ moveTo(actor:string,target:string|MapPoint,options?:MapMoveOptions):Promise<MapEvent>;
  cancel(actor:string):void;step(dt:number):MapFrame;frame():MapFrame;snapshot():MapState;restore(state:unknown):MapFrame;dispose():void;
 }

@@ -12,6 +12,8 @@ export interface MapViewStats {
   occlusionCandidates: number; maskedActors: number; scratchPixels: number;
   art: {requested: number; loaded: number; failed: number};
   totalTiles: number; totalProps: number; drawnFrames: number;
+  terrainBuilds: number; sceneryBuilds: number; paintMs: number;
+  terrainCache: {tiles: number; pixels: number; materials: number; builds: number; pending: boolean; maxPixels: number; rasterScale: number; chunks: number; completed: number; tilePixels: number; tileBuilds: number; visibleChunks: number; workingSetPixels: number};
   backingWidth: number; backingHeight: number;
   camera: {x: number; y: number; zoom: number};
   visitedChunks: number; candidateTiles: number; candidateProps: number;

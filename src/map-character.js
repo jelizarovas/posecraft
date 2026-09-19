@@ -7,12 +7,12 @@ const unit=angle=>({x:(Math.cos(angle)-Math.sin(angle))/Math.SQRT2,y:(Math.cos(a
 const finite=value=>Number.isFinite(value)?value:0;
 
 /** A planted foot moves opposite travel while its counterpart swings forward. */
-function footCycle(phase,moving){
+function footCycle(phase,moving,running=false){
   if(!moving)return{forward:0,lift:0,stance:true};
-  const cycle=((phase/TAU)%1+1)%1,stance=cycle<.6;
-  if(stance)return{forward:ROOT_DISTANCE*(.3-cycle),lift:0,stance:true};
-  const t=(cycle-.6)/.4;
-  return{forward:ROOT_DISTANCE*mix(-.3,.3,smooth(t)),lift:Math.sin(t*Math.PI)*5,stance:false};
+  const contact=running ? .42 : .6,cycle=((phase/TAU)%1+1)%1,stance=cycle<contact;
+  if(stance)return{forward:ROOT_DISTANCE*(contact/2-cycle),lift:0,stance:true};
+  const t=(cycle-contact)/(1-contact);
+  return{forward:ROOT_DISTANCE*mix(-contact/2,contact/2,smooth(t)),lift:Math.sin(t*Math.PI)*(running?8.5:5),stance:false};
 }
 
 /** Pure camera-space joints. Body yaw and translation direction are independent. */
@@ -20,17 +20,17 @@ export function sampleMapActor(actor,reduced=false){
   const facing=finite(actor.facing),travel=Number.isFinite(actor.travelFacing)?actor.travelFacing:facing;
   const forward=unit(facing),right=unit(facing+Math.PI/2),stride=unit(travel);
   const phase=finite(actor.phase),weight=Number.isFinite(actor.gaitWeight)?Math.max(0,Math.min(1,actor.gaitWeight)):1,moving=!!actor.walking&&!reduced&&weight>0;
-  const bob=moving?Math.sin(phase*2)*.65*weight:0;
-  const point=(lateral,depth,height)=>({x:right.x*lateral+forward.x*depth,y:right.y*lateral+forward.y*depth-height,depth:right.y*lateral+forward.y*depth});
+  const running=moving&&(actor.running===true||actor.gait==='run'),bob=moving?(running?1.4+Math.sin(phase*2)*1.3:Math.sin(phase*2)*.65)*weight:0;
+  const point=(lateral,depth,height)=>{depth+=(running?3.2*weight:0)*Math.max(0,Math.min(1,(height-12)/22));return{x:right.x*lateral+forward.x*depth,y:right.y*lateral+forward.y*depth-height,depth:right.y*lateral+forward.y*depth};};
   const limbs=[-1,1].map((side,i)=>{
-    const gait=footCycle(phase+i*Math.PI,moving),hip=point(side*2.7,0,14+bob);gait.forward*=weight;gait.lift*=weight;
+    const gait=footCycle(phase+i*Math.PI,moving,running),hip=point(side*2.7,0,14+bob);gait.forward*=weight;gait.lift*=weight;
     const base=point(side*2.7,0,0),foot={x:base.x+stride.x*gait.forward,y:base.y+stride.y*gait.forward-gait.lift,depth:base.depth+stride.y*gait.forward};
     // Knee pole remains ahead of the leg, including rear and profile views.
-    const knee={x:mix(hip.x,foot.x,.52)+stride.x*2.8,y:mix(hip.y,foot.y,.52)+stride.y*2.8-1.2,depth:mix(hip.depth,foot.depth,.52)+stride.y*2.8};
-    const swing=moving?-Math.sin(phase+i*Math.PI)*7*weight:0,shoulder=point(side*5.1,0,25+bob),elbow=point(side*6,swing*.55,19+bob),hand=point(side*5.8,swing,14.5+bob);
+    const bend=running?4.1:2.8,knee={x:mix(hip.x,foot.x,.52)+stride.x*bend,y:mix(hip.y,foot.y,.52)+stride.y*bend-1.2,depth:mix(hip.depth,foot.depth,.52)+stride.y*bend};
+    const swing=moving?-Math.sin(phase+i*Math.PI)*(running?10:7)*weight:0,shoulder=point(side*5.1,0,25+bob),elbow=point(side*6,swing*.55,(running?20.5:19)+bob),hand=point(side*5.8,swing,(running?22:14.5)+bob);
     return{side,gait,hip,knee,foot,shoulder,elbow,hand,depth:point(side*5.8,swing*.3,0).depth};
   });
-  return{facing,forward,right,stride,phase,moving,bob,point,limbs};
+  return{facing,forward,right,stride,phase,moving,running,bob,point,limbs};
 }
 
 function polygon(ctx,points,fill,stroke){ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=.8;ctx.stroke();}}

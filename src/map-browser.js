@@ -1,3 +1,4 @@
+import {createMapTerrainChunks} from './map-terrain-chunks.js';
 import {assertMap, projectMap, unprojectMap} from './map.js';
 import {MapController} from './map-runtime.js';
 import {drawMapActor} from './map-character.js';
@@ -12,7 +13,7 @@ function polygon(ctx,points,fill,stroke){ctx.beginPath();points.forEach(([x,y],i
 function ellipse(ctx,x,y,rx,ry,fill){ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();}
 function line(ctx,points,color,width=2){ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();}
 const grass=['#719769','#769b6d','#7b9e70','#73986a','#789c6e'];
-function tile(ctx,map,tile,art){if(drawMapTerrainTexture(ctx,map,tile,art))return;const p=projectMap(map,{x:tile.x+.5,y:tile.y+.5}),w=map.tileSize.width/2,h=map.tileSize.height/2,n=shade(tile.x,tile.y);polygon(ctx,[[p.x,p.y-h],[p.x+w,p.y],[p.x,p.y+h],[p.x-w,p.y]],tile.terrain===2?['#527f91','#548294','#598698','#568496','#517e90'][n]:tile.terrain===1?['#c6b994','#cabc98','#c3b58f','#c9bc97','#ccbf9b'][n]:tile.terrain===3?'#d6c793':grass[n]);if(tile.terrain===2){line(ctx,[[p.x-w*.22,p.y],[p.x+w*.2,p.y]],'#719dab',1);}else if(tile.terrain===0&&n===0){line(ctx,[[p.x-3,p.y+2],[p.x-4,p.y-1],[p.x-2,p.y+1],[p.x,p.y-2]],'#608357',1);}}
+function tile(ctx,map,tile,art){if(drawMapTerrainTexture(ctx,map,tile,art))return;const p=projectMap(map,{x:tile.x+.5,y:tile.y+.5}),w=map.tileSize.width/2,h=map.tileSize.height/2,n=shade(tile.x,tile.y);polygon(ctx,[[0,0],[1,0],[1,1],[0,1]].map(([x,y])=>{const q=projectMap(map,{x:tile.x+x,y:tile.y+y});return[q.x,q.y];}),tile.terrain===2?['#527f91','#548294','#598698','#568496','#517e90'][n]:tile.terrain===1?['#c6b994','#cabc98','#c3b58f','#c9bc97','#ccbf9b'][n]:tile.terrain===3?'#d6c793':grass[n]);if(tile.terrain===2){line(ctx,[[p.x-w*.22,p.y],[p.x+w*.2,p.y]],'#719dab',1);}else if(tile.terrain===0&&n===0){line(ctx,[[p.x-3,p.y+2],[p.x-4,p.y-1],[p.x-2,p.y+1],[p.x,p.y-2]],'#608357',1);}}
 function propCenter(p){return{x:p.x+p.width/2,y:p.y+p.height/2};}
 function drawProp(ctx,map,p,state,{shadow=true,art}={}){const selected=artPropSelection(map,p),image=selected&&art?.image(selected.id);if(image){const bounds=mapImageBounds(map,propCenter(p),selected.image);ctx.drawImage(image,bounds.x,bounds.y,bounds.width,bounds.height);return;}const q=projectMap(map,propCenter(p)),s=map.tileSize.width/64;ctx.save();ctx.translate(q.x,q.y);ctx.scale(s,s);if(shadow)ellipse(ctx,5,2,p.kind==='house'?38:18,p.kind==='house'?12:6,'#344e4433');
   if(p.kind==='tree'){
@@ -45,11 +46,12 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   assertMap(map);
   if(execution!=='worker'&&execution!=='main')throw TypeError('Map execution must be main or worker.');
   const doc=element.ownerDocument,win=doc.defaultView||globalThis,canvas=doc.createElement('canvas'),status=doc.createElement('div');
-  canvas.tabIndex=0;canvas.setAttribute('role','application');canvas.setAttribute('aria-label',`${map.name||'Adventure map'}. Click to move or interact. Drag to pan, scroll to zoom, arrow keys to pan, Enter to return to your character.`);
+  canvas.tabIndex=0;canvas.setAttribute('role','application');canvas.setAttribute('aria-label',`${map.name||'Adventure map'}. Click to move or interact. Double-tap or Shift-click to run. Drag to pan, scroll to zoom, arrow keys to pan, Enter to return to your character.`);
   canvas.style.cssText='display:block;width:100%;height:100%;touch-action:none;outline-offset:-3px;';status.style.cssText='position:absolute;left:12px;bottom:10px;padding:5px 8px;border-radius:6px;color:#eaf0df;background:#263b3bcc;font:11px/1.4 system-ui;pointer-events:none;';status.setAttribute('role','status');
   const originalPosition=element.style.position;if(!originalPosition||originalPosition==='static')element.style.position='relative';element.append(canvas,status);
   const ctx=canvas.getContext('2d',{alpha:false});if(!ctx){canvas.remove();status.remove();element.style.position=originalPosition;throw Error('Canvas 2D is unavailable.');}
   const media=win.matchMedia?.('(prefers-reduced-motion: reduce)'),reduced=()=>reducedMotion==='system'?!!media?.matches:!!reducedMotion;
+  const pixelRatio=()=>Math.min(win.devicePixelRatio||1,2,Math.sqrt(4*1024*1024/(width*height)));
   let disposed=false,playing=autoplay,visible=true,dirty=true,raf=0,last=null,width=1,height=1,zoom=1,drawnFrames=0,drawList=[],lastStats={};
   let camera=projectMap(map,map.actors[0]?{x:map.actors[0].x,y:map.actors[0].y}:{x:map.width/2,y:map.height/2});
   const report=error=>{if(error?.name!=='AbortError')onError?.(error);};
@@ -57,7 +59,11 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   map=controller.map;
   const definitions=new Map(map.actors.map(a=>[a.id,a]));
   const index=controller.index;
-  const art=loadMapArt(map,{document:doc,onUpdate:invalidate,onError:report});
+  let artRevision=0,terrain;
+  const art=loadMapArt(map,{document:doc,onUpdate:()=>{artRevision++;terrain?.clear();invalidate();},onError:report});
+  terrain=createMapTerrainChunks(map,doc,art,(ctx,t)=>tile(ctx,map,t,art));
+  const background=doc.createElement('canvas'),scenery=doc.createElement('canvas'),groundContext=background.getContext('2d',{alpha:false}),sceneryContext=scenery.getContext('2d');
+  let cachedView=null,cachedOcclusion=null,backgroundKey='',sceneryKey='',terrainBuilds=0,sceneryBuilds=0;
   const scratch=Array.from({length:3},()=>{const canvas=doc.createElement('canvas');canvas.width=canvas.height=1;return{canvas,ctx:canvas.getContext('2d')};});
   function drawMaskedActor(actor,foreground,bounds,dpr,objects){
     const left=Math.max(0,Math.floor(((bounds.x-camera.x)*zoom+width/2)*dpr)),top=Math.max(0,Math.floor(((bounds.y-camera.y)*zoom+height/2)*dpr));
@@ -78,32 +84,46 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   function toWorld(x,y){return{x:(x-width/2)/zoom+camera.x,y:(y-height/2)/zoom+camera.y};}
   function screenToMap(x,y){return unprojectMap(map,toWorld(x,y));}
   function mapToScreen(point){const p=projectMap(map,point);return{x:(p.x-camera.x)*zoom+width/2,y:(p.y-camera.y)*zoom+height/2};}
-  function render(now=0){const rect={x:camera.x-width/(2*zoom),y:camera.y-height/(2*zoom),width:width/zoom,height:height/zoom},view=index.visible(rect,64/zoom),frame=controller.visibleFrame(rect,view.props),dpr=Math.min(win.devicePixelRatio||1,2);
-    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#dae4d4';ctx.fillRect(0,0,width,height);ctx.translate(width/2,height/2);ctx.scale(zoom,zoom);ctx.translate(-camera.x,-camera.y);
-    for(const t of view.tiles)tile(ctx,map,t,art);
+  function render(now=0){const paintStart=performance.now(),rect={x:camera.x-width/(2*zoom),y:camera.y-height/(2*zoom),width:width/zoom,height:height/zoom},dpr=pixelRatio(),key=[camera.x,camera.y,width,height,zoom,dpr,artRevision].join(':');
+    const changed=key!==backgroundKey;
+    if(changed){cachedView=index.visible(rect,64/zoom);cachedOcclusion=new MapOcclusionIndex(map,cachedView.props,rect);}
+    const view=cachedView,frame=controller.visibleFrame(rect,view.props);
+    function prepare(buffer,c,opaque){
+      if(buffer.width!==canvas.width)buffer.width=canvas.width;if(buffer.height!==canvas.height)buffer.height=canvas.height;
+      c.setTransform(1,0,0,1,0,0);if(opaque){c.fillStyle='#dae4d4';c.fillRect(0,0,buffer.width,buffer.height);}else c.clearRect(0,0,buffer.width,buffer.height);
+      c.setTransform(dpr*zoom,0,0,dpr*zoom,dpr*(width/2-camera.x*zoom),dpr*(height/2-camera.y*zoom));
+    }
+    if(changed||terrain.stats().pending){prepare(background,groundContext,true);terrain.draw(groundContext,view.tiles,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height});backgroundKey=key;terrainBuilds++;}
+    const propsKey=key+JSON.stringify(frame.objects);
+    if(propsKey!==sceneryKey){
+      prepare(scenery,sceneryContext,false);
+      drawList=view.props.map(p=>({type:'prop',item:p,depth:p.x+p.width+p.y+p.height})).sort((a,b)=>a.depth-b.depth);
+      for(const entry of drawList)drawProp(sceneryContext,map,entry.item,frame.objects?.[entry.item.id],{art});
+      sceneryKey=propsKey;sceneryBuilds++;
+    }
+    ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(background,0,0);ctx.setTransform(dpr*zoom,0,0,dpr*zoom,dpr*(width/2-camera.x*zoom),dpr*(height/2-camera.y*zoom));
     if(frame.routeSegments?.length){ctx.save();ctx.setLineDash([3/zoom,6/zoom]);for(const segment of frame.routeSegments){const a=projectMap(map,segment.from),b=projectMap(map,segment.to);line(ctx,[[a.x,a.y],[b.x,b.y]],'#fff3ba',2/zoom);}ctx.restore();}
     const actorScale=map.tileSize.width/64;
     const actors=frame.actors.filter(a=>{const p=projectMap(map,{x:a.x,y:a.y});return p.x>rect.x-20*actorScale&&p.x<rect.x+rect.width+20*actorScale&&p.y>rect.y-8*actorScale&&p.y<rect.y+rect.height+44*actorScale;});
-    drawList=view.props.map(p=>({type:'prop',item:p,depth:projectMap(map,{x:p.x+p.width,y:p.y+p.height}).y})).sort((a,b)=>a.depth-b.depth);
-    for(const entry of drawList)drawProp(ctx,map,entry.item,frame.objects?.[entry.item.id],{art});
-    const occlusion=new MapOcclusionIndex(map,view.props,rect);let occlusionCandidates=0,maskedActors=0,scratchPixels=0;
+    ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(scenery,0,0);ctx.restore();
+    const occlusion=cachedOcclusion;let occlusionCandidates=0,maskedActors=0,scratchPixels=0;
     actors.sort((a,b)=>a.x+a.y-b.x-b.y);
     for(const actor of actors){const bounds=mapActorArtBounds(map,actor),foreground=occlusion.foreground(actor,bounds);occlusionCandidates+=foreground.candidates;if(foreground.props.length){scratchPixels=Math.max(scratchPixels,drawMaskedActor(actor,foreground.props,bounds,dpr,frame.objects));maskedActors++;}else drawMapActor(ctx,map,actor,definitions.get(actor.id),reduced());}
-    drawnFrames++;lastStats={visibleTiles:view.tiles.length,visibleProps:view.props.length,visibleActors:actors.length,candidateActors:frame.candidateActors,candidateRouteSegments:frame.candidateRouteSegments,occlusionCandidates,maskedActors,scratchPixels,art:art.stats(),totalTiles:map.width*map.height,totalProps:map.props.length,drawnFrames,backingWidth:canvas.width,backingHeight:canvas.height,camera:{...camera,zoom},...view.stats};
+    drawnFrames++;lastStats={visibleTiles:view.tiles.length,visibleProps:view.props.length,visibleActors:actors.length,candidateActors:frame.candidateActors,candidateRouteSegments:frame.candidateRouteSegments,occlusionCandidates,maskedActors,scratchPixels,art:art.stats(),totalTiles:map.width*map.height,totalProps:map.props.length,drawnFrames,terrainBuilds,sceneryBuilds,terrainCache:terrain.stats(),paintMs:performance.now()-paintStart,backingWidth:canvas.width,backingHeight:canvas.height,camera:{...camera,zoom},...view.stats};
     const statusText=`${view.tiles.length.toLocaleString()} / ${(map.width*map.height).toLocaleString()} tiles · ${view.props.length} / ${map.props.length} props in view`;if(status.textContent!==statusText)status.textContent=statusText;
-    dirty=false;
+    dirty=terrain.stats().pending;
   }
   function schedule(){if(!disposed&&!raf&&visible&&!doc.hidden&&dirty)raf=win.requestAnimationFrame(tick);}
   function tick(now){raf=0;if(disposed||!visible||doc.hidden){last=null;return;}const dt=last===null?0:Math.min((now-last)/1000,.05);last=now;if(playing&&controller.isMoving){controller.advance(dt);dirty=true;}if(dirty)render(now);if(playing&&controller.isMoving)dirty=true;schedule();if(!raf)last=null;}
   function invalidate(){dirty=true;schedule();}
-  function resize(){const r=element.getBoundingClientRect();width=Math.max(1,r.width);height=Math.max(1,r.height);const dpr=Math.min(win.devicePixelRatio||1,2);const nextWidth=Math.round(width*dpr),nextHeight=Math.round(height*dpr);if(canvas.width!==nextWidth)canvas.width=nextWidth;if(canvas.height!==nextHeight)canvas.height=nextHeight;invalidate();}
+  function resize(){const r=element.getBoundingClientRect();width=Math.max(1,r.width);height=Math.max(1,r.height);const dpr=pixelRatio();const nextWidth=Math.round(width*dpr),nextHeight=Math.round(height*dpr);if(canvas.width!==nextWidth)canvas.width=nextWidth;if(canvas.height!==nextHeight)canvas.height=nextHeight;invalidate();}
   const resizeObserver=new ResizeObserver(resize);resizeObserver.observe(element);const intersection=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;last=null;if(!visible){win.cancelAnimationFrame(raf);raf=0;}else invalidate();});intersection.observe(element);
   const visibility=()=>{last=null;if(doc.hidden){win.cancelAnimationFrame(raf);raf=0;}else invalidate();};doc.addEventListener('visibilitychange',visibility);media?.addEventListener('change',invalidate);
   function moveTo(actorId,target,options){if(disposed)return Promise.reject(Error('Map view is disposed.'));dirty=true;schedule();try{return Promise.resolve(controller.moveTo(actorId,target,options)).finally(invalidate);}catch(error){return Promise.reject(error);}}
-  const pointers=new Map();let gesture=null;
+  const pointers=new Map();let gesture=null,lastTap=null;
   const local=e=>{const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};
-  function pointerDown(e){if(e.button!==0&&e.pointerType!=='touch')return;canvas.focus({preventScroll:true});const p=local(e);pointers.set(e.pointerId,p);canvas.setPointerCapture(e.pointerId);gesture={point:p,start:p,camera:{...camera},moved:pointers.size>1};if(pointers.size===2){const [a,b]=[...pointers.values()];gesture.pinch={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom,world:toWorld((a.x+b.x)/2,(a.y+b.y)/2)};}}
-  function pointerMove(e){if(!pointers.has(e.pointerId)||!gesture)return;const p=local(e);pointers.set(e.pointerId,p);if(pointers.size===2&&gesture.pinch){const[a,b]=[...pointers.values()],pinch=gesture.pinch;zoom=clamp(pinch.zoom*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.distance),.45,2.5);camera={x:pinch.world.x-((a.x+b.x)/2-width/2)/zoom,y:pinch.world.y-((a.y+b.y)/2-height/2)/zoom};gesture.moved=true;}else{const dx=p.x-gesture.start.x,dy=p.y-gesture.start.y;if(Math.hypot(dx,dy)>4)gesture.moved=true;camera={x:gesture.camera.x-dx/zoom,y:gesture.camera.y-dy/zoom};}invalidate();}
+  function pointerDown(e){if(e.button!==0&&e.pointerType!=='touch')return;canvas.focus({preventScroll:true});const p=local(e);pointers.set(e.pointerId,p);canvas.setPointerCapture(e.pointerId);gesture={point:p,start:p,camera:{...camera},moved:pointers.size>1};if(pointers.size===2){lastTap=null;const [a,b]=[...pointers.values()];gesture.pinch={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom,world:toWorld((a.x+b.x)/2,(a.y+b.y)/2)};}}
+  function pointerMove(e){if(!pointers.has(e.pointerId)||!gesture)return;const p=local(e);pointers.set(e.pointerId,p);if(pointers.size===2&&gesture.pinch){const[a,b]=[...pointers.values()],pinch=gesture.pinch;zoom=clamp(pinch.zoom*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.distance),.45,2.5);camera={x:pinch.world.x-((a.x+b.x)/2-width/2)/zoom,y:pinch.world.y-((a.y+b.y)/2-height/2)/zoom};gesture.moved=true;lastTap=null;}else{const dx=p.x-gesture.start.x,dy=p.y-gesture.start.y;if(Math.hypot(dx,dy)>4){gesture.moved=true;lastTap=null;}camera={x:gesture.camera.x-dx/zoom,y:gesture.camera.y-dy/zoom};}invalidate();}
   const hitCanvas=doc.createElement('canvas');hitCanvas.width=hitCanvas.height=1;const hitContext=hitCanvas.getContext('2d',{willReadFrequently:true});
   function hitProp(point){const world=toWorld(point.x,point.y);for(const entry of [...drawList].reverse()){
     const selected=artPropSelection(map,entry.item),image=selected&&art.image(selected.id);
@@ -116,10 +136,10 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     }
     return entry.item;
   }return null;}
-  function pointerUp(e){if(!pointers.has(e.pointerId))return;const click=gesture&&!gesture.moved&&pointers.size===1&&e.type==='pointerup',p=local(e);pointers.delete(e.pointerId);if(click&&map.actors[0]){const prop=hitProp(p),target=screenToMap(p.x,p.y);moveTo(map.actors[0].id,prop?.id||{x:Math.floor(target.x),y:Math.floor(target.y)}).catch(report);}if(pointers.size){const point=[...pointers.values()][0];gesture={point,start:point,camera:{...camera},moved:true};}else gesture=null;}
+  function pointerUp(e){if(!pointers.has(e.pointerId))return;if(e.type==='pointercancel'||e.type==='lostpointercapture')lastTap=null;const click=gesture&&!gesture.moved&&pointers.size===1&&e.type==='pointerup',p=local(e);pointers.delete(e.pointerId);if(click&&map.actors[0]){const now=performance.now(),run=e.shiftKey||(lastTap&&now-lastTap.time<340&&Math.hypot(p.x-lastTap.x,p.y-lastTap.y)<28);lastTap=run?null:{...p,time:now};const prop=hitProp(p),target=screenToMap(p.x,p.y);moveTo(map.actors[0].id,prop?.id||{x:Math.floor(target.x),y:Math.floor(target.y)},{gait:run?'run':'walk'}).catch(report);}if(pointers.size){const point=[...pointers.values()][0];gesture={point,start:point,camera:{...camera},moved:true};}else gesture=null;}
   function wheel(e){e.preventDefault();const p=local(e),before=toWorld(p.x,p.y);zoom=clamp(zoom*Math.exp(-e.deltaY*.001),.45,2.5);camera={x:before.x-(p.x-width/2)/zoom,y:before.y-(p.y-height/2)/zoom};invalidate();}
   function focusActor(id){const actor=controller.actorPosition(id);if(!actor)throw Error(`Unknown map actor: ${id}`);camera=projectMap(map,{x:actor.x,y:actor.y});invalidate();}
   function keydown(e){const amount=(e.shiftKey?120:40)/zoom;if(e.key==='ArrowLeft')camera.x-=amount;else if(e.key==='ArrowRight')camera.x+=amount;else if(e.key==='ArrowUp')camera.y-=amount;else if(e.key==='ArrowDown')camera.y+=amount;else if(e.key==='Enter'&&map.actors[0])focusActor(map.actors[0].id);else if(e.key==='+'||e.key==='=')zoom=clamp(zoom*1.15,.45,2.5);else if(e.key==='-')zoom=clamp(zoom/1.15,.45,2.5);else return;e.preventDefault();invalidate();}
   const listeners={pointerdown:pointerDown,pointermove:pointerMove,pointerup:pointerUp,pointercancel:pointerUp,lostpointercapture:pointerUp,keydown};for(const [name,listener]of Object.entries(listeners))canvas.addEventListener(name,listener);canvas.addEventListener('wheel',wheel,{passive:false});resize();
-  return{controller,ready:art.ready,moveTo,screenToMap,mapToScreen,panTo(x,y){if(!Number.isFinite(x)||!Number.isFinite(y))throw TypeError('Map coordinates must be finite.');camera=projectMap(map,{x,y});invalidate();},zoomTo(value){if(!Number.isFinite(value))throw TypeError('Zoom must be finite.');zoom=clamp(value,.45,2.5);invalidate();},focusActor,snapshot:()=>({format:'posecraft-map-view-state',version:1,camera:{...camera,zoom},scene:controller.snapshot()}),async restore(state){if(state?.format!=='posecraft-map-view-state'||state.version!==1||!state.camera||!Number.isFinite(state.camera.x)||!Number.isFinite(state.camera.y)||!Number.isFinite(state.camera.zoom)||state.camera.zoom<.45||state.camera.zoom>2.5)throw TypeError('Invalid map view snapshot.');await controller.restore(state.scene);camera={x:state.camera.x,y:state.camera.y};zoom=state.camera.zoom;invalidate();},play(){playing=true;last=null;invalidate();},pause(){playing=false;last=null;win.cancelAnimationFrame(raf);raf=0;if(dirty)schedule();},stats:()=>({...lastStats}),dispose(){if(disposed)return;disposed=true;win.cancelAnimationFrame(raf);resizeObserver.disconnect();intersection.disconnect();doc.removeEventListener('visibilitychange',visibility);media?.removeEventListener('change',invalidate);for(const[name,listener]of Object.entries(listeners))canvas.removeEventListener(name,listener);canvas.removeEventListener('wheel',wheel);controller.dispose();art.dispose();for(const buffer of scratch)buffer.canvas.width=buffer.canvas.height=1;canvas.width=canvas.height=1;canvas.remove();status.remove();element.style.position=originalPosition;}};
+  return{controller,ready:art.ready,moveTo,screenToMap,mapToScreen,panTo(x,y){if(!Number.isFinite(x)||!Number.isFinite(y))throw TypeError('Map coordinates must be finite.');camera=projectMap(map,{x,y});invalidate();},zoomTo(value){if(!Number.isFinite(value))throw TypeError('Zoom must be finite.');zoom=clamp(value,.45,2.5);invalidate();},focusActor,snapshot:()=>({format:'posecraft-map-view-state',version:1,camera:{...camera,zoom},scene:controller.snapshot()}),async restore(state){if(state?.format!=='posecraft-map-view-state'||state.version!==1||!state.camera||!Number.isFinite(state.camera.x)||!Number.isFinite(state.camera.y)||!Number.isFinite(state.camera.zoom)||state.camera.zoom<.45||state.camera.zoom>2.5)throw TypeError('Invalid map view snapshot.');await controller.restore(state.scene);camera={x:state.camera.x,y:state.camera.y};zoom=state.camera.zoom;invalidate();},play(){playing=true;last=null;invalidate();},pause(){playing=false;last=null;win.cancelAnimationFrame(raf);raf=0;if(dirty)schedule();},stats:()=>({...lastStats}),dispose(){if(disposed)return;disposed=true;win.cancelAnimationFrame(raf);resizeObserver.disconnect();intersection.disconnect();doc.removeEventListener('visibilitychange',visibility);media?.removeEventListener('change',invalidate);for(const[name,listener]of Object.entries(listeners))canvas.removeEventListener(name,listener);canvas.removeEventListener('wheel',wheel);controller.dispose();art.dispose();terrain.dispose();background.width=background.height=scenery.width=scenery.height=1;for(const buffer of scratch)buffer.canvas.width=buffer.canvas.height=1;canvas.width=canvas.height=1;canvas.remove();status.remove();element.style.position=originalPosition;}};
 }

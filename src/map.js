@@ -1,4 +1,5 @@
-import {artPropSelection,mapImageBounds} from './map-art-layout.js';
+import {artPropSelection,mapImageBounds,groundHeight} from './map-art-layout.js';
+export {groundHeight} from './map-art-layout.js';
 
 /** Serializable isometric maps. Coordinates are cells; renderers use projected pixels. */
 const integer = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
@@ -38,6 +39,15 @@ export function assertMap(map) {
   if (!integer(map.width, 1, 512) || !integer(map.height, 1, 512)) fail('dimensions must be integers between 1 and 512');
   if (!Number.isSafeInteger(map.seed)) fail('seed must be a safe integer');
   if (map.art !== undefined) assertArt(map.art, fail);
+  if(map.elevations!==undefined){
+    const stride=map.width+1;
+    if(!Array.isArray(map.elevations)||map.elevations.length!==stride*(map.height+1))fail('elevations require one height per grid vertex');
+    for(let i=0;i<map.elevations.length;i++){
+      const h=map.elevations[i];
+      if(!Number.isFinite(h)||h < -16||h > 16)fail('elevations must be finite and between -16 and 16');
+      if((i%stride&&Math.abs(h-map.elevations[i-1])>.400000001)||(i>=stride&&Math.abs(h-map.elevations[i-stride])>.400000001))fail('adjacent elevations may differ by at most 0.4');
+    }
+  }
   if (!map.tileSize || !Number.isFinite(map.tileSize.width) || !Number.isFinite(map.tileSize.height)) fail('tileSize is required');
   if (!integer(map.tileSize.width, 8, 512) || !integer(map.tileSize.height, 4, 256)) fail('invalid tileSize');
   if (!Array.isArray(map.terrain) || map.terrain.length !== map.width * map.height) fail('terrain must contain one valid terrain value per cell');
@@ -66,16 +76,42 @@ export function assertMap(map) {
 }
 
 export function projectMap(map, p) {
-  return { x: (p.x - p.y) * map.tileSize.width / 2, y: (p.x + p.y) * map.tileSize.height / 2 };
+  return { x: (p.x - p.y) * map.tileSize.width / 2, y: (p.x + p.y) * map.tileSize.height / 2 - (p.z ?? groundHeight(map,p)) * map.tileSize.height };
 }
 
+function flatUnproject(map,p){return { x: p.x / map.tileSize.width + p.y / map.tileSize.height, y: p.y / map.tileSize.height - p.x / map.tileSize.width };}
 export function unprojectMap(map, p) {
-  return { x: p.x / map.tileSize.width + p.y / map.tileSize.height, y: p.y / map.tileSize.height - p.x / map.tileSize.width };
+  if(!map.elevations)return flatUnproject(map,p);
+  // The slope constraint makes projected Y monotonic along this viewing ray.
+  // All valid heights fit this bracket; fixed iterations also bound picking work.
+  const difference=2*p.x/map.tileSize.width,base=2*p.y/map.tileSize.height;
+  let low=base-32,high=base+32;
+  for(let i=0;i<44;i++){
+    const sum=(low+high)/2,q={x:(sum+difference)/2,y:(sum-difference)/2};
+    if(sum/2-groundHeight(map,q)>p.y/map.tileSize.height)high=sum;else low=sum;
+  }
+  const sum=(low+high)/2;return {x:(sum+difference)/2,y:(sum-difference)/2};
+}
+
+function generatedElevations(map){
+  const stride=map.width+1,rows=map.height+1,count=stride*rows,distances=new Float64Array(count).fill(Infinity);
+  const flatten=(x,y,w,h)=>{for(let j=y;j<=y+h;j++)distances.fill(0,j*stride+x,j*stride+x+w+1);};
+  for(let y=0;y<map.height;y++)for(let x=0;x<map.width;x++)if(map.terrain[y*map.width+x]===1||map.terrain[y*map.width+x]===2)flatten(x,y,1,1);
+  for(const p of map.props)if(p.kind==='house'||p.kind==='chest')flatten(p.x,p.y,p.width,p.height);
+  // Distance to a level road, lake or prop foundation sets the shoulder width.
+  for(let y=0;y<rows;y++)for(let x=0;x<stride;x++){const i=y*stride+x;if(x)distances[i]=Math.min(distances[i],distances[i-1]+1);if(y)distances[i]=Math.min(distances[i],distances[i-stride]+1);}
+  for(let y=rows-1;y>=0;y--)for(let x=stride-1;x>=0;x--){const i=y*stride+x;if(x+1<stride)distances[i]=Math.min(distances[i],distances[i+1]+1);if(y+1<rows)distances[i]=Math.min(distances[i],distances[i+stride]+1);}
+  const phase=(map.seed>>>0)%1000*.017,heights=new Array(count);
+  for(let y=0;y<rows;y++)for(let x=0;x<stride;x++){
+    const raw=1.8*Math.sin(x/15+phase)*Math.cos(y/17-phase)+.6*Math.sin((x+y)/23+phase),limit=distances[y*stride+x]*.22;
+    heights[y*stride+x]=limit===0?0:clamp(raw,-limit,limit);
+  }
+  return heights;
 }
 
 /** Seeded scenery with unobstructed roads and reachable village interactions. */
-export function generateMap({ width = 128, height = 128, seed = 1 } = {}) {
-  if (!integer(width, 8, 512) || !integer(height, 8, 512) || !Number.isSafeInteger(seed)) throw new TypeError('Invalid map generation dimensions or seed');
+export function generateMap({ width = 128, height = 128, seed = 1, elevation = false } = {}) {
+  if (!integer(width, 8, 512) || !integer(height, 8, 512) || !Number.isSafeInteger(seed) || typeof elevation!=='boolean') throw new TypeError('Invalid map generation dimensions or seed');
   let state = seed >>> 0;
   const random = () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 4294967296; };
   const cx = Math.floor(width / 2), cy = Math.floor(height / 2);
@@ -104,7 +140,9 @@ export function generateMap({ width = 128, height = 128, seed = 1 } = {}) {
   const house = { id: 'village-house', kind: 'house', x: Math.min(width - 2, cx + 2), y: Math.max(0, cy - 3), width: 2, height: 2 };
   const chest = { id: 'village-chest', kind: 'chest', x: Math.max(0, cx - 3), y: Math.min(height - 1, cy + 2), width: 1, height: 1 };
   props.push(house, chest);
-  return assertMap({ format: 'posecraft-map', version: 1, id: `map-${seed}`, name: 'The wandering wood', width, height, seed, tileSize: { width: 72, height: 36 }, terrain, props, actors: [{ id: 'hero', x: cx + .5, y: cy + .5, speed: 3.2, color: '#8665be' }] });
+  const map={ format: 'posecraft-map', version: 1, id: `map-${seed}`, name: 'The wandering wood', width, height, seed, tileSize: { width: 72, height: 36 }, terrain, props, actors: [{ id: 'hero', x: cx + .5, y: cy + .5, speed: 3.2, color: '#8665be' }] };
+  if(elevation)map.elevations=generatedElevations(map);
+  return assertMap(map);
 }
 
 /** Rebuild after terrain/footprint edits. No per-frame traversal of the map or all props. */
@@ -119,6 +157,8 @@ export class MapIndex {
     this.blocked = new Uint8Array(map.width * map.height);
     const tw=map.tileSize.width,th=map.tileSize.height,scale=tw/64;
     this.artBounds=new Map();
+    this.minElevation=map.elevations?.[0]??0;this.maxElevation=this.minElevation;
+    for(const height of map.elevations||[]){this.minElevation=Math.min(this.minElevation,height);this.maxElevation=Math.max(this.maxElevation,height);}
     this.propReach={left:0,right:0,top:0,bottom:0};
     // Terrain images repeat on the ground plane and remain clipped to tiles.
     this.tileBounds=Array.from({length:4},()=>({x:-tw/2,y:-th/2,width:tw,height:th}));
@@ -151,8 +191,8 @@ export class MapIndex {
     const map = this.map;
     const view = { x: rect.x - overscan, y: rect.y - overscan, width: rect.width + overscan * 2, height: rect.height + overscan * 2 };
     const range=reach=>{
-      const left=view.x-reach.right,right=view.x+view.width+reach.left,top=view.y-reach.bottom,bottom=view.y+view.height+reach.top;
-      const corners=[{x:left,y:top},{x:right,y:top},{x:left,y:bottom},{x:right,y:bottom}].map(p=>unprojectMap(map,p));
+      const left=view.x-reach.right,right=view.x+view.width+reach.left,top=view.y-reach.bottom+this.minElevation*map.tileSize.height,bottom=view.y+view.height+reach.top+this.maxElevation*map.tileSize.height;
+      const corners=[{x:left,y:top},{x:right,y:top},{x:left,y:bottom},{x:right,y:bottom}].map(p=>flatUnproject(map,p));
       return {
         minX:clamp(Math.floor(Math.min(...corners.map(p=>p.x))),0,map.width-1),maxX:clamp(Math.ceil(Math.max(...corners.map(p=>p.x))),0,map.width-1),
         minY:clamp(Math.floor(Math.min(...corners.map(p=>p.y))),0,map.height-1),maxY:clamp(Math.ceil(Math.max(...corners.map(p=>p.y))),0,map.height-1),
@@ -164,8 +204,15 @@ export class MapIndex {
     const tileRange=range(this.tileReach);
     for (let y = tileRange.minY; y <= tileRange.maxY; y++) for (let x = tileRange.minX; x <= tileRange.maxX; x++) {
       stats.candidateTiles++;
-      const terrain=map.terrain[y*map.width+x],p = projectMap(map, { x: x + .5, y: y + .5 }),bounds=this.tileBounds[terrain];
-      if (intersects(p.x+bounds.x,p.y+bounds.y,p.x+bounds.x+bounds.width,p.y+bounds.y+bounds.height)) tiles.push({ x, y, terrain });
+      const terrain=map.terrain[y*map.width+x];
+      if(map.elevations){
+        const i=y*(map.width+1)+x,h=map.elevations,base=(x+y)*map.tileSize.height/2,th=map.tileSize.height;
+        const a=base-h[i]*th,b=base+th/2-h[i+1]*th,c=base+th-h[i+map.width+2]*th,d=base+th/2-h[i+map.width+1]*th;
+        if(intersects((x-y-1)*map.tileSize.width/2,Math.min(a,b,c,d),(x-y+1)*map.tileSize.width/2,Math.max(a,b,c,d)))tiles.push({x,y,terrain});
+      }else{
+        const p=projectMap(map,{x:x+.5,y:y+.5}),bounds=this.tileBounds[terrain];
+        if(intersects(p.x+bounds.x,p.y+bounds.y,p.x+bounds.x+bounds.width,p.y+bounds.y+bounds.height))tiles.push({x,y,terrain});
+      }
     }
     const propRange=range(this.propReach);
     for (let cy = Math.floor(propRange.minY / this.chunkSize); cy <= Math.floor(propRange.maxY / this.chunkSize); cy++) for (let cx = Math.floor(propRange.minX / this.chunkSize); cx <= Math.floor(propRange.maxX / this.chunkSize); cx++) {

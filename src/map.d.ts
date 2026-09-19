@@ -24,6 +24,9 @@ export interface MapDocument {
   tileSize: { width: number; height: number };
   /** Row-major values: 0 grass, 1 path, 2 impassable water, 3 sand. */
   terrain: number[];
+  /** Optional row-major grid vertices, (width+1)*(height+1). Units are tile-height pixels upward.
+   * Heights lie between -16 and 16; adjacent vertices differ by at most 0.4. */
+  elevations?: number[];
   props: MapProp[];
   actors: MapActor[];
   art?: MapArt;
@@ -41,14 +44,20 @@ export interface MapPathResult {
   visited: number;
 }
 export function assertMap(map: unknown): MapDocument;
-export function generateMap(options?: { width?: number; height?: number; seed?: number }): MapDocument;
-export function projectMap(map: MapDocument, point: MapPoint): MapPoint;
+export function generateMap(options?: { width?: number; height?: number; seed?: number; elevation?: boolean }): MapDocument;
+/** Piecewise-linear height using each cell's NW-SE diagonal; edge heights extend outside the map. */
+export function groundHeight(map: MapDocument, point: MapPoint): number;
+/** Uses terrain height unless point.z explicitly supplies a height in the same units. */
+export function projectMap(map: MapDocument, point: MapPoint & { z?: number }): MapPoint;
+/** Picks the unique continuous ground point under a projected pixel, including hills and dips. */
 export function unprojectMap(map: MapDocument, point: MapPoint): MapPoint;
 /** Static terrain and prop index. Rebuild after terrain or footprint edits. */
 export class MapIndex {
   constructor(map: MapDocument, options?: { chunkSize?: number });
   readonly map: MapDocument;
   readonly chunkSize: number;
+  readonly minElevation: number;
+  readonly maxElevation: number;
   isBlocked(x: number, y: number): boolean;
   prop(id: string): MapProp | undefined;
   /** Projected world-pixel viewport. Includes conservative tall-prop bounds. */

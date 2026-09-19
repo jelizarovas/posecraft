@@ -19,4 +19,4 @@ export const woodlandArt={
 };
 
 export function withWoodlandArt(map){return {...map,art:map.art??structuredClone(woodlandArt)};}
-export function createWoodlandMap(options){return withWoodlandArt(generateMap(options));}
+export function createWoodlandMap(options){const map=generateMap({elevation:true,...options});map.tileSize={width:36,height:18};return withWoodlandArt(map);}
