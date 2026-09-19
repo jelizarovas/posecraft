@@ -31,7 +31,9 @@ Grid X and Y are ground-plane coordinates. A tile occupies `[x, x + 1] × [y, y 
 
 `projectMap` and `unprojectMap` convert grid coordinates to isometric world pixels and back. `view.mapToScreen(point)` and `view.screenToMap(x, y)` additionally apply the camera and zoom. Screen coordinates use canvas-local CSS pixels.
 
-`MapIndex` groups terrain and prop references into chunks. Each render queries chunks intersecting the camera rectangle, plus a margin for tall artwork and near-edge tiles. Props and actors share a ground-depth draw order. Static scenery is code-drawn vector artwork: grass, paths, water, sand, trees, rocks, chests and cottages.
+`MapIndex` groups terrain and prop references into chunks. Each render queries chunks intersecting the camera rectangle, plus a margin for tall artwork and near-edge tiles. Actor occlusion uses prop footprints, so someone outside a building's front wall remains in front even beside its door. When scenery hides a character, a tinted silhouette appears only inside the foreground artwork's opaque pixels. Ground shadows do not occlude characters. Static scenery is code-drawn vector artwork: grass, paths, water, sand, trees, rocks, chests and cottages.
+
+Walking uses rounded route corners with continuous obstacle-clearance checks. Body yaw turns at a bounded rate, and reversing direction turns the character before travel. The procedural adventurer projects its limbs and feet in the direction of travel, with front, profile and rear views. Gait phase follows distance travelled rather than a timer.
 
 `view.stats()` exposes visible and total tile/prop counts, candidate counts, visited chunks, backing dimensions and drawn frames. These measure the work performed. They are not estimates derived only from camera area.
 

@@ -1,6 +1,6 @@
 import type {MapDocument,MapPoint,MapIndex,MapRect,MapProp} from './map.js';
 export interface MapEvent {type:string;actor?:string;request?:string;object?:string;target?:string|MapPoint;message?:string;[key:string]:unknown}
-export interface MapFrame {actors:Array<{id:string;x:number;y:number;speed:number;color?:string;facing:number;walking:boolean;phase:number}>;objects:Record<string,{opened:true}>;route:MapPoint[]|null;pending:number}
+export interface MapFrame {actors:Array<{id:string;x:number;y:number;speed:number;color?:string;facing:number;travelFacing:number;gaitWeight:number;walking:boolean;phase:number}>;objects:Record<string,{opened:true}>;route:MapPoint[]|null;pending:number}
 export interface MapState {format:'posecraft-map-state';version:1;map:string;actors:Array<{id:string;x:number;y:number;facing:number}>;objects:Record<string,{opened:true}>}
 export interface MapOptions {execution?:'worker'|'main';onEvent?:(event:MapEvent)=>void;onError?:(error:Error)=>void}
 export class MapController {

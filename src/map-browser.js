@@ -1,5 +1,7 @@
 import {assertMap, projectMap, unprojectMap} from './map.js';
 import {MapController} from './map-runtime.js';
+import {drawMapActor} from './map-character.js';
+import {MapOcclusionIndex, mapActorArtBounds} from './map-depth.js';
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const shade=(x,y)=>((Math.imul(x+17,73856093)^Math.imul(y+31,19349663))>>>0)%5;
@@ -9,7 +11,7 @@ function line(ctx,points,color,width=2){ctx.beginPath();points.forEach(([x,y],i)
 const grass=['#719769','#769b6d','#7b9e70','#73986a','#789c6e'];
 function tile(ctx,map,tile){const p=projectMap(map,{x:tile.x+.5,y:tile.y+.5}),w=map.tileSize.width/2,h=map.tileSize.height/2,n=shade(tile.x,tile.y);polygon(ctx,[[p.x,p.y-h],[p.x+w,p.y],[p.x,p.y+h],[p.x-w,p.y]],tile.terrain===2?['#527f91','#548294','#598698','#568496','#517e90'][n]:tile.terrain===1?['#c6b994','#cabc98','#c3b58f','#c9bc97','#ccbf9b'][n]:tile.terrain===3?'#d6c793':grass[n]);if(tile.terrain===2){line(ctx,[[p.x-w*.22,p.y],[p.x+w*.2,p.y]],'#719dab',1);}else if(tile.terrain===0&&n===0){line(ctx,[[p.x-3,p.y+2],[p.x-4,p.y-1],[p.x-2,p.y+1],[p.x,p.y-2]],'#608357',1);}}
 function propCenter(p){return{x:p.x+p.width/2,y:p.y+p.height/2};}
-function drawProp(ctx,map,p,state){const q=projectMap(map,propCenter(p)),s=map.tileSize.width/64;ctx.save();ctx.translate(q.x,q.y);ctx.scale(s,s);ellipse(ctx,5,2,p.kind==='house'?38:18,p.kind==='house'?12:6,'#344e4433');
+function drawProp(ctx,map,p,state,{shadow=true}={}){const q=projectMap(map,propCenter(p)),s=map.tileSize.width/64;ctx.save();ctx.translate(q.x,q.y);ctx.scale(s,s);if(shadow)ellipse(ctx,5,2,p.kind==='house'?38:18,p.kind==='house'?12:6,'#344e4433');
   if(p.kind==='tree'){
     polygon(ctx,[[-4,0],[-5,-35],[4,-36],[6,0]],'#745640');line(ctx,[[0,-10],[0,-34],[13,-43]],'#a07b50',2);
     polygon(ctx,[[-26,-34],[-18,-49],[-15,-59],[-5,-69],[6,-66],[16,-54],[22,-40],[17,-28],[2,-25],[-15,-27]],'#355c49','#2e5342');
@@ -34,20 +36,6 @@ function drawProp(ctx,map,p,state){const q=projectMap(map,propCenter(p)),s=map.t
   }
   ctx.restore();
 }
-function drawActor(ctx,map,a,definition,reduced){const p=projectMap(map,{x:a.x,y:a.y}),s=map.tileSize.width/64,phase=Number(a.phase)||0,walking=a.walking&&!reduced,step=walking?Math.sin(phase):0,bob=walking?Math.abs(Math.cos(phase))*1.8:0;
-  const facing=a.facing,angle=typeof facing==='number'?facing:typeof facing==='object'?Math.atan2(facing.y,facing.x):0,dx=Math.cos(angle)-Math.sin(angle),dy=Math.cos(angle)+Math.sin(angle),side=dx<0?-1:1,back=dy<-.2;
-  ctx.save();ctx.translate(p.x,p.y);ctx.scale(s,s);ellipse(ctx,1,1,9,3,'#213d3d38');
-  line(ctx,[[-3,-12],[-4-step*3,-5],[-4-step*4,0]],'#364652',4);line(ctx,[[3,-12],[4+step*3,-5],[4+step*4,0]],'#42535b',4);line(ctx,[[-5-step*4,0],[-2-step*4,0]],'#283b40',3);line(ctx,[[3+step*4,0],[7+step*4,0]],'#283b40',3);
-  ctx.translate(0,-bob);const color=definition?.color||'#8a597b';
-  line(ctx,[[-5,-23],[-8,-17+step*3],[-7,-12+step*4]],'#d6ab7e',3.5);
-  polygon(ctx,[[-5,-27],[5,-27],[7,-12],[-7,-12]],color,'#444846');polygon(ctx,[[-5,-25],[-1,-25],[-2,-12],[-7,-12]],'#ffffff18');
-  if(back){polygon(ctx,[[-5,-25],[4,-24],[5,-15],[-5,-16]],'#b18b55','#6c664c');line(ctx,[[-4,-24],[3,-23]],'#d1b176',2);}else{line(ctx,[[-4,-25],[4,-15]],'#d2ae73',2);}
-  line(ctx,[[5,-23],[8,-17-step*3],[8,-12-step*4]],'#e2b88b',3.5);
-  ellipse(ctx,side*.6,-31,6,7,'#e5bf90');polygon(ctx,[[-6,-34],[-3,-39],[4,-38],[7,-33],[3,-33],[0,-35],[-5,-31]],'#534b3f');
-  if(!back){ellipse(ctx,side*3,-31,1,1.3,'#37433e');line(ctx,[[side*3,-27],[side*4,-27]],'#a76d54',1);}else{polygon(ctx,[[-6,-34],[5,-35],[5,-28],[-4,-27]],'#534b3f');}
-  ctx.restore();
-}
-
 /** Mount a viewport-sized map. Offscreen tiles and props never enter the draw list. */
 export function mountMap(element,map,{onEvent,onError,execution='worker',autoplay=true,reducedMotion='system'}={}){
   if(!element?.appendChild)throw new TypeError('mountMap needs a DOM element.');
@@ -66,6 +54,23 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   map=controller.map;
   const definitions=new Map(map.actors.map(a=>[a.id,a]));
   const index=controller.index;
+  const scratch=Array.from({length:3},()=>{const canvas=doc.createElement('canvas');canvas.width=canvas.height=1;return{canvas,ctx:canvas.getContext('2d')};});
+  function drawMaskedActor(actor,foreground,bounds,dpr,objects){
+    const left=Math.max(0,Math.floor(((bounds.x-camera.x)*zoom+width/2)*dpr)),top=Math.max(0,Math.floor(((bounds.y-camera.y)*zoom+height/2)*dpr));
+    const right=Math.min(canvas.width,Math.ceil(((bounds.x+bounds.width-camera.x)*zoom+width/2)*dpr)),bottom=Math.min(canvas.height,Math.ceil(((bounds.y+bounds.height-camera.y)*zoom+height/2)*dpr));
+    if(right<=left||bottom<=top)return 0;
+    for(const buffer of scratch){if(buffer.canvas.width!==right-left)buffer.canvas.width=right-left;if(buffer.canvas.height!==bottom-top)buffer.canvas.height=bottom-top;buffer.ctx.setTransform(1,0,0,1,0,0);buffer.ctx.globalCompositeOperation='source-over';buffer.ctx.clearRect(0,0,right-left,bottom-top);buffer.ctx.setTransform(dpr*zoom,0,0,dpr*zoom,dpr*(width/2-camera.x*zoom)-left,dpr*(height/2-camera.y*zoom)-top);}
+    const [body,mask,silhouette]=scratch;
+    drawMapActor(body.ctx,map,actor,definitions.get(actor.id),reduced());
+    drawMapActor(silhouette.ctx,map,actor,definitions.get(actor.id),reduced(),{shadow:false});
+    for(const prop of foreground)drawProp(mask.ctx,map,prop,objects?.[prop.id],{shadow:false});
+    for(const buffer of scratch)buffer.ctx.setTransform(1,0,0,1,0,0);
+    body.ctx.globalCompositeOperation='destination-out';body.ctx.drawImage(mask.canvas,0,0);
+    silhouette.ctx.globalCompositeOperation='source-in';silhouette.ctx.fillStyle='#e7f4c5';silhouette.ctx.fillRect(0,0,right-left,bottom-top);
+    silhouette.ctx.globalCompositeOperation='destination-in';silhouette.ctx.drawImage(mask.canvas,0,0);
+    ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(body.canvas,left,top);ctx.globalAlpha=.66;ctx.drawImage(silhouette.canvas,left,top);ctx.restore();
+    return (right-left)*(bottom-top)*3;
+  }
   function toWorld(x,y){return{x:(x-width/2)/zoom+camera.x,y:(y-height/2)/zoom+camera.y};}
   function screenToMap(x,y){return unprojectMap(map,toWorld(x,y));}
   function mapToScreen(point){const p=projectMap(map,point);return{x:(p.x-camera.x)*zoom+width/2,y:(p.y-camera.y)*zoom+height/2};}
@@ -75,16 +80,19 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     if(frame.routeSegments?.length){ctx.save();ctx.setLineDash([3/zoom,6/zoom]);for(const segment of frame.routeSegments){const a=projectMap(map,segment.from),b=projectMap(map,segment.to);line(ctx,[[a.x,a.y],[b.x,b.y]],'#fff3ba',2/zoom);}ctx.restore();}
     const actorScale=map.tileSize.width/64;
     const actors=frame.actors.filter(a=>{const p=projectMap(map,{x:a.x,y:a.y});return p.x>rect.x-20*actorScale&&p.x<rect.x+rect.width+20*actorScale&&p.y>rect.y-8*actorScale&&p.y<rect.y+rect.height+44*actorScale;});
-    drawList=[...view.props.map(p=>({type:'prop',item:p,depth:projectMap(map,{x:p.x+p.width,y:p.y+p.height}).y})),...actors.map(a=>({type:'actor',item:a,depth:projectMap(map,{x:a.x,y:a.y}).y}))].sort((a,b)=>a.depth-b.depth||(a.type==='prop'?-1:1));
-    for(const entry of drawList)if(entry.type==='prop')drawProp(ctx,map,entry.item,frame.objects?.[entry.item.id]);else drawActor(ctx,map,entry.item,definitions.get(entry.item.id),reduced());
-    drawnFrames++;lastStats={visibleTiles:view.tiles.length,visibleProps:view.props.length,visibleActors:actors.length,candidateActors:frame.candidateActors,candidateRouteSegments:frame.candidateRouteSegments,totalTiles:map.width*map.height,totalProps:map.props.length,drawnFrames,backingWidth:canvas.width,backingHeight:canvas.height,camera:{...camera,zoom},...view.stats};
+    drawList=view.props.map(p=>({type:'prop',item:p,depth:projectMap(map,{x:p.x+p.width,y:p.y+p.height}).y})).sort((a,b)=>a.depth-b.depth);
+    for(const entry of drawList)drawProp(ctx,map,entry.item,frame.objects?.[entry.item.id]);
+    const occlusion=new MapOcclusionIndex(map,view.props,rect);let occlusionCandidates=0,maskedActors=0,scratchPixels=0;
+    actors.sort((a,b)=>a.x+a.y-b.x-b.y);
+    for(const actor of actors){const bounds=mapActorArtBounds(map,actor),foreground=occlusion.foreground(actor,bounds);occlusionCandidates+=foreground.candidates;if(foreground.props.length){scratchPixels=Math.max(scratchPixels,drawMaskedActor(actor,foreground.props,bounds,dpr,frame.objects));maskedActors++;}else drawMapActor(ctx,map,actor,definitions.get(actor.id),reduced());}
+    drawnFrames++;lastStats={visibleTiles:view.tiles.length,visibleProps:view.props.length,visibleActors:actors.length,candidateActors:frame.candidateActors,candidateRouteSegments:frame.candidateRouteSegments,occlusionCandidates,maskedActors,scratchPixels,totalTiles:map.width*map.height,totalProps:map.props.length,drawnFrames,backingWidth:canvas.width,backingHeight:canvas.height,camera:{...camera,zoom},...view.stats};
     const statusText=`${view.tiles.length.toLocaleString()} / ${(map.width*map.height).toLocaleString()} tiles · ${view.props.length} / ${map.props.length} props in view`;if(status.textContent!==statusText)status.textContent=statusText;
     dirty=false;
   }
   function schedule(){if(!disposed&&!raf&&visible&&!doc.hidden&&dirty)raf=win.requestAnimationFrame(tick);}
   function tick(now){raf=0;if(disposed||!visible||doc.hidden){last=null;return;}const dt=last===null?0:Math.min((now-last)/1000,.05);last=now;if(playing&&controller.isMoving){controller.advance(dt);dirty=true;}if(dirty)render(now);if(playing&&controller.isMoving)dirty=true;schedule();if(!raf)last=null;}
   function invalidate(){dirty=true;schedule();}
-  function resize(){const r=element.getBoundingClientRect();width=Math.max(1,r.width);height=Math.max(1,r.height);const dpr=Math.min(win.devicePixelRatio||1,2);canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);invalidate();}
+  function resize(){const r=element.getBoundingClientRect();width=Math.max(1,r.width);height=Math.max(1,r.height);const dpr=Math.min(win.devicePixelRatio||1,2);const nextWidth=Math.round(width*dpr),nextHeight=Math.round(height*dpr);if(canvas.width!==nextWidth)canvas.width=nextWidth;if(canvas.height!==nextHeight)canvas.height=nextHeight;invalidate();}
   const resizeObserver=new ResizeObserver(resize);resizeObserver.observe(element);const intersection=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;last=null;if(!visible){win.cancelAnimationFrame(raf);raf=0;}else invalidate();});intersection.observe(element);
   const visibility=()=>{last=null;if(doc.hidden){win.cancelAnimationFrame(raf);raf=0;}else invalidate();};doc.addEventListener('visibilitychange',visibility);media?.addEventListener('change',invalidate);
   function moveTo(actorId,target,options){if(disposed)return Promise.reject(Error('Map view is disposed.'));dirty=true;schedule();try{return Promise.resolve(controller.moveTo(actorId,target,options)).finally(invalidate);}catch(error){return Promise.reject(error);}}
@@ -98,5 +106,5 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   function focusActor(id){const actor=controller.actorPosition(id);if(!actor)throw Error(`Unknown map actor: ${id}`);camera=projectMap(map,{x:actor.x,y:actor.y});invalidate();}
   function keydown(e){const amount=(e.shiftKey?120:40)/zoom;if(e.key==='ArrowLeft')camera.x-=amount;else if(e.key==='ArrowRight')camera.x+=amount;else if(e.key==='ArrowUp')camera.y-=amount;else if(e.key==='ArrowDown')camera.y+=amount;else if(e.key==='Enter'&&map.actors[0])focusActor(map.actors[0].id);else if(e.key==='+'||e.key==='=')zoom=clamp(zoom*1.15,.45,2.5);else if(e.key==='-')zoom=clamp(zoom/1.15,.45,2.5);else return;e.preventDefault();invalidate();}
   const listeners={pointerdown:pointerDown,pointermove:pointerMove,pointerup:pointerUp,pointercancel:pointerUp,lostpointercapture:pointerUp,keydown};for(const [name,listener]of Object.entries(listeners))canvas.addEventListener(name,listener);canvas.addEventListener('wheel',wheel,{passive:false});resize();
-  return{controller,moveTo,screenToMap,mapToScreen,panTo(x,y){if(!Number.isFinite(x)||!Number.isFinite(y))throw TypeError('Map coordinates must be finite.');camera=projectMap(map,{x,y});invalidate();},zoomTo(value){if(!Number.isFinite(value))throw TypeError('Zoom must be finite.');zoom=clamp(value,.45,2.5);invalidate();},focusActor,snapshot:()=>({format:'posecraft-map-view-state',version:1,camera:{...camera,zoom},scene:controller.snapshot()}),async restore(state){if(state?.format!=='posecraft-map-view-state'||state.version!==1||!state.camera||!Number.isFinite(state.camera.x)||!Number.isFinite(state.camera.y)||!Number.isFinite(state.camera.zoom)||state.camera.zoom<.45||state.camera.zoom>2.5)throw TypeError('Invalid map view snapshot.');await controller.restore(state.scene);camera={x:state.camera.x,y:state.camera.y};zoom=state.camera.zoom;invalidate();},play(){playing=true;last=null;invalidate();},pause(){playing=false;last=null;win.cancelAnimationFrame(raf);raf=0;if(dirty)schedule();},stats:()=>({...lastStats}),dispose(){if(disposed)return;disposed=true;win.cancelAnimationFrame(raf);resizeObserver.disconnect();intersection.disconnect();doc.removeEventListener('visibilitychange',visibility);media?.removeEventListener('change',invalidate);for(const[name,listener]of Object.entries(listeners))canvas.removeEventListener(name,listener);canvas.removeEventListener('wheel',wheel);controller.dispose();canvas.remove();status.remove();element.style.position=originalPosition;}};
+  return{controller,moveTo,screenToMap,mapToScreen,panTo(x,y){if(!Number.isFinite(x)||!Number.isFinite(y))throw TypeError('Map coordinates must be finite.');camera=projectMap(map,{x,y});invalidate();},zoomTo(value){if(!Number.isFinite(value))throw TypeError('Zoom must be finite.');zoom=clamp(value,.45,2.5);invalidate();},focusActor,snapshot:()=>({format:'posecraft-map-view-state',version:1,camera:{...camera,zoom},scene:controller.snapshot()}),async restore(state){if(state?.format!=='posecraft-map-view-state'||state.version!==1||!state.camera||!Number.isFinite(state.camera.x)||!Number.isFinite(state.camera.y)||!Number.isFinite(state.camera.zoom)||state.camera.zoom<.45||state.camera.zoom>2.5)throw TypeError('Invalid map view snapshot.');await controller.restore(state.scene);camera={x:state.camera.x,y:state.camera.y};zoom=state.camera.zoom;invalidate();},play(){playing=true;last=null;invalidate();},pause(){playing=false;last=null;win.cancelAnimationFrame(raf);raf=0;if(dirty)schedule();},stats:()=>({...lastStats}),dispose(){if(disposed)return;disposed=true;win.cancelAnimationFrame(raf);resizeObserver.disconnect();intersection.disconnect();doc.removeEventListener('visibilitychange',visibility);media?.removeEventListener('change',invalidate);for(const[name,listener]of Object.entries(listeners))canvas.removeEventListener(name,listener);canvas.removeEventListener('wheel',wheel);controller.dispose();for(const buffer of scratch)buffer.canvas.width=buffer.canvas.height=1;canvas.remove();status.remove();element.style.position=originalPosition;}};
 }

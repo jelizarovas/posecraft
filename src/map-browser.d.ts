@@ -9,6 +9,7 @@ export interface MapViewSnapshot {
 export interface MapViewStats {
   visibleTiles: number; visibleProps: number; visibleActors: number;
   candidateActors: number; candidateRouteSegments: number;
+  occlusionCandidates: number; maskedActors: number; scratchPixels: number;
   totalTiles: number; totalProps: number; drawnFrames: number;
   backingWidth: number; backingHeight: number;
   camera: {x: number; y: number; zoom: number};
