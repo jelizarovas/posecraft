@@ -38,6 +38,8 @@ Commands are `pullup`, `bench`, `rest` and `drink`. Completion promises settle f
 
 The lower-level `createWorkout3D` export accepts a rig, its declared limb roles and grip frames, and a project. It exposes `sample(time)`, `request`, `cancel`, `setVariable`, `reset`, `snapshot` and `describe`. It has no rendering dependency or animation timer. Native actions accept world-space equipment transforms and use actual rig segment lengths. They do not stretch a limb to meet an unreachable target.
 
+The native view uses `renderAsync` for worker playback. Controls and resizing do not reconstruct past motion on the main thread. Explicit synchronous `sample` or `render` calls are authoring operations and may replay session history; await pending command acknowledgements before calling them.
+
 ## Studio and export
 
 Studio can change the workout order, recovery thresholds, seed, repetition range, character, equipment transforms and camera. Undo, JSON save/reopen and Website export retain these values. Website export embeds the selected character and native player; it does not require the demo source or the legacy physics engine.

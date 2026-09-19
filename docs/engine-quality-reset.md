@@ -51,7 +51,7 @@ Exact coupling and solver choice must be demonstrated in the acceptance scene be
 
 The [native 3D modules](native-3d.md) provide versioned world-space scene data, quaternion skeleton evaluation, rigid two-bone contacts and reach/conflict diagnostics. The [native Studio](native-studio.md) now connects two authored skinned GLBs, a proportion-aware bench action, palm frames and finger poses, editable furniture/camera/bend limits, safe completion, worker playback, JSON reopening and a self-contained website export. It remains a focused bench authoring workflow rather than a replacement for the general 2D Studio. See [implementation and review evidence](native-3d-review.md) for what was checked and what is still missing.
 
-Build a reusable character-and-contact lab, then use it to replace the gym's pose conversion. New showcase scenes are not the next quality milestone.
+The gym's default gallery path now uses the native rig and a reusable workout director. Walking, pull-ups, bench transfers and water breaks share world-space equipment targets, completion events and the same Studio/export runtime. The recorded 2D conversion remains an explicit comparison. See the [workout contract](workout.md) for implemented mechanics and limits. Continue improving these motions and their visual acceptance before adding more showcase scenes.
 
 ### A. Asset and spatial contract
 

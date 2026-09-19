@@ -372,7 +372,8 @@
     "test:game-browser": "node test/game-browser.mjs",
     "test:game-demo": "node test/game-demo-browser.mjs",
     "test:workout": "node --test test/workout*.test.js test/native-mechanical-actions.test.js",
-    "test:workout-browser": "node test/workout-browser.mjs"
+    "test:workout-browser": "node test/workout-browser.mjs",
+    "test:workout-lazy": "node test/native-workout-lazy-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18"

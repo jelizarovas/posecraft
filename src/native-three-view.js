@@ -79,7 +79,22 @@ export async function createNativeThreeView(canvas, options = {}) {
   let character, action, originalAction, project, frame, time=0, assetKey, disposed=false, generation=0, width=0, height=0;
   let workerClient,workerReady=false,workerPending=false,paintEpoch=0,workerError=null;
   try{workerClient=createNativeActionClient(new NativeActionWorker());}catch(error){workerError=error.message;}
-  const performanceSamples=[],subscribers=new Set();let lastEventSequence=0,eventEpoch=0;
+  const performanceSamples=[],subscribers=new Set(),mirrorJournal=[];let lastEventSequence=0,eventEpoch=0,mirrorCursor=0,mirrorTime=0,pendingMirrorCommands=0;
+  // The worker owns live decisions. This journal only catches the authoring
+  // mirror up when a caller explicitly requests a synchronous pose.
+  function mirrorAdvance(at){
+    if(!Number.isFinite(at)||at<0)throw new TypeError('Native action sample time must be nonnegative and finite.');
+    const start=at<mirrorTime?0:mirrorTime;
+    if(Math.ceil((at-start)/60)>4096)throw new RangeError('Synchronous workout replay exceeds its time budget; reset or use worker playback.');
+    if(at<mirrorTime){action.sample(0);mirrorTime=0;}
+    while(at-mirrorTime>60){mirrorTime+=60;action.sample(mirrorTime);}
+    const result=action.sample(at);mirrorTime=at;return result;
+  }
+  function remember(name,args,at,result){
+    const values=structuredClone(args);
+    if(name==='request')values[1]={...values[1],request:result};
+    mirrorJournal.push({name,args:values,time:at});
+  }
   const isWorkout=()=>project?.kind==='workout3d';
   function report(error){try{options.onError?.(error);}catch{}}
   function lifecycle(type,error){eventEpoch++;for(const fn of [...subscribers]){try{fn({type,...(error?{error:error.message||String(error)}:{})});}catch(cause){report(cause);}}}
@@ -108,7 +123,7 @@ export async function createNativeThreeView(canvas, options = {}) {
     try{const config={rig:nextCharacter.rig,roles:nextCharacter.roles,grips:nextCharacter.grips};nextAction=p.kind==='workout3d'?createWorkout3D({...config,project:p}):createBenchAction3D({...config,bench:p.bench,settings:p.settings});}catch(error){loaded?.dispose();throw error;}
     if(loaded){if(character){scene.remove(character.root);character.dispose();}character=loaded;assetKey=key;scene.add(character.root);character.root.traverse(node=>{if(node.isMesh){node.castShadow=true;node.receiveShadow=true;node.frustumCulled=false;}});}
     if(project)lifecycle('workout.changed');
-    project=p;action=nextAction;originalAction=nextAction;lastEventSequence=0;if(isWorkout())time=0;
+    project=p;action=nextAction;originalAction=nextAction;lastEventSequence=0;mirrorJournal.length=0;mirrorCursor=0;mirrorTime=0;pendingMirrorCommands=0;if(isWorkout())time=0;
     if(workerClient){workerReady=false;try{await workerClient.configure({rig:character.rig,roles:character.roles,grips:character.grips,...(isWorkout()?{project:p}:{bench:p.bench,settings:p.settings})});if(mine!==generation||disposed)return;workerReady=true;}catch(error){if(error.name!=='AbortError'){workerError=error.message;workerClient.dispose();workerClient=null;}}}
     if(mine!==generation||disposed)return;
     bench.position.fromArray(p.bench.position);bench.quaternion.fromArray(p.bench.rotation);bench.scale.setScalar(p.bench.scale);
@@ -130,7 +145,14 @@ export async function createNativeThreeView(canvas, options = {}) {
     resize();cameraFromProject();render(Math.min(time,action.duration));
   }
   function keyLightAt(position){key.target.position.fromArray(position);key.position.set(position[0]-3,position[1]+7,position[2]+5);}
-  function sample(at){if(!action)return null;return action.sample(at);}
+  function sample(at){
+    if(!action)return null;if(!isWorkout())return action.sample(at);
+    if(pendingMirrorCommands)throw new Error('Await the pending workout command before requesting a synchronous pose.');
+    while(mirrorCursor<mirrorJournal.length&&mirrorJournal[mirrorCursor].time<=at){
+      const entry=mirrorJournal[mirrorCursor];mirrorAdvance(entry.time);action[entry.name](...entry.args);mirrorCursor++;
+    }
+    return mirrorAdvance(at);
+  }
   function drawFrame(next){
     if(disposed||!action)return null;
     const start=performance.now();frame=next;
@@ -160,13 +182,31 @@ export async function createNativeThreeView(canvas, options = {}) {
   function workoutCommand(name,args){
     if(disposed)return Promise.reject(new Error('This view has been disposed.'));
     if(!isWorkout())return Promise.reject(new Error('This command requires a native workout.'));
-    try{action.sample(time);const result=action[name](...args);return workerCommand(name,...args,time).then(value=>workerClient?value:result);}catch(error){return Promise.reject(error);}
+    try{
+      const at=time,mine=generation,values=structuredClone(args);
+      if(workerClient){pendingMirrorCommands++;return workerCommand(name,...values,at).then(result=>{if(disposed||mine!==generation)throw Object.assign(new Error('Native project changed.'),{name:'AbortError'});remember(name,values,at,result);return result;}).finally(()=>{if(mine===generation)pendingMirrorCommands--;});}
+      if(mirrorJournal.at(-1)?.time>at)throw new Error('Cannot edit past workout history; sample the latest recorded time or reset.');
+      sample(at);const result=action[name](...values);remember(name,values,at,result);mirrorCursor=mirrorJournal.length;return Promise.resolve(result);
+    }catch(error){return Promise.reject(error);}
   }
   controls.addEventListener('change',()=>{if(action&&!disposed)renderer.render(scene,camera);});
-  const observer=new ResizeObserver(()=>{if(action)render();});observer.observe(canvas);
+  const observer=new ResizeObserver(()=>{if(action&&!disposed){resize();renderer.render(scene,camera);}});observer.observe(canvas);
   const view={setProject,sample,render,renderAsync,get duration(){return action?.duration||0;},get character(){return character;},get action(){return action;},get frame(){return frame;},get canvas(){return canvas;},
-    finishSafely(at=time){const recovery=action?.interrupt?.(at);if(!recovery?.supported)return false;workerCommand('finishSafely',at).catch(()=>{});if(!isWorkout()){action=recovery;time=0;}else time=at;render(time);return true;},
-    resetMovement(){lifecycle('workout.reset');workerCommand('reset').catch(()=>{});action=originalAction;if(isWorkout())action.reset();lastEventSequence=0;time=0;return render(0);},
+    finishSafely(at=time){
+      if(disposed||!Number.isFinite(at)||at<0)return false;
+      if(isWorkout()){
+        time=at;
+        if(workerClient){const mine=generation;pendingMirrorCommands++;workerCommand('finishSafely',at).then(result=>{if(!disposed&&mine===generation&&result?.supported)remember('interrupt',[at],at);}).catch(()=>{}).finally(()=>{if(mine===generation)pendingMirrorCommands--;});return true;}
+        sample(at);const recovery=action.interrupt(at);if(recovery.supported){remember('interrupt',[at],at);mirrorCursor=mirrorJournal.length;render(at);}return !!recovery.supported;
+      }
+      const recovery=action?.interrupt?.(at);if(!recovery?.supported)return false;workerCommand('finishSafely',at).catch(()=>{});action=recovery;time=0;render(0);return true;
+    },
+    resetMovement(){
+      if(disposed)throw new Error('This view has been disposed.');
+      lifecycle('workout.reset');time=0;
+      if(isWorkout())return setProject(project).then(()=>frame);
+      workerCommand('reset').catch(()=>{});action=originalAction;lastEventSequence=0;return render(0);
+    },
     setVariable(name,value){return workoutCommand('setVariable',[name,value]);},
     request(name,requestOptions={}){return workoutCommand('request',[name,requestOptions]);},
     cancel(request){return workoutCommand('cancel',[request]);},

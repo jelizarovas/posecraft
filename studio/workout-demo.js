@@ -34,7 +34,7 @@ export function mountWorkoutDemo({playing=true,onPlayingChange=()=>{},onError=()
  const visibility=()=>{last=null;};document.addEventListener('visibilitychange',visibility);
  const ready=Promise.all([import('../src/native-three-view.js'),import('../src/workout-project-3d.js')]).then(async([renderer,documents])=>{
   if(disposed)return;project=documents.createWorkoutProject3D();
-  const next=await renderer.createNativeThreeView(canvas,{...project,onFrame:update});if(disposed){next.dispose();return;}view=next;game=createWorkoutGame(view,{onCommand:start});
+  const next=await renderer.createNativeThreeView(canvas,{...project,onFrame:update,onError:error=>{playing=false;onPlayingChange(false);onError(error);}});if(disposed){next.dispose();return;}view=next;game=createWorkoutGame(view,{onCommand:start});
   actions.querySelectorAll('button').forEach(b=>b.disabled=false);update(view.frame);$('demo-status').textContent='Live workout · native rig · shared action mechanics';
   window.posecraftWorkout={view,game,get project(){return structuredClone(project);},get time(){return time;},pause(){api.pause();},play(){api.play();},async advance(seconds){time+=seconds;return view.render(time);}};
  }).catch(error=>{if(!disposed)onError(error);});

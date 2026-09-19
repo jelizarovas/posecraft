@@ -20,11 +20,10 @@ try{
   const frame=await exported.evaluate(t=>posecraft.seek(t),source.frame.time);assert.deepEqual(frame.world,source.frame.world);assert.deepEqual(frame.bar,source.frame.bar);assert.deepEqual(frame.workout,source.frame.workout);
   const proof=await exported.evaluate(async()=>{
    const view=posecraft.view,events=[];const unsubscribe=view.subscribe(e=>events.push(e));
-   const sample=async time=>{const expected=view.render(time);view.renderAsync(time);for(let i=0;i<600&&view.frame!==expected;i++)await new Promise(r=>setTimeout(r,5));return expected;};
    // A different prior time ensures the worker response is observed, rather than the sync frame.
    for(const time of [3,12,28,65,95,130]){const expected=view.render(time);view.render(0);view.renderAsync(time);for(let i=0;i<1200&&view.frame.time!==time;i++)await new Promise(r=>setTimeout(r,5));if(JSON.stringify(view.frame)!==JSON.stringify(expected))throw Error('Export worker mismatch at '+time);}
    await view.setVariable('dehydration',80);const id=await view.request('rest',{request:'export-rest'});if(id!=='export-rest')throw Error('Caller request was not acknowledged');await view.cancel(id);view.render(130.1);const cancelled=events.filter(e=>e.request===id&&e.type==='actor.command.cancelled').length;view.render(130.1);if(cancelled!==1||events.filter(e=>e.request===id&&e.type==='actor.command.cancelled').length!==1)throw Error('Cancellation events repeated or missing');
-   view.resetMovement();if(!events.some(e=>e.type==='workout.reset'))throw Error('Reset lifecycle missing');unsubscribe();return {workerSamples:6,requestCancel:true,eventDedup:true};
+   await view.resetMovement();if(!events.some(e=>e.type==='workout.reset'))throw Error('Reset lifecycle missing');unsubscribe();return {workerSamples:6,requestCancel:true,eventDedup:true};
   });
   assert.ok(requests.every(url=>url==='http://workout-export.test/'||url.endsWith('/favicon.ico')),'Export fetched an external dependency');
   await exported.evaluate(()=>posecraft.seek(12));await exported.screenshot({path:`test-results/native-workout-export-${asset}.png`});reports.push({asset,bytes:Buffer.byteLength(html),...proof});await exported.close();
