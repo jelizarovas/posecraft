@@ -16,6 +16,7 @@ import { assertDocument } from './schema.js';
 import {poseDefaults,spatialChannels} from './spatial.js';
 import {RecoveryMotion} from './recovery.js';
 import {GamePerformance} from './game-performance.js';
+import {captureGameState,restoreGameState} from './game-state.js';
 import { PhysicalCharacter, behaviorConfig, behaviorModes } from './physics.js';
 export const STEP = 1 / 120;
 
@@ -54,6 +55,20 @@ export class SceneController {
     return this.frame();
   }
   objectCommand(command){if(!this.objects)throw Error('This scene has no shared objects.');const safe=validateObjectCommand(this.document,command),result=this.objects.command(safe,this.frame());if(!this.replaying)this.record({type:'object',command:safe});return result;}
+  objectCommandAck(command){return this.objectCommand(command);}
+  snapshot(){return captureGameState(this);}
+  restore(snapshot){return restoreGameState(this,snapshot);}
+  setActorSleeping(actorId,sleeping){
+    const a=this.actors.find(a=>a.actor.id===actorId);if(!a||typeof sleeping!=='boolean')throw Error('Sleep needs an existing actor and boolean.');
+    if(!!a.sleeping===sleeping)return true;
+    if(sleeping){
+      if(this.ensemble||this.fluid||this.propGames||a.behavior.mode!=='animated'||a.physics||a.recovery||a.preview||this.graph?.hasActivity(actorId)||this.objects?.bodies.some(b=>b.owner?.actor===actorId)||this.pointers?.active?.binding.actor===actorId)throw Error('Only animated actors without active physical, carried-object, preview or scene activity ownership can sleep.');
+      for(const request of [...this.gamePerformance.active.values()])if(request.actor===actorId)this.gamePerformance.cancel(actorId,request.request,'Actor sleeping.');
+      for(const [key,request] of this.gamePerformance.held)if(request.actor===actorId)this.gamePerformance.held.delete(key);
+      a.sleepFrame=structuredClone(this.frame().actors.find(f=>f.id===actorId));a.sleeping=true;
+    }else{a.sleeping=false;a.sleepFrame=null;}
+    return true;
+  }
   fluidInput(command){
     if(!this.fluid)throw new Error('This scene has no bottle fluid.');const safe=validateFluidCommand(command);this.frame();this.fluid.command(safe);
     const manualStep=this.replaying?!!this.replayFluidManualStep:this.reducedMotion||!this.playing||!this.animationPlaying;if(manualStep)this.fluid.tick(STEP);
@@ -168,9 +183,10 @@ export class SceneController {
     if(this.fluid&&!this.reducedMotion&&this.animationPlaying)this.fluid.tick(STEP);
     if(this.graph&&this.ensemble){this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));if(this.ensemble.drainEvents)for(const {event,...payload} of this.ensemble.drainEvents())this.graph.dispatch(event,payload);}
     this.graph?.tick(this.reducedMotion||!this.animationPlaying?0:STEP);
-    tickActorBehaviors(this,this.reducedMotion||!this.animationPlaying?0:STEP,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated').map(a=>a.actor.id)));
+    tickActorBehaviors(this,this.reducedMotion||!this.animationPlaying?0:STEP,new Set(this.actors.filter(a=>a.sleeping||a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated').map(a=>a.actor.id)));
     this.pointers?.step(STEP);
     for (const a of this.actors) {
+      if(a.sleeping)continue;
       const directed=this.graph?.hasActivity(a.actor.id)||this.ensemble&&a.behavior.mode==='animated'&&!a.preview&&(a.actor.unlit||a.runtime.inputs.action==='campfire'&&a.runtime.layers[0].state==='campfire');
       if(!directed)a.runtime.step(this.reducedMotion || !this.animationPlaying ? 0 : STEP);
       if (this.reducedMotion) { a.runtime.layers.forEach(layer => layer.transition = null); a.runtime.frame = a.runtime.evaluate(); }
@@ -201,7 +217,8 @@ export class SceneController {
     }
   }
   frame() {
-    const frame={ time: this.time, effectsTime:this.reducedMotion?0:this.time, actors: this.actors.map(({ actor, pack, runtime, spring, preview,behavior,response,physics,recovery }) => {
+    const frame={ time: this.time, effectsTime:this.reducedMotion?0:this.time, actors: this.actors.map(({ actor, pack, runtime, spring, preview,behavior,response,physics,recovery,sleeping,sleepFrame }) => {
+      if(sleeping&&sleepFrame)return {...sleepFrame,sleeping:true};
       const action=!preview&&behavior.mode==='animated'?this.graph?.actionPose?.(actor.id):null;
       let pose = preview ? { ...runtime.definition.defaults, ...sampleClip({ ...pack.clips[preview.clip], loop: false }, preview.time), ...preview.overrides } : { ...(action?.pose||runtime.frame.pose) };
       const inputs={...runtime.inputs};
@@ -224,12 +241,14 @@ export class SceneController {
     let evaluated=this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
     if(this.fluid)evaluated=this.fluid.apply(evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
     if(this.graph){evaluated.behavior=this.graph.snapshot();evaluated.emitterOverrides={...this.graph.emitterOverrides,...evaluated.emitterOverrides};}
-    evaluated=applyMotionLayers(this.document,evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
+    evaluated=applyMotionLayers(this.document,evaluated,{disabledActors:new Set(this.actors.filter(a=>a.sleeping||a.preview).map(a=>a.actor.id))});
     if(this.actorBehaviors){evaluated.actorBehaviors=this.actorBehaviors.snapshot();evaluated.emitterOverrides={...evaluated.emitterOverrides,...this.actorBehaviors.emitterOverrides()};}
     if(this.propGames)evaluated=this.propGames.apply(evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});
     evaluated=this.gamePerformance?.apply(evaluated)||evaluated;
     if(this.objects&&this.document.contacts?.some(c=>['object','prop'].includes(c.target.type)))evaluated=this.objects.apply(evaluated);
-    const constrained=applyContacts(this.document,this.pointers?.apply(evaluated)||evaluated),bound=this.graph?.bindFrame(constrained,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))})||constrained;return this.objects?this.objects.apply(bound):bound;
+    const constrained=applyContacts(this.document,this.pointers?.apply(evaluated)||evaluated),bound=this.graph?.bindFrame(constrained,{disabledActors:new Set(this.actors.filter(a=>a.sleeping||a.preview).map(a=>a.actor.id))})||constrained;
+    for(let i=0;i<bound.actors.length;i++){const a=this.actors[i];if(a.sleeping&&a.sleepFrame)bound.actors[i]={...a.sleepFrame,sleeping:true};}
+    return this.objects?this.objects.apply(bound):bound;
   }
   seek(time) {
     if(!Number.isFinite(time)||time<0||time>180)throw new Error('Seek range is 0..180 seconds.');

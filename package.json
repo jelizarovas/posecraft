@@ -303,6 +303,7 @@
     "docs/native-studio.md",
     "docs/native-3d-review.md",
     "docs/game-api.md",
+    "docs/littlelands-integration.md",
     "docs/workout.md"
   ],
   "scripts": {
@@ -312,6 +313,7 @@
     "test": "node --test test/*.test.js",
     "test:browser": "node test/browser.mjs",
     "check:package": "npm pack --dry-run",
+    "test:consumer": "node test/package-consumer.mjs",
     "test:types": "tsc --noEmit --strict --module nodenext --target es2022 test/types.ts",
     "test:responses": "node test/responses-browser.mjs",
     "test:performance": "node test/performance-browser.mjs",

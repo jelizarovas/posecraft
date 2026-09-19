@@ -21,7 +21,7 @@ test('semantic actions merge defaults and aliases, and discovery returns isolate
  const doc=assertDocument(fixture()),before=structuredClone(doc),binding=gameActorBindings(doc,'a'),manifest=describeGameScene(doc);
  assert.deepEqual(binding.actions,{idle:'wave',wave:'wave',greet:'wave'});assert.equal(gameActorBindings(doc,'missing'),null);
  assert.deepEqual(manifest.actors[0],{id:'a',name:'Guide',actions:['greet','idle','wave'],reactions:['pleased'],canSpeak:true,canLook:true,locomotion:'none',anchors:['gift','hand','home','sign','tableEdge']});
- assert.deepEqual(manifest.objects[1],{id:'wall',properties:['enabled'],commands:['enable']});assert.deepEqual(manifest.objects[0].commands,['enable']);
+ assert.deepEqual(manifest.objects[1],{id:'wall',properties:['enabled'],commands:['enable']});assert.deepEqual(manifest.objects[0].commands,['enable','place','attach','release']);
  for(const event of ['actor.action.completed','actor.command.failed','actor.reaction.completed','actor.look.completed','actor.speech.requested','actor.speech.completed','object.changed'])assert.ok(manifest.events.includes(event));
  assert.equal(manifest.events.includes('actor.arrived'),false);binding.reactions.pleased.emotion='changed';binding.gaze.joint='changed';manifest.actors[0].anchors.push('changed');assert.deepEqual(doc,before);
  const walking=describeGameScene(ona);assert.equal(walking.actors[0].locomotion,'ground-x');assert.equal(walking.actors[0].canSpeak,false);assert.equal(walking.actors[0].canLook,false);assert.deepEqual(walking.actors[0].reactions,[]);

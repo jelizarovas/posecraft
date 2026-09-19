@@ -3,13 +3,14 @@ import {validateFluidCommand} from './bottle-validation.js';
 import {validateBehaviorEvent,validateBehaviorVariable,behaviorEnsembleEvents} from './behaviors.js';
 import {SceneController} from './scene.js';
 import {validateGameCommand} from './game-performance.js';
+import {validateGameState} from './game-state.js';
 import {behaviorConfig,behaviorModes} from './physics.js';
 
 // A single in-flight simulation batch. Latest host/preview samples replace old
 // ones; ordered interactions stay bounded. No timer runs while the page sleeps.
 export class WorkerSceneController {
  constructor(document,{reducedMotion=false,onError}={}){
-  this.gameRequests=new Map();
+  this.gameRequests=new Map();this.requests=new Map();this.requestId=0;
   this.document=document;this.reducedMotion=reducedMotion;this.playing=true;this.animationPlaying=true;this.motion={ax:0,ay:0};this.listeners=new Set();this.queue=[];this.pendingDt=0;this.sequence=0;this.inFlight=false;this.started=false;this.disposed=false;this.paths=new Map();this.pathId=0;this.onError=onError;this.previewKeys=new Map();this.fluidEpoch=0;
   this.stats={execution:'worker',computeMs:0,roundTripMs:0,droppedSeconds:0,pendingBatches:0};
   const initial=new SceneController(document,{reducedMotion});this.latest=initial.frame();initial.dispose();this.mirror();
@@ -19,6 +20,15 @@ export class WorkerSceneController {
   this.worker.postMessage({type:'init',document,reducedMotion});
  }
  gameCommand(command){const safe=validateGameCommand(this.document,command);this.command('gameCommand',[safe]);if(safe.type!=='cancel')this.gameRequests.set(safe.actor+'\0'+safe.request,safe);return true;}
+ request(method,args=[]){
+  if(this.requests.size>=64)return Promise.reject(new Error('At most 64 acknowledged operations may be pending.'));
+  const id=++this.requestId;return new Promise((resolve,reject)=>{this.requests.set(id,{resolve,reject});try{this.command(method,[...args,id]);}catch(error){this.requests.delete(id);reject(error);}});
+ }
+ snapshot(){return this.request('snapshot');}
+ restore(snapshot){let safe;try{safe=validateGameState(this.document,snapshot);}catch(error){return Promise.reject(error);}this.pendingDt=0;this.host=null;return this.request('restore',[safe]);}
+ objectCommandAck(command){let safe;try{safe=validateObjectCommand(this.document,command);}catch(error){return Promise.reject(error);}return this.request('objectCommandAck',[safe]);}
+ setActorSleeping(actor,sleeping){if(!this.document.actors.some(a=>a.id===actor)||typeof sleeping!=='boolean')return Promise.reject(new Error('Sleep needs an existing actor and boolean.'));return this.request('setActorSleeping',[actor,sleeping]);}
+ rejectRequests(error){for(const p of this.requests.values())p.reject(error);this.requests.clear();}
  failGames(error){const pending=[...this.gameRequests.values()];this.gameRequests.clear();for(const c of pending)for(const fn of this.listeners)fn({type:'actor.command.failed',actor:c.actor,request:c.request,command:c.type,error,cancelled:true,time:this.time});}
  mirror(layers=[]){this.actors=this.latest.actors.map(a=>({actor:this.document.actors.find(v=>v.id===a.id),spring:a.spring,response:{state:a.response},physics:a.physics?{diagnostics:a.physics}:null,runtime:{layers:[layers.find(v=>v.id===a.id)||{state:a.state,time:this.latest.time}]}}));}
  receive(m){
@@ -29,15 +39,16 @@ export class WorkerSceneController {
   if(m.type==='frame'){
    this.inFlight=false;this.latest=m.frame;this.motion=m.motion;this.mirror(m.layers);Object.assign(this.stats,{computeMs:m.computeMs,roundTripMs:performance.now()-this.sentAt,pendingBatches:0});
    for(const event of m.events){if(event.type==='actor.command.completed'||event.type==='actor.command.failed')this.gameRequests.delete(event.actor+'\0'+event.request);if(event.type==='error')this.onError?.(new Error(event.message));for(const fn of this.listeners)fn(event);}
+   for(const receipt of m.receipts||[]){const p=this.requests.get(receipt.id);if(p){this.requests.delete(receipt.id);if(receipt.error)p.reject(new Error(receipt.error));else p.resolve(receipt.result);}}
    this.onFrame?.(this.latest);
    if(this.queue.length||this.pendingDt||this.host)this.flush();
   }
  }
- fail(error){if(this.disposed)return;this.failGames(error.message);this.playing=false;this.rejectReady(error);for(const p of this.paths.values()){p.cleanup();p.reject(error);}this.paths.clear();this.worker.terminate();this.disposed=true;this.stats.execution='failed';this.onError?.(error);for(const fn of this.listeners)fn({type:'error',message:error.message});}
+ fail(error){if(this.disposed)return;this.failGames(error.message);this.rejectRequests(error);this.playing=false;this.rejectReady(error);for(const p of this.paths.values()){p.cleanup();p.reject(error);}this.paths.clear();this.worker.terminate();this.disposed=true;this.stats.execution='failed';this.onError?.(error);for(const fn of this.listeners)fn({type:'error',message:error.message});}
  command(method,args=[],coalesce){
   if(method!=='fluidInput')this.fluidEpoch++;
   if(this.disposed)throw new Error('Simulation worker is unavailable.');
-  if(coalesce){const index=this.queue.findIndex(c=>c.key===coalesce);if(index>=0)this.queue.splice(index,1);}
+  if(coalesce){const barrier=this.queue.findLastIndex(c=>['snapshot','restore','objectCommandAck','setActorSleeping'].includes(c.value[0])),index=this.queue.findIndex((c,i)=>i>barrier&&c.key===coalesce);if(index>=0)this.queue.splice(index,1);}
   if(this.queue.length>=128)throw new Error('Simulation command queue is full.');
   this.queue.push({key:coalesce,value:[method,...args]});queueMicrotask(()=>this.flush());
  }
@@ -77,5 +88,5 @@ export class WorkerSceneController {
   if(this.paths.size>=24)throw new Error('At most 24 path requests may be pending.');const id=++this.pathId;
   return new Promise((resolve,reject)=>{const cancel=()=>{this.worker.postMessage({type:'cancelPath',id});this.paths.delete(id);cleanup();reject(new DOMException('Path cancelled','AbortError'));},cleanup=()=>signal?.removeEventListener('abort',cancel);this.paths.set(id,{resolve,reject,cleanup});signal?.addEventListener('abort',cancel,{once:true});this.worker.postMessage({type:'path',id,request});});
  }
- dispose(){if(this.disposed)return;this.failGames('Scene disposed.');this.disposed=true;this.worker.terminate();this.rejectReady(new Error('Simulation disposed.'));for(const p of this.paths.values()){p.cleanup();p.reject(new Error('Simulation disposed.'));}this.paths.clear();this.listeners.clear();this.queue=[];}
+ dispose(){if(this.disposed)return;this.failGames('Scene disposed.');this.rejectRequests(new Error('Simulation disposed.'));this.disposed=true;this.worker.terminate();this.rejectReady(new Error('Simulation disposed.'));for(const p of this.paths.values()){p.cleanup();p.reject(new Error('Simulation disposed.'));}this.paths.clear();this.listeners.clear();this.queue=[];}
 }

@@ -28,7 +28,8 @@ export function validateGameBindings(document,check){
  for(const [key,target]of mapping(game.anchors===undefined?{}:game.anchors,'game.anchors',128))validateTarget(document,target,'game.anchors.'+key,check);
  for(const [id,binding]of mapping(game.actors===undefined?{}:game.actors,'game.actors',24)){
   const path='game.actors.'+id,pack=actorPack(document,id);
-  check(!!pack,path,'Missing bound actor.');check(fields(binding,['actions','reactions','gaze','speech']),path,'Unknown actor binding setting.');if(!record(binding))continue;
+  check(!!pack,path,'Missing bound actor.');check(fields(binding,['actions','reactions','gaze','speech','locomotion']),path,'Unknown actor binding setting.');if(!record(binding))continue;
+  if(binding.locomotion!==undefined){const l=binding.locomotion,p=path+'.locomotion';check(fields(l,['mode','speed','clearance','cellSize','clip'])&&['ground-x','planar','float'].includes(l.mode),p,'Expected ground-x, planar or float locomotion.');if(record(l)){if(l.speed!==undefined)check(finite(l.speed,1,1000),p+'.speed','Speed must be 1..1000 scene units per second.');if(l.clearance!==undefined)check(finite(l.clearance,0,500),p+'.clearance','Clearance must be 0..500.');if(l.cellSize!==undefined)check(finite(l.cellSize,8,4096),p+'.cellSize','Cell size must be 8..4096.');if(l.clip!==undefined)check(own(pack?.clips,l.clip),p+'.clip','Missing locomotion clip.');if(l.mode==='ground-x')check(!!pack?.physics,p,'Ground walking requires a physics profile.');if(l.mode==='planar')check(own(pack?.clips,l.clip),p+'.clip','Planar walking requires an authored locomotion clip.');}}
   const actions=new Set(Object.keys(pack?.clips??{}));
   for(const [action,clip]of mapping(binding.actions===undefined?{}:binding.actions,path+'.actions',128)){check(typeof clip==='string'&&own(pack?.clips,clip),path+'.actions.'+action,'Missing action clip.');actions.add(action);}
   for(const [reaction,value]of mapping(binding.reactions===undefined?{}:binding.reactions,path+'.reactions',128)){
@@ -48,7 +49,7 @@ export function gameActorBindings(document,id){
  const saved=own(document.game?.actors,id)?document.game.actors[id]:{};
  const actions=Object.fromEntries(Object.keys(pack.clips).map(clip=>[clip,clip]));
  for(const [alias,clip]of Object.entries(saved.actions??{}))if(name(alias)&&own(pack.clips,clip))Object.defineProperty(actions,alias,{value:clip,writable:true,enumerable:true,configurable:true});
- return {actions,reactions:structuredClone(saved.reactions??{}),...(saved.gaze?{gaze:structuredClone(saved.gaze)}:{}),speech:saved.speech===true};
+ return {actions,reactions:structuredClone(saved.reactions??{}),...(saved.gaze?{gaze:structuredClone(saved.gaze)}:{}),...(saved.locomotion?{locomotion:structuredClone(saved.locomotion)}:{}),speech:saved.speech===true};
 }
 
 /** Resolve scene coordinates from the evaluated frame, never camera pixels. */
@@ -71,11 +72,12 @@ export function describeGameScene(document){
  const anchors=Object.keys(document.game?.anchors??{}).sort(),events=new Set(['actor.action.completed','actor.command.completed','actor.command.cancelled','actor.command.failed']);
  const descriptions=actors(document).map(actor=>{
   const binding=gameActorBindings(document,actor.id),pack=actorPack(document,actor.id);if(!binding)throw new Error('Missing actor pack: '+actor.id);
-  const reactions=Object.keys(binding.reactions).sort(),locomotion=pack.physics?'ground-x':'none';
-  if(reactions.length)events.add('actor.reaction.completed');if(locomotion==='ground-x')events.add('actor.arrived');
+  const reactions=Object.keys(binding.reactions).sort(),locomotion=binding.locomotion?.mode??(pack.physics?'ground-x':'none');
+  if(reactions.length)events.add('actor.reaction.completed');if(locomotion!=='none')events.add('actor.arrived');
   if(binding.gaze)events.add('actor.look.completed');if(binding.speech){events.add('actor.speech.requested');events.add('actor.speech.completed');}
   return {id:actor.id,name:actor.name,actions:Object.keys(binding.actions).sort(),reactions,canSpeak:binding.speech,canLook:!!binding.gaze,locomotion,anchors:anchors.slice()};
  });
- const objects=(document.objects??[]).map(object=>({id:object.id,properties:['enabled'],commands:['enable']}));if(objects.length)events.add('object.changed');
+ const objects=(document.objects??[]).map(object=>({id:object.id,properties:['enabled'],commands:object.mass>0?['enable','place','attach','release']:['enable']}));if(objects.length)events.add('object.changed');
+ events.add('scene.restored');
  return {schemaVersion:1,id:document.id,actors:descriptions,objects,anchors,events:[...events].sort()};
 }

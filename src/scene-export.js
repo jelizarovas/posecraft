@@ -5,6 +5,7 @@ export function inspectSceneFeatures(document) {
   const scene=assertDocument(document),packs=scene.actors.map(actor=>scene.packs[actor.pack]);
   const physical=scene.actors.filter(actor=>(actor.behavior?.mode||'animated')!=='animated');
   const features=['clips',scene.renderer||'svg'];
+  if(scene.game)features.push('game-bindings');
   if(scene.props?.some(p=>p.attachment))features.push('prop-attachments');
   if(scene.contacts?.some(c=>['prop','object'].includes(c.target.type)||c.fadeIn!==undefined||c.fadeOut!==undefined))features.push('contact-targets');
   if(scene.canvasDepth)features.push('actor-depth');
@@ -29,7 +30,9 @@ export function inspectSceneFeatures(document) {
   if(scene.presentation!=='sequence'&&scene.poseBindings?.length)features.push('pose-bindings');
   if(scene.interactions?.length)features.push('pointer-interactions');
   if(physical.length)features.push('physics');
-  return {runtime:physical.length?'physics':'illustration',features,reasons:physical.map(actor=>`${actor.name||actor.id} uses ${actor.behavior.mode} motion.`)};
+  // `physics` is the existing full-player bundle name. Semantic game commands
+  // need its controller/facade even when every actor is animated without physics.
+  return {runtime:physical.length||scene.game?'physics':'illustration',features,reasons:[...physical.map(actor=>`${actor.name||actor.id} uses ${actor.behavior.mode} motion.`),...(scene.game?['Game commands require the full player.']:[])]};
 }
 const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeJSON=value=>JSON.stringify(value).replace(/</g,'\\u003c').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');

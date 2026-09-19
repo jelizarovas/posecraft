@@ -51,6 +51,7 @@ export function mountScene(element, document, { host = element, reducedMotion = 
   return {
     controller,
     actor:id=>game.actor(id),object:id=>game.object(id),prop:id=>game.prop(id),describe:()=>game.describe(),sequence:(steps,options)=>game.sequence(steps,options),
+    snapshot:()=>game.snapshot(),async restore(state){await game.restore(state);renderer.update(controller.frame());resetClock();schedule();},
     objectCommand(command){const result=controller.objectCommand(command);renderer.update(controller.frame());return result;},
     refreshScroll(){scrollBinding?.refresh();},
     enableMotion:()=>bottle.enableMotion(),disableMotion:()=>bottle.disableMotion(),

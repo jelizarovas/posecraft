@@ -1,4 +1,7 @@
 import {describeGameScene,gameActorBindings,resolveGameTarget} from './game-bindings.js';
+import {validateObjectCommand} from './scene-objects.js';
+import {validateGameState} from './game-state.js';
+import {validateGameCommand} from './game-performance.js';
 
 let nextScene=0;
 const abortError=message=>Object.assign(new Error(message||'Command cancelled.'),{name:'AbortError'});
@@ -11,13 +14,13 @@ const commandSignal=options=>{if(!options||typeof options!=='object'||Array.isAr
 export function createGameScene(controller,options={}){
  if(!controller?.document||typeof controller.gameCommand!=='function')throw new TypeError('Expected a scene controller with game-command support.');
  const document=controller.document,manifest=describeGameScene(document),prefix=`game-${++nextScene}`,pending=new Map(),active=new Map(),actors=new Map(),sequences=new Set();
- let serial=0,disposed=false,cancellingAll=false;
- const check=()=>{if(disposed)throw new Error('Game scene has been disposed.');if(cancellingAll)throw abortError('Scene commands are being cancelled.');};
+ let serial=0,disposed=false,cancellingAll=false,restoring=false;
+ const check=()=>{if(disposed)throw new Error('Game scene has been disposed.');if(cancellingAll)throw abortError('Scene commands are being cancelled.');if(restoring)throw abortError('Scene state is being restored.');};
  const reportError=error=>{try{options.onError?.(error);}catch{}};
  const emit=event=>{try{options.onEvent?.({...event,time:controller.time});}catch(error){reportError(error);}};
  function finish(job,error,event){
   if(!pending.has(job.request))return;
-  pending.delete(job.request);if(active.get(job.actor)===job)active.delete(job.actor);try{job.cleanup();}catch(error){reportError(error);}
+  pending.delete(job.request);if(active.get(job.key)===job)active.delete(job.key);try{job.cleanup();}catch(error){reportError(error);}
   if(error){job.speech?.abort();job.reject(error);emit({type:error.name==='AbortError'?'actor.command.cancelled':'actor.command.failed',actor:job.actor,request:job.request,command:job.command,error:error.message});}
   else{const result={type:job.event,actor:job.actor,request:job.request,command:job.command,...job.detail};job.resolve(result);emit(result);}
  }
@@ -35,20 +38,23 @@ export function createGameScene(controller,options={}){
  function run(actor,command,detail,commandOptions={},speech,prepare){
   check();const signal=commandSignal(commandOptions);
   if(signal?.aborted)return Promise.reject(abortError());
-  const previous=active.get(actor);
+   const channel=command==='look'?'gaze':command==='speech'?'speech':'motion',key=actor+'\0'+channel,priority=commandOptions.priority??0;
+   if(!Number.isFinite(priority)||priority<0||priority>100)throw new TypeError('Command priority must be 0..100.');
+   if(!speech)validateGameCommand(document,{type:command,actor,request:'preflight',channel,...detail});
+   const previous=active.get(key);if(previous&&previous.priority>priority)return Promise.reject(abortError('A higher priority command owns this channel.'));
   const request=`${prefix}-${++serial}`,event={action:'actor.action.completed',move:'actor.arrived',look:'actor.look.completed',speech:'actor.speech.completed'}[command];
   let job;
   const promise=new Promise((resolve,reject)=>{
    const abort=()=>cancel(job,'Command cancelled.');
-   job={actor,command,detail,request,event,resolve,reject,cleanup:()=>signal?.removeEventListener('abort',abort)};
-   pending.set(request,job);active.set(actor,job);try{signal?.addEventListener('abort',abort,{once:true});}catch(error){finish(job,error);}
+   job={actor,key,priority,command,detail,request,event,resolve,reject,cleanup:()=>signal?.removeEventListener('abort',abort)};
+   pending.set(request,job);active.set(key,job);try{signal?.addEventListener('abort',abort,{once:true});}catch(error){finish(job,error);}
   });
   // Register the replacement first. A callback which starts a newer command
   // then cancels this exact request instead of leaving two active promises.
   cancel(previous,'Replaced by another command.');if(!pending.has(request))return promise;
   try{options.onCommand?.();}catch(error){finish(job,error);return promise;}
   let ready;try{ready=controller.ready;}catch(error){finish(job,error);return promise;}
-  Promise.resolve(ready).then(()=>{
+  const dispatch=()=>{
    if(!pending.has(request))return;
    prepare?.();
    if(!pending.has(request))return;
@@ -57,7 +63,12 @@ export function createGameScene(controller,options={}){
     if(!pending.has(request))return;
     return Promise.resolve(options.onSpeechRequest({actor,...speech,signal:job.speech.signal})).then(()=>finish(job));
    }
-   if(controller.gameCommand({type:command,actor,request,...detail})===false&&pending.has(request))finish(job,new Error('Scene rejected the actor command.'));
+   if(controller.gameCommand({type:command,actor,request,channel,...detail})===false&&pending.has(request))finish(job,new Error('Scene rejected the actor command.'));
+  };
+  Promise.resolve(ready).then(()=>{
+   if(!pending.has(request))return;
+   if(controller.frame().actors.some(a=>a.id===actor&&a.sleeping))return Promise.resolve(controller.setActorSleeping(actor,false)).then(dispatch);
+   return dispatch();
   }).catch(error=>finish(job,error));
   return promise;
  }
@@ -70,7 +81,7 @@ export function createGameScene(controller,options={}){
   const handle={
    capabilities(){check();return structuredClone(manifest.actors.find(a=>a.id===id));},
    do(name,opts){return run(id,'action',{clip:action(name)},opts);},
-   moveTo(value,opts){check();if(!pack.physics)throw new Error(`Actor ${id} has no ground locomotion rig.`);return run(id,'move',{x:target(value).x},opts);},
+   moveTo(value,opts){check();if(!pack.physics&&!bindings.locomotion)throw new Error(`Actor ${id} has no locomotion binding.`);const point=target(value);return run(id,'move',{x:point.x,y:point.y},opts);},
    lookAt(value,opts={}){check();if(!bindings.gaze)throw new Error(`Actor ${id} has no authored gaze binding.`);const duration=opts.duration??.35;if(!Number.isFinite(duration)||duration<0||duration>10)throw new Error('Look duration must be 0..10 seconds.');return run(id,'look',{target:target(value),joint:bindings.gaze.joint,maxAngle:bindings.gaze.maxAngle??30,duration},opts);},
    async react(name,opts={}){
     check();text(name,'Reaction');if(!own(bindings.reactions,name))throw new Error(`Actor ${id} does not support reaction ${name}.`);
@@ -83,14 +94,26 @@ export function createGameScene(controller,options={}){
    },
    say(message,opts={}){check();text(message,'Speech',2000);if(!bindings.speech||typeof options.onSpeechRequest!=='function')throw new Error(`Actor ${id} needs a speech binding and host onSpeechRequest handler.`);if(opts.emotion!==undefined){const spec=pack.inputs.emotion;if(!spec?.options?.includes(opts.emotion))throw new Error('Unsupported speech emotion.');}return run(id,'speech',{},opts,{text:message,...(opts.emotion?{emotion:opts.emotion}:{})},()=>{if(opts.emotion)controller.setInput(id,'emotion',opts.emotion);});},
    send(event,payload={}){check();text(event,'Event');return controller.dispatchActor(id,event,payload);},
-   cancel(){check();cancel(active.get(id),'Actor command cancelled.');},
+   cancel(){check();for(const job of [...active.values()])if(job.actor===id)cancel(job,'Actor command cancelled.');},
+   async sleep(){check();await controller.ready;check();await controller.setActorSleeping(id,true);for(const job of [...active.values()])if(job.actor===id)cancel(job,'Actor sleeping.');},
+   async wake(){check();await controller.ready;check();await controller.setActorSleeping(id,false);},
    sequence(steps,opts){if(!Array.isArray(steps)||steps.some(step=>!step||typeof step!=='object'||Array.isArray(step)))throw new Error('A sequence needs an array of command objects.');return sequence(steps.map(step=>({...step,actor:id})),opts);}
   };
   actors.set(id,handle);return handle;
  }
  function object(id){
   check();text(id,'Object ID');if(!document.objects?.some(o=>o.id===id))throw new Error(`Unknown runtime object: ${id}`);
-  return {set(property,value){check();if(property!=='enabled'||typeof value!=='boolean')throw new Error('Runtime objects currently expose only boolean enabled.');options.onCommand?.();check();controller.objectCommand({type:'enable',object:id,enabled:value});emit({type:'object.changed',object:id,property,value});}};
+  function command(value){
+   check();const safe=validateObjectCommand(document,{...value,object:id});options.onCommand?.();check();
+   const request=`${prefix}-object-${++serial}`;
+   const promise=Promise.resolve(controller.ready).then(()=>{check();return controller.objectCommandAck?controller.objectCommandAck(safe):controller.objectCommand(safe);}).then(accepted=>{check();if(accepted===false)throw new Error('Object interaction could not complete. Check ownership, reach and enabled state.');const event={type:'object.changed',object:id,request,command:safe.type,...(safe.type==='enable'?{property:'enabled',value:safe.enabled}:{})};emit(event);return event;});
+   promise.catch(reportError);return promise;
+  }
+  return {set(property,value){check();if(property!=='enabled'||typeof value!=='boolean')throw new Error('Runtime objects currently expose only boolean enabled.');return command({type:'enable',enabled:value});},
+   place(value){const p=target(value);return command({type:'place',x:p.x,y:p.y});},
+   attach(actor,joint,opts={}){return command({type:'attach',actor,joint,...opts});},
+   release(opts={}){return command({type:'release',...opts});}
+  };
  }
  function sequence(steps,opts={}){
   check();if(!Array.isArray(steps)||!steps.length||steps.length>256)throw new Error('A sequence needs 1..256 steps.');
@@ -101,7 +124,7 @@ export function createGameScene(controller,options={}){
    const handle=actor(step.actor),caps=handle.capabilities();
    if(own(step,'do')&&!caps.actions.includes(step.do))throw new Error('Sequence contains an unsupported action.');
    if(own(step,'react')&&!caps.reactions.includes(step.react))throw new Error('Sequence contains an unsupported reaction.');
-   if(own(step,'moveTo')){if(caps.locomotion!=='ground-x')throw new Error('Sequence actor cannot move.');target(step.moveTo);}
+   if(own(step,'moveTo')){if(caps.locomotion==='none')throw new Error('Sequence actor cannot move.');target(step.moveTo);}
    if(own(step,'lookAt')){if(!caps.canLook)throw new Error('Sequence actor cannot look at targets.');target(step.lookAt);}
    if(own(step,'say')){text(step.say,'Speech',2000);if(!caps.canSpeak||typeof options.onSpeechRequest!=='function')throw new Error('Sequence requires a host speech handler.');}
   }
@@ -113,5 +136,8 @@ export function createGameScene(controller,options={}){
   finished.catch(()=>{});return {finished,cancel:stop};
  }
  function cancelAll(reason='Scene command cancelled.'){if(cancellingAll)return;cancellingAll=true;try{for(const abort of [...sequences])abort.abort();for(const job of [...pending.values()])cancel(job,reason);}finally{cancellingAll=false;}}
- return {actor,object,prop:object,sequence,describe(){check();return structuredClone(manifest);},cancelAll,dispose(){if(disposed)return;disposed=true;try{cancelAll('Game scene disposed.');}finally{unsubscribe();}}};
+ return {actor,object,prop:object,sequence,describe(){check();return structuredClone(manifest);},cancelAll,
+  async snapshot(){check();await controller.ready;check();const state=await controller.snapshot();check();return state;},
+  async restore(state){check();const safe=validateGameState(document,state);cancelAll('Scene restored.');restoring=true;try{await controller.ready;if(disposed)throw abortError('Scene disposed.');await controller.restore(safe);if(disposed)throw abortError('Scene disposed.');}finally{restoring=false;}emit({type:'scene.restored'});},
+  dispose(){if(disposed)return;disposed=true;try{cancelAll('Game scene disposed.');}finally{unsubscribe();}}};
 }

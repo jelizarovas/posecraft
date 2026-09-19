@@ -13,6 +13,11 @@ try{
  assert.match(await page.locator('#speech').textContent(),/You fixed it/);await page.locator('#continue').click();
  await page.waitForFunction(()=>document.querySelector('#quest').textContent==='The shop is open.');
  await page.waitForFunction(()=>gameDemo.player.controller.frame().objects.find(o=>o.id==='shop-light').enabled);
+ await page.locator('#save-game').click();await page.waitForFunction(()=>document.querySelector('#demo-status').textContent.startsWith('Game saved'));
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('posecraft.corner-shop.game-state.v1')));assert.equal(saved.quest.opened,true);
+ await page.reload();await page.waitForFunction(()=>window.gameDemo?.player);await page.locator('#restore-game').click();await page.waitForFunction(()=>document.querySelector('#demo-status').textContent.startsWith('Game restored'));
+ assert.equal(await page.locator('#quest').textContent(),'The shop is open.');assert.equal(await page.locator('#continue').isHidden(),true);
+ assert.equal(await page.evaluate(()=>gameDemo.player.controller.frame().objects.find(o=>o.id==='shop-light').enabled),true);
  await page.screenshot({path:'test-results/game-demo-complete.png'});
  await page.locator('#shop-lamp').click();await page.waitForFunction(()=>!gameDemo.player.controller.frame().objects.find(o=>o.id==='shop-light').enabled);
  await page.locator('#explore').click();await page.locator('#cancel').click();

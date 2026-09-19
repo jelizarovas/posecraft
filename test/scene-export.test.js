@@ -14,6 +14,7 @@ import {applyContacts} from '../src/contacts.js';
 import {ScenePointerInteraction} from '../src/pointer-interactions.js';
 import {createEmitter} from '../src/scene-graph.js';
 import {compileScene} from '../tools/compile-scene.mjs';
+import {createGameExample} from '../examples/game-scene.js';
 
 const options={actorBehaviorFactory:ActorBehaviorRuntime,ensembleFactory:CampfireEnsemble,behaviorFactory:BehaviorRuntime,contactSolver:applyContacts};
 const equivalent=(a,b)=>{assert.equal(a.actors.length,b.actors.length);for(let i=0;i<a.actors.length;i++){assert.equal(a.actors[i].state,b.actors[i].state);for(const key of Object.keys(a.actors[i].pose))assert.ok(Math.abs(a.actors[i].pose[key]-b.actors[i].pose[key])<1e-8,`${a.actors[i].id}.${key} differs`);}};
@@ -21,6 +22,11 @@ const equivalent=(a,b)=>{assert.equal(a.actors.length,b.actors.length);for(let i
 test('feature inspection uses active motion, not unused physics profiles or pointer resistance',()=>{
  const d=structuredClone(ona);assert.equal(inspectSceneFeatures(d).runtime,'illustration');d.actors[0].behavior={mode:'ragdoll'};assert.equal(inspectSceneFeatures(d).runtime,'physics');assert.throws(()=>new IllustrationController(d),/physics runtime/);
  const camp=createCampfire();assert.equal(inspectSceneFeatures(camp).runtime,'illustration');assert.ok(inspectSceneFeatures(camp).features.includes('ensemble'));
+});
+test('game bindings select the full player even with all animated actors and survive export',()=>{
+ const scene=createGameExample(),inspection=inspectSceneFeatures(scene);
+ assert.equal(inspection.runtime,'physics');assert.ok(inspection.features.includes('game-bindings'));assert.ok(!inspection.features.includes('physics'));assert.ok(inspection.reasons.includes('Game commands require the full player.'));
+ const exported=createSceneExport(scene,{local:true});assert.equal(exported.manifest.runtimeURL,'./runtime/physics.js');assert.deepEqual(JSON.parse(exported.html.match(/<script id="posecraft-scene" type="application\/json">([\s\S]*?)<\/script>/)[1]).game,scene.game);
 });
 test('HTML escapes document and label content, validates runtime URL and preserves source',()=>{
  const d=structuredClone(ona);d.name='</script><img src=x onerror=alert(1)>';const before=JSON.stringify(d),result=createSceneExport(d,{runtimeBase:'https://example.org/posecraft/runtime',label:d.name});assert.equal(JSON.stringify(d),before);assert.ok(result.html.includes('\\u003c/script>'));assert.ok(!result.html.includes('<img src=x'));assert.equal(result.manifest.runtimeURL,'https://example.org/posecraft/runtime/illustration.js');

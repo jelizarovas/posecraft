@@ -1,4 +1,5 @@
 import type {GameCommand} from './game-performance.js';
+import type {GameSceneSnapshot} from './game-state.js';
 import type {ObjectCommand,SceneObject,ObjectOwner} from './scene-objects.js';
 import type {FluidCommand} from './bottle-fluid.js';
 import type {PointerCommand} from './schema.js';
@@ -15,6 +16,9 @@ export class WorkerSceneController {
  frame():Frame;step(dt:number):Frame;reset():Frame;seek(time:number):Frame;
  gameCommand(command:GameCommand):boolean;
  objectCommand(command:ObjectCommand):boolean|void;
+ objectCommandAck(command:ObjectCommand):Promise<boolean|void>;
+ snapshot():Promise<GameSceneSnapshot>;restore(snapshot:unknown):Promise<Frame>;
+ setActorSleeping(actor:string,sleeping:boolean):Promise<boolean>;
  fluidInput(command:FluidCommand):void;
  pointer(command:PointerCommand):void;
  dispatch(event:string,payload?:BehaviorPayload):boolean;setVariable(name:string,value:boolean|number):void;

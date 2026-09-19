@@ -14,7 +14,9 @@ Posecraft has reusable character packs, constrained joints, numeric keyframes, e
 
 The first [game-facing API](game-api.md) is implemented for illustrated scenes: actor/object handles, awaitable action/move/look/reaction commands, cancellable data sequences, host speech hooks, saved named targets and machine-readable manifests. The corner shop example keeps its quest and dialogue in host code and shares the same main/worker command implementation.
 
-Next, guided by the first game: semantic save/restore, per-actor sleep/wake and quality budgets, floating/planar locomotion, a Studio bindings inspector, and a separately tested native 3D adapter. Seeded procedural idle presets should use the existing behavior machinery once the game's actual character needs are known. These remain planned work; a physics profile alone does not establish good locomotion artwork.
+The illustrated SDK candidate now adds independent motion/gaze/speech channels with priorities, bounded floating/planar navigation, versioned semantic saves, acknowledged object interactions, per-actor sleep/wake, and a Studio bindings inspector. Saved semantic scenes retain the game API in compiled exports. An isolated consumer test installs the actual tarball and checks TypeScript, production worker loading, lifecycle cleanup and React StrictMode. The corner shop can save and restore host quest progress alongside engine state.
+
+Remaining release gates are real-phone street performance and art/motion review. The full player includes Planck even for a minimal animated scene; the measured package-consumer application plus worker is roughly 337 KB gzip before artwork. Quality tiers, richer named object properties, crowd avoidance, save migrations across changed scenes and general native 3D parity remain planned. See [Littlelands integration](littlelands-integration.md). A physics profile alone does not establish good locomotion artwork.
 
 ## A production milestone
 
