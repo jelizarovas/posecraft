@@ -330,6 +330,7 @@
     "test:vision": "node test/vision-browser.mjs",
     "test:new-demos": "node test/new-demos-browser.mjs",
     "test:demos": "node test/demos-browser.mjs",
+    "test:demos-fullscreen": "node test/demo-fullscreen-browser.mjs",
     "test:motion": "node test/motion-browser.mjs",
     "test:spatial": "node test/spatial-browser.mjs",
     "test:lighting": "node test/lighting-browser.mjs",

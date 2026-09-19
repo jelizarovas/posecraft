@@ -1,5 +1,7 @@
 # Demo gallery
 
+Every demo has a fullscreen button beside the playback controls. Native browser fullscreen is used when available; unsupported browsers get a full-viewport player. Playback and scene controls remain available, maps resize without resetting, and the exit button returns to the gallery. Escape also exits the full-viewport fallback. Mobile layouts account for safe areas and orientation changes.
+
 Open [Posecraft demos](https://jelizarovas.github.io/posecraft/demos.html), or choose **Demos** in the Studio toolbar. Each demo has a live preview, focused controls, a downloadable project and a link to its editor where supported.
 
 | Demo | What to try | Editable project |
