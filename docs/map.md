@@ -49,6 +49,8 @@ Elevation is serialized with the map and included in save compatibility checks. 
 
 ## Image artwork
 
+Trees and rocks pass pointer clicks through their artwork to the ground tile underneath. Their footprints still block navigation. Chests and houses capture clicks on their artwork to select the object interaction; programmatic object targets remain available for every prop kind.
+
 Maps can optionally store `art.images`, `art.props` and `art.terrain`. Images declare a URL, display width/height at a 64-pixel tile width, and a normalized ground anchor. Prop bindings choose from named images deterministically, so saved maps keep their tree and rock variations. Terrain bindings cover grass, road, water and sand. Terrain image dimensions set repeat size in the ground plane; anchors are ignored for terrain. The renderer accepts PNG or WebP with alpha, uses that alpha for silhouettes, and includes image overhang in viewport culling.
 
 The [woodland example](../examples/woodland-map.js) supplies three trees, two rocks, an inn and four terrain textures. Original PNGs, WebP derivatives and generation prompts are in [the asset directory](../public/assets/map/README.md). Copy `public/assets/map` into the host's `assets/map` directory when using a downloaded woodland map elsewhere, or replace its image URLs. A map JSON file contains references, not embedded pixels.

@@ -128,6 +128,9 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   function pointerMove(e){if(!pointers.has(e.pointerId)||!gesture)return;const p=local(e);pointers.set(e.pointerId,p);if(pointers.size===2&&gesture.pinch){const[a,b]=[...pointers.values()],pinch=gesture.pinch;zoom=clamp(pinch.zoom*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.distance),.45,2.5);camera={x:pinch.world.x-((a.x+b.x)/2-width/2)/zoom,y:pinch.world.y-((a.y+b.y)/2-height/2)/zoom};gesture.moved=true;lastTap=null;stopFollowing();}else{const dx=p.x-gesture.start.x,dy=p.y-gesture.start.y;if(Math.hypot(dx,dy)>4){gesture.moved=true;lastTap=null;stopFollowing();}if(!gesture.moved)return;camera={x:gesture.camera.x-dx/zoom,y:gesture.camera.y-dy/zoom};}invalidate();}
   const hitCanvas=doc.createElement('canvas');hitCanvas.width=hitCanvas.height=1;const hitContext=hitCanvas.getContext('2d',{willReadFrequently:true});
   function hitProp(point){const world=toWorld(point.x,point.y);for(const entry of [...drawList].reverse()){
+    // Scenery overhang must not steal ground destinations behind it. Its
+    // footprint still blocks navigation; only interactive props capture clicks.
+    if(entry.item.kind==='tree'||entry.item.kind==='rock')continue;
     const selected=artPropSelection(map,entry.item),image=selected&&art.image(selected.id);
     const bounds=image?mapImageBounds(map,propCenter(entry.item),selected.image):mapPropArtBounds(map,entry.item);
     if(world.x<bounds.x||world.x>=bounds.x+bounds.width||world.y<bounds.y||world.y>=bounds.y+bounds.height)continue;
