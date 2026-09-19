@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {chromium} from '@playwright/test';
+const base=process.env.POSECRAFT_URL||'http://127.0.0.1:5232',browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})}),page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];
+page.on('pageerror',error=>errors.push(error.message));await page.routeWebSocket('**',socket=>socket.close());
+try{
+ await page.goto(base+'/demos.html#gym-routine');await page.waitForFunction(()=>window.posecraftWorkout?.view?.frame,null,{timeout:60000});
+ await page.evaluate(()=>window.posecraftWorkout.pause());
+ const canvas=page.locator('#demo-art canvas'),rect=await canvas.boundingBox();
+ const before=await page.evaluate(()=>({environment:window.posecraftWorkout.view.environmentState(),camera:window.posecraftWorkout.view.cameraState()}));
+ assert.equal(before.environment.lamps.length,2);
+ for(const lamp of before.environment.lamps)assert.ok(Math.abs(lamp.screen[0])<1&&Math.abs(lamp.screen[1])<1,'Pendant must be inside camera');
+ const lamp=before.environment.lamps[0],x=rect.x+(lamp.screen[0]+1)*rect.width/2,y=rect.y+(1-lamp.screen[1])*rect.height/2;
+ await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+55,y+20,{steps:10});
+ const during=await page.evaluate(()=>({environment:window.posecraftWorkout.view.environmentState(),camera:window.posecraftWorkout.view.cameraState()}));
+ assert.equal(during.environment.dragging,0);assert.notDeepEqual(during.environment.lamps[0].position,lamp.position);assert.deepEqual(during.camera,before.camera,'Lamp drag must not orbit camera');
+ assert.notDeepEqual(during.environment.lamps[0].lightPosition,lamp.lightPosition,'Actual light follows pendant');
+ await page.mouse.up();await page.waitForTimeout(500);
+ const after=await page.evaluate(()=>window.posecraftWorkout.view.environmentState());assert.equal(after.dragging,null);assert.notDeepEqual(after.lamps[0].position,during.environment.lamps[0].position,'Released pendant swings');
+ await fs.mkdir('test-results',{recursive:true});await page.screenshot({path:'test-results/native-gym-environment.png'});
+ await page.locator('[data-demo="corner-shop"]').click();
+ await page.waitForTimeout(200);assert.equal(await page.evaluate(()=>!!window.posecraftWorkout),false);
+ const mobile=await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});mobile.on('pageerror',error=>errors.push(error.message));await mobile.routeWebSocket('**',socket=>socket.close());await mobile.goto(base+'/demos.html#gym-routine');await mobile.waitForFunction(()=>window.posecraftWorkout?.view?.frame,null,{timeout:60000});await mobile.evaluate(()=>window.posecraftWorkout.pause());
+ const mr=await mobile.locator('#demo-art canvas').boundingBox(),ms=await mobile.evaluate(()=>({environment:window.posecraftWorkout.view.environmentState(),camera:window.posecraftWorkout.view.cameraState()})),ml=ms.environment.lamps[1],mx=mr.x+(ml.screen[0]+1)*mr.width/2,my=mr.y+(1-ml.screen[1])*mr.height/2,cdp=await mobile.context().newCDPSession(mobile);
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:mx,y:my}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:mx-25,y:my+10}]});
+ const md=await mobile.evaluate(()=>({environment:window.posecraftWorkout.view.environmentState(),camera:window.posecraftWorkout.view.cameraState()}));assert.equal(md.environment.dragging,1);assert.notDeepEqual(md.environment.lamps[1].position,ml.position);assert.deepEqual(md.camera,ms.camera);
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await mobile.screenshot({path:'test-results/native-gym-environment-mobile.png'});
+ const unchanged=await mobile.evaluate(async()=>{const {workout,pullup,bottle,...bench}=window.posecraftWorkout.project;bench.kind='bench-study3d';await window.posecraftWorkout.view.setProject(bench);return window.posecraftWorkout.view.environmentState();});assert.equal(unchanged.enabled,false);assert.deepEqual(unchanged.lamps,[]);await mobile.close();
+ assert.deepEqual(errors,[]);console.log('Gym environment: desktop and touch drag, light movement, swing, disposal and original bench environment passed.');
+}finally{await browser.close();}

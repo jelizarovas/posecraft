@@ -1,3 +1,4 @@
+import {createFaceControls3D} from './face-3d.js';
 import {Box3, Group, Matrix4, Quaternion, Vector3} from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {compileRig3D, evaluateRig3D} from './rig-3d.js';
@@ -151,6 +152,7 @@ export function createCharacter3D(gltf, options = {}) {
     if(supportHeight>0)grips[side].supportHeight=supportHeight;
   }
   let disposed=false;
+  const faceControls=createFaceControls3D(root);
   const metadata={height,sourceHeight,normalizationScale,facingYaw:yaw,bones:bones.length,skinnedMeshes:skins.length,triangles:skins.reduce((sum,mesh)=>sum+(mesh.geometry.index?.count??mesh.geometry.attributes.position.count)/3,0),morphTargets:skins.reduce((sum,mesh)=>sum+(mesh.morphTargetInfluences?.length??0),0),animations:animations.length};
   function apply(pose={},placement={}){
     if(disposed)throw new Error('Character has been disposed.');
@@ -187,7 +189,7 @@ export function createCharacter3D(gltf, options = {}) {
     }
     apply();
   }
-  return {root,rig,compiledRig:compiled,roles,grips,rest,animations,metadata,apply,dispose(){if(disposed)return;disposed=true;disposeScene(scene);root.removeFromParent();root.clear();}};
+  return {root,rig,compiledRig:compiled,roles,grips,rest,animations,metadata,apply,applyFace:faceControls.apply,faceControls:faceControls.controls,dispose(){if(disposed)return;disposed=true;disposeScene(scene);root.removeFromParent();root.clear();}};
 }
 
 /** Load a local/network GLB or glTF URL. Blob URLs support user-selected GLB files.

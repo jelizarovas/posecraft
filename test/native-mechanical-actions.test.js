@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import {Texture,Vector3} from 'three';
+import {Texture,Vector3,Quaternion} from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createCharacter3D} from '../src/gltf-character-3d.js';
 import {createBenchAction3D} from '../src/bench-action-3d.js';
@@ -21,3 +21,28 @@ for(const asset of ['athlete','regular']){
  assert.throws(()=>createLocomotionAction3D({...c,from:from.placement,to:{...pull.standingPlacement,scale:2}}),/scale/);
  }finally{c.dispose();}});
 }
+
+for(const asset of ['athlete','regular'])test(asset+' one-hand transfers retain contacts, lean below the loaded arm, and rejoin smoothly',async()=>{
+ const c=await character(asset);try{
+  const turn=new Quaternion().setFromAxisAngle(new Vector3(0,1,0),.63),bar={position:[1.2,2.25,-.8],rotation:turn.toArray()};
+  for(const variation of ['left-lead','right-lead']){
+   const action=createPullupAction3D({...c,bar,settings:{reps:3,failedRep:3,effort:.9,variation,restBetweenReps:true}});let oneHand=0,asymmetric=0;
+   for(let t=0;t<=action.duration;t+=1/30){
+    const frame=action.sample(t);checkFrame(frame,c.rig);
+    const armContacts=frame.contacts.filter(d=>d.id.endsWith('Arm'));
+    for(const d of armContacts)assert.ok(distance(d.actual.position,action.measurements.gripTargets[d.id.startsWith('left')?'left':'right'].position)<1e-6);
+    if(['one-hand-entry','one-hand-rest','one-hand-exit'].includes(frame.phase)){
+     oneHand++;assert.equal(armContacts.length,1);assert.equal(armContacts[0].id,frame.hang.side+'Arm');
+     const hip=new Vector3(...frame.world[c.roles.pelvis].position),shoulder=new Vector3(...frame.world[c.rig.chains[frame.hang.side+'Arm'].root].position),offset=hip.sub(shoulder).applyQuaternion(turn.clone().invert());
+     // Torso descends toward the supporting hand rather than leaning away from it.
+     assert.ok(Math.sign(frame.hang.lean)===(frame.hang.side==='left'?1:-1));assert.ok(Math.abs(offset.x)<.2);
+    }
+    if(frame.exertion.intensity>.4&&Math.abs(frame.exertion.left-frame.exertion.right)>.03)asymmetric++;
+   }
+   assert.ok(oneHand>30);assert.ok(asymmetric>10);
+   for(const beat of action.beats){const before=action.sample(Math.max(0,beat.end-1e-6)),after=action.sample(Math.min(action.duration,beat.end+1e-6));for(const id of Object.keys(before.world))assert.ok(distance(before.world[id].position,after.world[id].position)<.001,beat.id+' '+id+' jumps');}
+   const pulls=action.beats.filter(b=>b.rep);assert.ok(new Set(pulls.map(b=>(b.end-b.start).toFixed(3))).size>1);
+  }
+  assert.throws(()=>createPullupAction3D({...c,bar,settings:{variation:'unknown'}}),/variation/);
+ }finally{c.dispose();}
+});

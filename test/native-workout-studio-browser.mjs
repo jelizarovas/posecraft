@@ -29,6 +29,8 @@ try{
  await edit('project-name','Portable workout');await page.locator('[data-section=action]').click();
  await edit('workout-reps-min',4);assert.equal((await snapshot()).project.workout.reps.min,4);await page.locator('#undo').click();await ready();assert.equal((await snapshot()).project.workout.reps.min,6);await page.locator('#redo').click();await ready();assert.equal((await snapshot()).project.workout.reps.min,4);
  await page.locator('#workout-sequence').selectOption('bench,pullup');await ready();assert.deepEqual((await snapshot()).project.workout.sequence,['bench','pullup']);
+ await page.locator('#workout-pullupStyle').selectOption('right-lead');await ready();assert.equal((await snapshot()).project.workout.pullupStyle,'right-lead');
+ await page.locator('#workout-benchEntry').selectOption('side-reach');await ready();assert.equal((await snapshot()).project.workout.benchEntry,'side-reach');
  await edit('workout-rest-threshold',58);await edit('workout-drink-threshold',40);
  await page.locator('[data-section=bottle]').click();await edit('bottle-position-1',1.12);assert.equal((await snapshot()).project.bottle.position[1],1.12);
  await page.locator('[data-section=bench]').click();await edit('bench-position-0',.2);await edit('bench-yaw',10);assert.ok((await snapshot()).project.bench.rotation[1]>0);

@@ -8,8 +8,8 @@ export function mountWorkoutDemo({playing=true,onPlayingChange=()=>{},onError=()
  const canvas=document.createElement('canvas');canvas.setAttribute('aria-label','One More Rep, native character and equipment');art.append(canvas);
  $('edit-demo').href='./native-studio.html?demo=gym-routine';
  $('demo-category').textContent='Reusable actions · Native 3D';
- $('demo-description').textContent='Atlas moves between equipment, trains, rests and drinks. Fatigue changes the next attempt; each action finishes before the next begins.';
- $('demo-instruction').textContent='Drag to orbit. Queue a set or a water break. Move equipment and change characters in Studio; the same actions follow their targets.';
+ $('demo-description').textContent='Atlas alternates pull-ups and bench presses, struggles through hard reps and takes a breather. Watch for one-arm hangs, uneven lifts and changing expressions.';
+ $('demo-instruction').textContent='Pull a hanging lamp and release it to swing the light. Drag elsewhere to orbit. Queue a set or a break; Tired makes later sets harder.';
  $('demo-features').replaceChildren(...['World-space grips','Completion-driven actions','Portable workout'].map(label=>{const span=document.createElement('span');span.textContent=label;return span;}));
  $('demo-scrub').hidden=true;$('demo-sound').hidden=true;$('demo-caption').textContent='Loading rig and workout…';
  $('demo-controls').innerHTML='<div class="demo-actions" id="workout-actions"></div>';

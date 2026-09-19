@@ -104,7 +104,8 @@ test('both authored characters keep physical palm grips and clear the bench base
     if(prior)for(const role of ['leftShoulder','rightShoulder','leftElbow','rightElbow','leftWrist','rightWrist','leftHip','rightHip','leftKnee','rightKnee','leftAnkle','rightAnkle'])assert.ok(distance(prior.world[character.roles[role]].position,f.world[character.roles[role]].position)<(role.endsWith('Wrist')?.06:.085),`${file} ${role} jumped at ${t}`);
     if(['press','unrack','rerack'].includes(f.phase))for(const side of ['left','right']){
      const grip=character.grips[side],w=f.world[grip.joint],offset=rotate(grip.position,w.rotation),palm=w.position.map((v,i)=>v+offset[i]),sign=side==='left'?1:-1;
-     assert.ok(distance(palm,[f.bar.position[0]+sign*action.measurements.halfGrip,...f.bar.position.slice(1)])<1e-6,`${file} palm slipped`);
+     const offsetBar=rotate([sign*action.measurements.halfGrip,0,0],f.bar.rotation);
+     assert.ok(distance(palm,f.bar.position.map((v,i)=>v+offsetBar[i]))<1e-6,`${file} palm slipped`);
      const foot=f.world[character.roles[side+'Ankle']].position,knee=f.world[character.roles[side+'Knee']].position;
      const body=benchBodyGeometry3D(action.bench.size),base=body.find(p=>p.id==='front-foot'),pad=body.find(p=>p.id==='pad');
      assert.ok(Math.abs(foot[0])>base.size[0]/2+.04,'Foot ankle lacks clearance from the declared base');assert.ok(Math.abs(knee[0])>pad.size[0]/2+.04,'Knee lacks clearance from the declared pad');
@@ -126,7 +127,7 @@ test('both authored characters keep physical palm grips and clear the bench base
  }
 });
 
-test('scoots move lifted hips against stationary hand and foot supports on both authored rigs',async()=>{
+test('leg-powered scoots move lifted hips against planted feet while palms follow thighs',async()=>{
  for(const [index,file]of ['athlete','regular'].entries()){
   const character=await imported(file),yaw=index?.6:0;
   try{
@@ -145,14 +146,13 @@ test('scoots move lifted hips against stationary hand and foot supports on both 
      assert.ok(Math.abs(pelvis[1]-(bench.position[1]+action.measurements.seatY+s.seatLift))<1e-6,'Declared hip lift differs from the solved pelvis');
      assert.ok(f.valid,`${file} ${id} has unreachable support at ${t}: ${JSON.stringify(f.diagnostics.map(d=>[d.id,d.status,d.error]))}`);
      if(['lift','shift','settle'].includes(s.stage)){
-      pushFrames++;assert.equal(arms.length,2);assert.ok(arms.every(d=>d.active&&d.error<1e-6),'Both hands must support the push');
+      pushFrames++;assert.equal(arms.length,2);assert.ok(arms.every(d=>!d.active&&d.error<1e-6),'Resting hands must not claim a fixed support');assert.equal(s.propulsion,'legs');
       const key=s.cycle,targets={hands:s.handTargets,feet:s.footTargets};
       if(!anchors.has(key))anchors.set(key,structuredClone(targets));
       const fixed=anchors.get(key);
       for(let j=0;j<2;j++){
-       assert.ok(distance(s.handTargets[j],fixed.hands[j])<1e-8,'A hand target slid during the push');
        assert.ok(distance(s.footTargets[j],fixed.feet[j])<1e-8,'A foot target slid during the push');
-       assert.ok(distance(arms[j].actual.position,s.handTargets[j])<1e-6,'Rendered wrist lost its support target');
+       assert.ok(distance(arms[j].actual.position,s.handTargets[j])<1e-6,'Rendered wrist lost its thigh target');
        assert.ok(distance(feet[j].actual.position,s.footTargets[j])<1e-6,'Rendered ankle lost its support target');
        assert.ok(Math.abs(feet[j].actual.position[1]-(bench.position[1]+action.measurements.soleHeight))<1e-6,'A support foot floated during the push');
       }
@@ -365,10 +365,10 @@ test('actual head, face and hair surfaces clear the racked bar throughout reclin
  // radius18mm. Test a capsule (including end caps), not joint-center clearance.
  const half=.925,radius=.018,axisA=[-half,0,0],axisB=[half,0,0],aVec=new Vector3(...axisA),bVec=new Vector3(...axisB),ray=new Ray(aVec,new Vector3(1,0,0)),triangle=new Triangle(),nearest=new Vector3(),hit=new Vector3();
  const reports=[];
- for(const file of ['athlete','regular'])for(const [height,yaw]of [[1.7,0],[1.8,0],[1.9,.65]]){
+ for(const file of ['athlete','regular'])for(const [height,yaw,entryStyle='center']of [[1.7,0],[1.8,0],[1.9,.65],[1.8,.35,'side-reach']]){
   const character=await imported(file,height),bench={position:yaw?[.4,.12,-.3]:[0,0,0],rotation:[0,Math.sin(yaw/2),0,Math.cos(yaw/2)],scale:1};
   try{
-   const action=createBenchAction3D({rig:character.rig,roles:character.roles,grips:character.grips,bench}),joints=new Map(character.rig.joints.map(j=>[j.id,j])),head=new Set();
+   const action=createBenchAction3D({rig:character.rig,roles:character.roles,grips:character.grips,bench,settings:{entryStyle}}),joints=new Map(character.rig.joints.map(j=>[j.id,j])),head=new Set();
    for(const joint of character.rig.joints)for(let ancestor=joint;ancestor;ancestor=joints.get(ancestor.parent))if(ancestor.id===character.roles.head){head.add(joint.id);break;}
    const selections=[];
    character.root.traverse(mesh=>{
@@ -379,7 +379,7 @@ test('actual head, face and hair surfaces clear the racked bar throughout reclin
     for(let i=0;i<(index?.count??weights.count);i+=3){const ids=[0,1,2].map(k=>index?index.getX(i+k):i+k);if(ids.every(id=>selected.has(id)))faces.push(ids);}
     if(faces.length)selections.push({mesh,vertices:[...selected],faces,points:new Map()});
    });
-   const report={file,height,yaw,frames:0,triangles:selections.reduce((n,s)=>n+s.faces.length,0),collisions:0,byPhase:{},phaseWindows:{},worst:null};assert.ok(report.triangles>100,'Actual head surface was not selected');
+   const report={file,height,yaw,entryStyle,frames:0,triangles:selections.reduce((n,s)=>n+s.faces.length,0),collisions:0,byPhase:{},phaseWindows:{},worst:null};assert.ok(report.triangles>100,'Actual head surface was not selected');
    for(const beat of action.beats.filter(b=>['recline','sit-up'].includes(b.id))){
     const count=Math.ceil((beat.end-beat.start)*60);
     for(let i=0;i<=count;i++){
@@ -404,4 +404,44 @@ test('actual head, face and hair surfaces clear the racked bar throughout reclin
  }
  await fs.mkdir(new URL('../test-results/',import.meta.url),{recursive:true});await fs.writeFile(new URL('../test-results/native-head-bar-clearance.json',import.meta.url),JSON.stringify(reports,null,2));
  assert.ok(reports.every(r=>r.collisions===0),'Actual head/hair surface intersects the racked bar: '+JSON.stringify(reports));
+});
+
+
+test('heavy presses have an actual tilted shared bar, a sticking region and alternating lagging hands',()=>{
+ const action=createBenchAction3D({...humanoid(),settings:{reps:3,effort:1}});
+ const presses=action.beats.filter(b=>b.rep),sides=new Set();
+ for(const beat of presses){
+  const frameAt=u=>action.sample(beat.start+(beat.end-beat.start)*u);
+  const mid=frameAt(.34+.61*.44);sides.add(mid.exertion.laggingSide);
+  assert.ok(mid.exertion.sticking);assert.ok(mid.exertion.intensity>.3);
+  const hands=mid.contacts.filter(c=>c.id.endsWith('Arm'));
+  assert.ok(Math.abs(hands[0].actual.position[1]-hands[1].actual.position[1])>.01,'The lag must change physical hand heights');
+  assert.ok(hands.every(c=>c.status==='solved'&&c.error<1e-7));
+  const velocity=(a,b)=>(frameAt(.34+.61*b).bar.position[1]-frameAt(.34+.61*a).bar.position[1])/(b-a);
+  assert.ok(velocity(.30,.52)<velocity(.64,.80),'A hard rep must slow through the sticking region');
+  assert.deepEqual(frameAt(0).bar.rotation,I);assert.deepEqual(frameAt(1).bar.rotation,I);
+ }
+ assert.deepEqual([...sides].sort(),['left','right']);
+});
+
+test('side reach entry changes shoulder and hand acting while retaining support and complete continuity',async()=>{
+ for(const file of ['athlete','regular']){
+  const character=await imported(file);
+  try{
+   const source={rig:character.rig,roles:character.roles,grips:character.grips,bench:{position:[0,0,0],rotation:I,scale:1}};
+   const action=createBenchAction3D({...source,settings:{entryStyle:'side-reach'}}),base=createBenchAction3D(source),beat=action.beats.find(b=>b.id==='recline');
+   let altered=false,previous=null;
+   for(let i=0;i<=240;i++){
+    const t=beat.start+(beat.end-beat.start)*i/240,f=action.sample(t),plain=base.sample(t);
+    assert.ok(f.valid,`${file} side reach ${i}: ${JSON.stringify(f.diagnostics)}`);
+    assert.ok(f.contacts.filter(c=>c.id.endsWith('Leg')).length>=1,'Entry lost all foot supports');
+    const wrist=f.world[character.roles.leftWrist].position;
+    if(distance(wrist,plain.world[character.roles.leftWrist].position)>.08)altered=true;
+    if(previous)assert.ok(distance(wrist,previous)<.055,`${file} side reach wrist snapped ${i}: ${distance(wrist,previous)}`);
+    previous=wrist;
+   }
+   assert.ok(altered,'Entry variation did not alter the actual reaching arm');
+   assert.deepEqual(action.sample(beat.end),{...base.sample(beat.end)});
+  }finally{character.dispose();}
+ }
 });

@@ -51,6 +51,7 @@ export function createBenchAction3D({rig,roles,grips,bench,settings={}}){
  const [width,seat,lengthOfBench]=size.map(v=>v*placement.scale);
  const reps=finite(settings.reps??3,'Repetitions',1,12);if(!Number.isInteger(reps))throw new RangeError('Repetitions must be an integer.');
  const effort=finite(settings.effort??.6,'Effort',0,1),tempo=finite(settings.tempo??1,'Tempo',.25,3),repDuration=finite(settings.repetitionDuration??3.2,'Repetition duration',1.5,8)/tempo;
+ const entryStyle=settings.entryStyle??'center';if(!['center','side-reach'].includes(entryStyle))throw new RangeError('Bench entry style must be center or side-reach.');
  const center=bind[pelvis].position,avg=values=>values.reduce((a,b)=>a+b,0)/values.length;
  const arms=[limbs.leftArm,limbs.rightArm],legs=[limbs.leftLeg,limbs.rightLeg];
  const armReach=Math.min(...arms.map(l=>l.lengths[0]+l.lengths[1])),legReach=Math.min(...legs.map(l=>l.lengths[0]+l.lengths[1]));
@@ -75,9 +76,9 @@ export function createBenchAction3D({rig,roles,grips,bench,settings={}}){
  const scootForward=createBenchScoot3D({...scootOptions,from:clearanceZ,to:sitZ,entryFootZ:reclinedFeetZ+clearanceDistance,exitFootZ:endZ,direction:'forward'});
  for(const shoulder of supineShoulders){const target=[Math.sign(shoulder[0])*halfGrip,rack[1],rack[2]];if(length(shoulder,target)>armReach*.99)throw new RangeError('The rack is outside this rig\'s reach. Lower the bench/rack or use a taller rig.');}
  let time=0;const beats=[];const add=(id,label,duration,extra={})=>{const b={id,label,start:time,end:time+duration,...extra};time=b.end;beats.push(b);return b;};
- add('approach','Approach',3/tempo);add('plant','Plant and turn',1.4/tempo);add('sit','Sit',3.2/tempo);add('scoot-back','Scoot into position',scootBack.duration);add('recline','Recline',6/tempo);add('grip','Take the bar',2.2/tempo);add('unrack','Lift off the rack',1.2/tempo);
- for(let i=0;i<reps;i++)add('press-'+(i+1),'Press '+(i+1),repDuration*(1+effort*.27*i/Math.max(1,reps-1)),{rep:i+1});
- add('rerack','Return the bar',1.2/tempo);add('release','Release',1.4/tempo);add('sit-up','Sit up',6/tempo);add('scoot-forward','Scoot to the edge',scootForward.duration);add('stand','Stand',3.4/tempo);
+ add('approach','Approach',3/tempo);add('plant','Plant and turn',1.4/tempo);add('sit','Sit',1.8/tempo);add('scoot-back','Scoot into position',scootBack.duration);add('recline','Recline',4.8/tempo);add('grip','Take the bar',2.2/tempo);add('unrack','Lift off the rack',1.2/tempo);
+ for(let i=0;i<reps;i++)add('press-'+(i+1),'Press '+(i+1),repDuration*(1+effort*.48*i/Math.max(1,reps-1))*[1,.96,1.06,.98][i%4],{rep:i+1});
+ add('rerack','Return the bar',1.2/tempo);add('release','Release',1.4/tempo);add('sit-up','Sit up',4.8/tempo);add('scoot-forward','Scoot to the edge',scootForward.duration);add('stand','Stand',1.9/tempo);
  const duration=time,byId=Object.fromEntries(beats.map(b=>[b.id,b]));
  const worldPoint=p=>point(p).applyQuaternion(bq).add(point(placement.position)).toArray();
  const worldRotation=q=>bq.clone().multiply(q).normalize().toArray();
@@ -86,20 +87,20 @@ export function createBenchAction3D({rig,roles,grips,bench,settings={}}){
  function sample(rawTime){
   if(!Number.isFinite(rawTime))throw new Error('Bench action time must be finite.');
   const t=clamp(rawTime,0,duration),beat=beats.find(b=>t<b.end)??beats.at(-1),phase=t>=duration?'complete':beat.id.startsWith('press-')?'press':beat.id;
-  const transfer=phase==='sit'||phase==='stand'?sampleSeatTransfer3D(phase==='sit'?1-fraction(t,'sit'):fraction(t,'stand'),{seatY,standY,sitZ,footZ:endZ}):null;
+  const rawTransfer=phase==='sit'?1-fraction(t,'sit'):fraction(t,'stand'),transferU=rawTransfer<.70?rawTransfer*.84/.70:.84+(rawTransfer-.70)*.16/.30;
+  const transfer=phase==='sit'||phase==='stand'?sampleSeatTransfer3D(transferU,{seatY,standY,sitZ,footZ:endZ}):null;
   const sit=phase==='sit'?1-transfer.rise:smooth(fraction(t,'sit')),recline=smooth(fraction(t,'recline')),sitUp=smooth(fraction(t,'sit-up')),standUp=phase==='stand'?transfer.rise:smooth(fraction(t,'stand'));
   const reclining=phase==='recline'||phase==='sit-up',riseU=phase==='sit-up'?fraction(t,'sit-up'):1-fraction(t,'recline');
   const clearShift=reclining?smooth((riseU-.28)/.2):0,clearRise=reclining?smooth((riseU-.68)/.32):0;
   // Brace, lift, reset each foot, shift, settle, release, then curl upward.
   // The reverse parameter drives reclining through the same support path.
-  const bridge=reclining?{handBlend:smooth(riseU/.08)*(1-smooth((riseU-.56)/.12)),lift:.035*smooth((riseU-.08)/.04)*(1-smooth((riseU-.48)/.08))}:null;
+  const bridge=reclining?{handBlend:smooth(riseU/.11)*(1-smooth((riseU-.56)/.12)),lift:.035*smooth((riseU-.08)/.04)*(1-smooth((riseU-.48)/.08))}:null;
   const reclineAmount=reclining?1-clearRise:recline*(1-sitUp),sitAmount=sit*(1-standUp),plant=smooth(fraction(t,'plant'));
   const backward=phase==='scoot-back',forward=phase==='scoot-forward',scoot=backward?scootBack.sample(t-byId['scoot-back'].start):forward?scootForward.sample(t-byId['scoot-forward'].start):null;
   const stationed=t>=byId['scoot-back'].end&&t<byId['scoot-forward'].start;
-  const transferU=phase==='sit'?1-fraction(t,'sit'):fraction(t,'stand');
   const spreadAmount=scoot?1:stationed?1:transfer?1-smooth((transferU-.84)/.15):0;
   const walk=smooth(fraction(t,'approach')),heading=Math.PI*(1-plant),pitch=scoot?scoot.pitch:transfer?transfer.pitch:-Math.PI/2*reclineAmount;
-  const standingZ=mix(startZ,endZ,walk),bodyZ=scoot?scoot.hipZ:transfer?transfer.hipZ:stationed?supineZ+(reclining?clearanceDistance*clearShift:0):mix(standingZ,sitZ,sitAmount),bodyY=scoot?scoot.hipY:transfer?transfer.hipY:mix(mix(standY,seatY,sitAmount),reclinedY,reclineAmount)+(bridge?.lift??0);
+  const standingZ=mix(startZ,endZ,walk),bodyZ=scoot?scoot.hipZ:transfer?transfer.hipZ:stationed?supineZ+(reclining?clearanceDistance*clearShift:0):mix(standingZ,sitZ,sitAmount),bodyY=scoot?scoot.hipY:transfer?transfer.hipY:mix(mix(standY,seatY,sitAmount),reclinedY,reclineAmount)+(bridge?.lift??0)-(phase==='approach'?.014*Math.sin(Math.PI*fraction(t,'approach'))**2:0);
   const bodyRotation=turn([0,1,0],heading).multiply(turn([1,0,0],pitch)),rotationQ=bq.clone().multiply(bodyRotation);
   const body=[0,bodyY,bodyZ],origin=point(worldPoint(body)).sub(point(center).applyQuaternion(rotationQ));
   const actorPlacement={position:origin.toArray(),rotation:rotationQ.toArray(),scale:1};
@@ -107,11 +108,21 @@ export function createBenchAction3D({rig,roles,grips,bench,settings={}}){
   // Lead the sit-up with the upper body instead of rotating a rigid plank.
   // Apply the bend in the bench frame so imported bone axes need no guesses.
   const curl=reclining?Math.sin(Math.PI*clearRise)**2:0;
-  const spineBends=scoot?[['torso',22],['chest',14],['head',-12]]:[['torso',9],['chest',9],['head',7]],bendAmount=scoot?clamp(scoot.pitch/(42*Math.PI/180)):curl;
+  const spineBends=scoot?[['torso',12],['chest',8],['head',-6]]:[['torso',9],['chest',9],['head',7]],bendAmount=scoot?clamp(scoot.pitch/(42*Math.PI/180)):curl;
   if(bendAmount>0)for(const [role,degrees]of spineBends){
    const id=sourceRoles[role],joint=jointsById.get(id);if(!joint||id===pelvis)continue;
    const parent=joint.parent?quat(world[joint.parent].rotation):quat(actorPlacement.rotation),delta=bq.clone().multiply(turn([1,0,0],degrees*Math.PI/180*bendAmount)).multiply(bq.clone().invert());
    pose[id]={rotation:parent.clone().invert().multiply(delta).multiply(parent).multiply(quat(joint.rotation)).normalize().toArray()};world=evaluateRig3D(compiled,pose,actorPlacement);
+  }
+  // Reach across while settling back, then square the shoulders before the
+  // supported clearance shift. The pelvis stays on its proven support path.
+  const entryU=phase==='recline'?fraction(t,'recline'):0;
+  const entryLean=entryStyle==='side-reach'?smooth(entryU/.15)*(1-smooth((entryU-.23)/.13)):0;
+  if(entryLean>0)for(const role of ['torso','chest']){
+   const id=sourceRoles[role],joint=jointsById.get(id);if(!joint||id===pelvis)continue;
+   const parent=joint.parent?quat(world[joint.parent].rotation):quat(actorPlacement.rotation);
+   const delta=bq.clone().multiply(turn([0,0,1],-.045*entryLean)).multiply(bq.clone().invert());
+   pose[id]={rotation:parent.clone().invert().multiply(delta).multiply(parent).multiply(quat(pose[id]?.rotation??joint.rotation)).normalize().toArray()};world=evaluateRig3D(compiled,pose,actorPlacement);
   }
   const solve=(key,target,pole,active=true)=>{
    const limb=limbs[key],result=solveTwoBone3D(compiled,pose,limb.name,target,{placement:actorPlacement,poleWorld:worldPoint(pole),world:'chain'});
@@ -119,9 +130,9 @@ export function createBenchAction3D({rig,roles,grips,bench,settings={}}){
    const actual=result.world[limb.chain.tip],diagnostic={id:key,chain:limb.name,active,target:structuredClone(target),actual:structuredClone(actual),...result.diagnostics};
    diagnostics.push(diagnostic);if(active)contacts.push(diagnostic);
   };
-  // Six alternating steps keep the stance foot fixed while its partner swings.
-  const walking=fraction(t,'approach'),step=Math.min(5,Math.floor(walking*6)),stepT=walking>=1?1:walking*6-step;
-  const keys=[[0,0],[.2,0],[.2,.4],[.6,.4],[.6,.8],[1,.8],[1,1]],from=keys[step],to=keys[step+1];
+  // Four purposeful steps keep the stance foot fixed while its partner swings.
+  const walking=fraction(t,'approach'),step=Math.min(3,Math.floor(walking*4)),stepT=walking>=1?1:walking*4-step;
+  const keys=[[0,0],[1/3,0],[1/3,2/3],[1,2/3],[1,1]],from=keys[step],to=keys[step+1];
   for(const [index,side]of ['left','right'].entries()){
    const key=side+'Leg',limb=limbs[key],sign=Math.sign(bind[limb.chain.root].position[0]-center[0])|| (index===0?1:-1);
    const moving=from[index]!==to[index]&&walking<1,footProgress=mix(from[index],to[index],smooth(stepT));
@@ -138,21 +149,29 @@ export function createBenchAction3D({rig,roles,grips,bench,settings={}}){
    solve(key,{position:worldPoint(foot),rotation:worldRotation(turn([0,1,0],footHeading).multiply(quat(bind[limb.chain.tip].rotation)))},pole,scoot?scoot.feet[index].active:transfer?resetU===0||resetU===1:reclining?clearStep===0||clearStep===1:!moving&&!pivoting);
   }
   const unrack=smooth(fraction(t,'unrack'))*(1-smooth(fraction(t,'rerack')));
-  let barY=mix(rack[1],upperBarY,unrack),barPositionZ=mix(rack[2],barZ,unrack),barX=0;
+  let barY=mix(rack[1],upperBarY,unrack),barPositionZ=mix(rack[2],barZ,unrack),barX=0,barTilt=0;
+  let exertion={intensity:0,breath:0,laggingSide:null,sticking:false};
   if(phase==='press'){
-   const u=clamp((t-beat.start)/(beat.end-beat.start)),load=(beat.rep-1)/Math.max(1,reps-1),down=.37,upEnd=.92;
-   const amount=u<down?smooth(u/down):1-smooth((u-down)/(upEnd-down));
+   const u=clamp((t-beat.start)/(beat.end-beat.start)),load=(beat.rep-1)/Math.max(1,reps-1),down=.34,upEnd=.95;
+   const ascent=clamp((u-down)/(upEnd-down)),strain=effort*(.45+.55*load);
+   // A slow sticking region is followed by a committed lockout. The uneven
+   // side acts on the rigid bar, so both palms retain a real shared grip.
+   const grind=ascent<.27?.22*smooth(ascent/.27):ascent<.57?.22+.08*smooth((ascent-.27)/.30):.30+.70*smooth((ascent-.57)/.43);
+   const raised=mix(smooth(ascent),grind,strain),amount=u<down?smooth(u/down):1-raised;
+   const envelope=Math.sin(Math.PI*ascent)**2;
    barY=mix(upperBarY,lowerBarY,amount);
-   const envelope=Math.sin(Math.PI*clamp((u-down)/(upEnd-down)))**2;
-   barY+=Math.sin(t*23)*.0018*effort*load*envelope;barX=Math.sin(t*17)*.0015*effort*load*envelope;
+   barTilt=(beat.rep%2?1:-1)*.065*strain*envelope;
+   barY+=Math.sin(t*23)*.004*strain*envelope;barX=Math.sin(t*17)*.003*strain*envelope;
+   exertion={intensity:strain*envelope,breath:envelope,laggingSide:barTilt>0?'right':barTilt<0?'left':null,sticking:ascent>.27&&ascent<.57&&strain>.3};
   }
-  const bar={position:worldPoint([barX,barY,barPositionZ]),rotation:placement.rotation.slice(),scale:1,length:Math.max(1.15,halfGrip*2+.6)};
+  const localBarQ=turn([0,0,1],barTilt);
+  const bar={position:worldPoint([barX,barY,barPositionZ]),rotation:worldRotation(localBarQ),scale:1,length:Math.max(1.15,halfGrip*2+.6)};
   const reach=smooth(fraction(t,'grip'))*(1-smooth(fraction(t,'release'))),held=t>=byId.grip.end&&t<byId.release.start;
-  if(transfer)world=evaluateRig3D(compiled,pose,actorPlacement);
+  if(transfer||scoot)world=evaluateRig3D(compiled,pose,actorPlacement);
   for(const [index,side]of ['left','right'].entries()){
    const limb=limbs[side+'Arm'],sign=Math.sign(bind[limb.chain.root].position[0]-center[0])||(index===0?1:-1);
    const shoulder=point(world[limb.chain.root].position).sub(point(placement.position)).applyQuaternion(bq.clone().invert()).toArray(),armLength=limb.lengths[0]+limb.lengths[1];
-   const swing=t<byId.approach.end?Math.sin(walking*Math.PI*6+(index===0?0:Math.PI))*.075*Math.sin(Math.PI*walking):0;
+   const swing=t<byId.approach.end?Math.sin(walking*Math.PI*4+(index===0?0:Math.PI))*.075*Math.sin(Math.PI*walking):0;
    const relaxed=relaxedArmGoal({shoulder,sign,length:armLength,heading,swing});
    const restStanding=relaxed.hand;
    // Seated hands rest above the thighs. Letting the standing fingers hang
@@ -160,10 +179,14 @@ export function createBenchAction3D({rig,roles,grips,bench,settings={}}){
    const lap=[sign*Math.abs(bind[limb.chain.root].position[0]-center[0])*.85,bodyY+.18,bodyZ+.2];
    const armSeated=transfer?1-transfer.armRelease:sitAmount;
    const belly=[sign*(halfGrip-.015),reclinedY+.15+(bridge?.lift??0),supineZ+(reclining?clearanceDistance*clearShift:0)-.05],rest=lerp(lerp(restStanding,lap,armSeated),belly,reclineAmount);
-   const grip=sourceGrips[side],contactFrame={position:worldPoint([barX+sign*halfGrip,barY,barPositionZ]),rotation:placement.rotation.slice()};
+   const gripOffset=point([sign*halfGrip,0,0]).applyQuaternion(localBarQ);
+   const grip=sourceGrips[side],contactFrame={position:worldPoint([barX+gripOffset.x,barY+gripOffset.y,barPositionZ]),rotation:bar.rotation.slice()};
    const gripTarget=grip?wristTargetForGrip3D(grip,contactFrame):contactFrame;
    const seatedPole=[shoulder[0]+sign*armLength*.55,shoulder[1]-armLength*.65,shoulder[2]+.04];
-   const hand=lerp(worldPoint(rest),gripTarget.position,reach),pole=lerp(lerp(relaxed.pole,seatedPole,armSeated),[shoulder[0]+sign*armLength,shoulder[1]-.2,shoulder[2]+armLength*.45],reclineAmount);
+   const earlyReach=entryStyle==='side-reach'&&index===0?smooth((entryU-.04)/.20)*(1-smooth((entryU-.23)/.20)):0;
+   const shoulderWorld=world[limb.chain.root].position;
+   const earlyTarget=point(gripTarget.position).sub(point(shoulderWorld)).clampLength(0,armLength*.92).add(point(shoulderWorld)).toArray();
+   const hand=lerp(lerp(worldPoint(rest),earlyTarget,earlyReach),gripTarget.position,reach),pole=lerp(lerp(relaxed.pole,seatedPole,armSeated),[shoulder[0]+sign*armLength,shoulder[1]-.2,shoulder[2]+armLength*.45],reclineAmount);
    const gripQ=sourceRoles.gripRotations?.[side]??bind[limb.chain.tip].rotation;
    const target={position:hand};
    if(transfer?.brace>0){
@@ -180,12 +203,13 @@ export function createBenchAction3D({rig,roles,grips,bench,settings={}}){
     if(grip){const free=solveTwoBone3D(compiled,pose,limb.name,{position:target.position},{placement:actorPlacement,poleWorld:worldPoint(pole),world:'chain'}),supportQ=bq.clone().multiply(turn([1,0,0],Math.PI)).multiply(quat(grip.rotation).invert());target.rotation=quat(free.world[limb.chain.tip].rotation).slerp(supportQ,bridge.handBlend).toArray();}
    }
    if(scoot){
-    const support=[sign*Math.min(width*.5-.035,Math.abs(bind[limb.chain.root].position[0]-center[0])+.05),seat+(grip?.supportHeight??.034)+.001+scoot.handLift,scoot.handZ];
-    target.position=lerp(target.position,worldPoint(support),scoot.handBlend);
-    target.position[1]+=.055*Math.sin(Math.PI*scoot.handBlend)**2;
-    const supportPole=[shoulder[0]+sign*.3,shoulder[1]-.25,shoulder[2]-.3];
-    for(let i=0;i<3;i++)pole[i]=mix(pole[i],supportPole[i],scoot.handBlend);
-    if(grip&&scoot.handBlend>0){const free=solveTwoBone3D(compiled,pose,limb.name,{position:target.position},{placement:actorPlacement,poleWorld:worldPoint(pole),world:'chain'}),supportQ=bq.clone().multiply(turn([1,0,0],Math.PI)).multiply(quat(grip.rotation).invert());target.rotation=quat(free.world[limb.chain.tip].rotation).slerp(supportQ,scoot.handBlend).toArray();}
+    // The feet drive this push. Rest palms on the moving thighs instead of
+    // inventing a fixed bench brace that short arms cannot reach upright.
+    const leg=limbs[side+'Leg'],local=p=>point(p).sub(point(placement.position)).applyQuaternion(bq.clone().invert());
+    const hip=local(world[leg.chain.root].position),knee=local(world[leg.chain.middle].position),slope=Math.atan2(hip.y-knee.y,knee.z-hip.z);
+    const normal=point([0,Math.cos(slope),Math.sin(slope)]),thigh=hip.clone().lerp(knee,.52).addScaledVector(normal,legReach*.10+(grip?.supportHeight??.034));
+    target.position=lerp(target.position,worldPoint(thigh.toArray()),scoot.handBlend);
+    if(grip){const free=solveTwoBone3D(compiled,pose,limb.name,{position:target.position},{placement:actorPlacement,poleWorld:worldPoint(pole),world:'chain'}),braceQ=bq.clone().multiply(turn([1,0,0],Math.PI+slope)).multiply(quat(grip.rotation).invert());target.rotation=quat(free.world[limb.chain.tip].rotation).slerp(braceQ,scoot.handBlend).toArray();}
    }
    if(reach>0){const free=solveTwoBone3D(compiled,pose,limb.name,target,{placement:actorPlacement,poleWorld:worldPoint(pole),world:'chain'});target.rotation=quat(free.world[limb.chain.tip].rotation).slerp(quat(grip?gripTarget.rotation:worldRotation(quat(gripQ))),reach).toArray();}
    solve(side+'Arm',target,pole,held||!!scoot?.handActive||bridge?.handBlend===1);
@@ -197,8 +221,8 @@ export function createBenchAction3D({rig,roles,grips,bench,settings={}}){
   world=evaluateRig3D(compiled,pose,actorPlacement);
   // Re-measure from the final pose, rather than retaining intermediate solves.
   for(const d of diagnostics){const limb=limbs[d.id];d.actual=structuredClone(world[limb.chain.tip]);d.error=length(d.actual.position,d.target.position);if(d.status==='solved'&&d.error>1e-6)d.status='conflict';}
-  const scootFrame=scoot?{active:true,direction:scoot.direction,cycle:scoot.cycle,stage:scoot.stage,progress:scoot.progress,seatLift:scoot.seatLift,handTargets:diagnostics.filter(d=>d.id.endsWith('Arm')).map(d=>d.target.position),footTargets:diagnostics.filter(d=>d.id.endsWith('Leg')).map(d=>d.target.position)}:null;
-  return {time:t,duration,phase,rep:beat.rep??null,effort,pose,placement:actorPlacement,world,bar,contacts,diagnostics,scoot:scootFrame,clearance:bridge?{progress:riseU,shift:clearanceDistance*clearShift,rise:clearRise,seatLift:bridge.lift,handBlend:bridge.handBlend}:null,transfer:transfer?{stage:transfer.stage,rise:transfer.rise,pitch:transfer.pitch}:null,valid:diagnostics.every(d=>d.status==='solved'),support:{seat:(reclineAmount>0||sitAmount>.999999)&&!(scoot?.seatLift>1e-6)&&!(bridge?.lift>1e-6),feet:contacts.filter(c=>c.id.endsWith('Leg')).map(c=>c.actual.position)}};
+  const scootFrame=scoot?{active:true,propulsion:scoot.propulsion,direction:scoot.direction,cycle:scoot.cycle,stage:scoot.stage,progress:scoot.progress,seatLift:scoot.seatLift,handTargets:diagnostics.filter(d=>d.id.endsWith('Arm')).map(d=>d.target.position),footTargets:diagnostics.filter(d=>d.id.endsWith('Leg')).map(d=>d.target.position)}:null;
+  return {time:t,duration,phase,rep:beat.rep??null,effort,exertion,pose,placement:actorPlacement,world,bar,contacts,diagnostics,scoot:scootFrame,clearance:bridge?{progress:riseU,shift:clearanceDistance*clearShift,rise:clearRise,seatLift:bridge.lift,handBlend:bridge.handBlend}:null,transfer:transfer?{stage:transfer.stage,rise:transfer.rise,pitch:transfer.pitch}:null,valid:diagnostics.every(d=>d.status==='solved'),support:{seat:(reclineAmount>0||sitAmount>.999999)&&!(scoot?.seatLift>1e-6)&&!(bridge?.lift>1e-6),feet:contacts.filter(c=>c.id.endsWith('Leg')).map(c=>c.actual.position)}};
  }
  function interrupt(at){
   const t=clamp(at,0,duration);if(!Number.isFinite(at))throw new Error('Interruption time must be finite.');
@@ -208,5 +232,5 @@ export function createBenchAction3D({rig,roles,grips,bench,settings={}}){
   const first=follow===null?duration-t:beat.end-t,remaining=first+(follow===null?0:duration-follow);
   return {supported:true,duration:remaining,sample(elapsed){if(!Number.isFinite(elapsed))throw new Error('Recovery time must be finite.');const e=clamp(elapsed,0,remaining);return sample(e>=remaining?duration:e<=first?t+e:follow+e-first);}};
  }
- return {duration,beats:structuredClone(beats),sample,interrupt,measurements:{armReach,legReach,seatY,standY,halfGrip,soleHeight:sole,rackPosition:worldPoint(rack)},settings:{reps,effort,tempo,repDuration,elbowMax,kneeMax},bench:structuredClone({...placement,size,rackHeight})};
+ return {duration,beats:structuredClone(beats),sample,interrupt,measurements:{armReach,legReach,seatY,standY,halfGrip,soleHeight:sole,rackPosition:worldPoint(rack)},settings:{reps,effort,tempo,repDuration,elbowMax,kneeMax,entryStyle},bench:structuredClone({...placement,size,rackHeight})};
 }

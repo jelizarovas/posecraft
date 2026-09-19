@@ -1,6 +1,6 @@
 import {createBenchProject3D,validateBenchProject3D} from './bench-project-3d.js';
 const copy=structuredClone,record=v=>v!==null&&typeof v==='object'&&!Array.isArray(v),finite=(v,a,b)=>typeof v==='number'&&Number.isFinite(v)&&v>=a&&v<=b;
-export function createWorkoutProject3D(){const base=createBenchProject3D();return {...base,kind:'workout3d',name:'One More Rep',camera:{position:[5,3.1,6],target:[-.6,1,0],height:4},pullup:{position:[-2.2,2.25,0],rotation:[0,0,0,1],width:1.1},bottle:{position:[1.5,1.1,1.7],rotation:[0,0,0,1]},workout:{seed:17,reps:{min:6,max:8},sequence:['pullup','bench'],restThreshold:65,drinkThreshold:45,restDuration:4,drinkDuration:4,fatigue:0,dehydration:0,failureBase:.08}};}
+export function createWorkoutProject3D(){const base=createBenchProject3D();return {...base,kind:'workout3d',name:'One More Rep',camera:{position:[5,3.1,6],target:[-.6,1.4,0],height:4.6},pullup:{position:[-2.2,2.25,0],rotation:[0,0,0,1],width:1.1},bottle:{position:[1.5,1.1,1.7],rotation:[0,0,0,1]},workout:{seed:17,reps:{min:6,max:8},sequence:['pullup','bench'],restThreshold:65,drinkThreshold:45,restDuration:4,drinkDuration:4,fatigue:0,dehydration:0,failureBase:.08,pullupStyle:'varied',benchEntry:'varied'}};}
 export function validateWorkoutProject3D(value){
  const errors=[],add=(path,message)=>{if(errors.length<40)errors.push({path,message});};
  try{
@@ -14,7 +14,8 @@ export function validateWorkoutProject3D(value){
    if(!Array.isArray(q)||q.length!==4||!q.every(n=>finite(n,-1,1))||Math.abs(Math.hypot(...q)-1)>1e-5)add('$.'+key+'.rotation','Expected a normalized quaternion.');
    if(key==='pullup'&&!finite(value[key].width,.5,2))add('$.pullup.width','Width must be .5..2 meters.');
   }
-  const w=value.workout;if(fields(w,['seed','reps','sequence','restThreshold','drinkThreshold','restDuration','drinkDuration','fatigue','dehydration','failureBase'],'$.workout')){
+  const w=value.workout;if(fields(w,['seed','reps','sequence','restThreshold','drinkThreshold','restDuration','drinkDuration','fatigue','dehydration','failureBase','pullupStyle','benchEntry'],'$.workout')){
+   for(const [key,allowed] of [['pullupStyle',['varied','balanced','left-lead','right-lead']],['benchEntry',['varied','center','side-reach']]])if(w[key]!==undefined&&!allowed.includes(w[key]))add('$.workout.'+key,'Unknown movement style.');
    if(!Number.isInteger(w.seed)||!finite(w.seed,0,4294967295))add('$.workout.seed','Seed must be an unsigned 32-bit integer.');
    if(fields(w.reps,['min','max'],'$.workout.reps')&&(!Number.isInteger(w.reps.min)||!Number.isInteger(w.reps.max)||!finite(w.reps.min,1,12)||!finite(w.reps.max,w.reps.min,12)))add('$.workout.reps','Repetition bounds must be ordered integers in 1..12.');
    if(!Array.isArray(w.sequence)||!w.sequence.length||w.sequence.length>16||w.sequence.some(n=>!['pullup','bench','rest','drink'].includes(n)))add('$.workout.sequence','Use 1..16 known action names.');

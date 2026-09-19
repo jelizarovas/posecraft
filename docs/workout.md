@@ -46,4 +46,15 @@ Studio can change the workout order, recovery thresholds, seed, repetition range
 
 The mechanism modules are `locomotion-action-3d`, `pullup-action-3d`, `bench-action-3d` and `drink-action-3d`. They can be sampled independently to review an action. Named targets currently address one bench, one pull-up station and one bottle. This is a reusable workout contract, not a general-purpose room planner or unrestricted full-body physics controller. Low bottles that require crouching, tilted equipment and unsupported rig proportions need an appropriate authored mechanism or an explicit error.
 
-The next motion work should extend these mechanisms and their visual checks, rather than add renderer corrections or another set of fixed-coordinate gym clips. One-handed catches, celebrations, towels and facial acting from the old illustration have not been reimplemented in this native workout.
+Further acting should extend these shared mechanisms and their visual checks. Towels, celebrations and a complete mouth/jaw rig remain future work.
+
+
+## Acting and room interaction
+
+The native workout now chooses left- or right-hand pull-up entries, short one-arm rests and one-hand releases. Repetitions have a sticking point, alternating shoulder effort and a slower final push. Bench presses tilt the actual bar with the lagging hand; both palm targets follow it. Failed presses tremble briefly before recovery.
+
+Studio's Pull-up grip and Bench entry controls can fix a variation or vary each set. Those choices are stored in `workout.pullupStyle` and `workout.benchEntry` and use the same solver in the gallery, worker and HTML export. The side-reach entry reaches toward the rack while reclining, then braces for the clearance shift before taking the loaded bar. Seated scoots use fewer leg pushes, with planted feet supporting the lifted pelvis and hands resting on the thighs. Sit/stand transitions are shorter.
+
+Walking includes hip/chest counter-rotation, lateral weight shift, arm swing and head glances. Resting includes breathing and looking around. `frame.face` supplies deterministic blink, strain, tiredness and relief controls. The imported adapter uses existing named facial morphs where present and calibrated eye/brow deformations for the bundled characters. Their assets do not yet include mouth/jaw morphs; `breath`/`jawOpen` controls can drive an imported model that has them.
+
+The shared native view adds the gym's wood floor, overhead beam and two hanging lights above the equipment. Drag a shade with a mouse or finger; its cable stays taut, it swings after release, and its spotlight follows. Dragging empty space still orbits the camera. Lamp motion is transient interaction state and resets with the scene; the authored equipment positions determine the anchors. The standalone bench study retains its neutral environment.

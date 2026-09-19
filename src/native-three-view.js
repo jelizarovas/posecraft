@@ -3,6 +3,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {loadCharacter3D} from './gltf-character-3d.js';
 import {createBenchAction3D} from './bench-action-3d.js';
 import {createWorkout3D} from './workout-3d.js';
+import {createNativeGymEnvironment} from './native-gym-environment.js';
 import {benchBodyGeometry3D} from './bench-geometry-3d.js';
 import {exportNativeBenchHTML} from './native-three-export.js';
 import NativeActionWorker from './native-action-worker.js?worker&inline';
@@ -77,6 +78,7 @@ export async function createNativeThreeView(canvas, options = {}) {
   const shelf=box(bottleStand,[.45,.035,.4],[0,0,0],materials.pad);
   const shelfLeg=box(bottleStand,[.07,1,.07],[0,0,0],materials.steel);
   let character, action, originalAction, project, frame, time=0, assetKey, disposed=false, generation=0, width=0, height=0;
+  const gymEnvironment=createNativeGymEnvironment({scene,canvas,camera,controls,redraw:()=>{if(!disposed&&action)renderer.render(scene,camera);}});
   let workerClient,workerReady=false,workerPending=false,paintEpoch=0,workerError=null;
   try{workerClient=createNativeActionClient(new NativeActionWorker());}catch(error){workerError=error.message;}
   const performanceSamples=[],subscribers=new Set(),mirrorJournal=[];let lastEventSequence=0,eventEpoch=0,mirrorCursor=0,mirrorTime=0,pendingMirrorCommands=0;
@@ -115,13 +117,13 @@ export async function createNativeThreeView(canvas, options = {}) {
     const mine=++generation;paintEpoch++;
     const {assetUrl:_asset,onFrame:_frame,onError:_error,...document}=next;
     const p=structuredClone(document),url=options.assetUrl||NATIVE_CHARACTER_ASSETS[p.character?.asset||'athlete'];
-    const key=`${url}|${p.character?.height||1.75}`;
+    const assetIdentity=`${url}|${p.character?.height||1.75}`;
     let loaded;
-    if(key!==assetKey){loaded=await loadCharacter3D(url,{height:p.character?.height||1.75});if(disposed||mine!==generation){loaded.dispose();return;} }
+    if(assetIdentity!==assetKey){loaded=await loadCharacter3D(url,{height:p.character?.height||1.75});if(disposed||mine!==generation){loaded.dispose();return;} }
     const nextCharacter=loaded||character;
     let nextAction;
     try{const config={rig:nextCharacter.rig,roles:nextCharacter.roles,grips:nextCharacter.grips};nextAction=p.kind==='workout3d'?createWorkout3D({...config,project:p}):createBenchAction3D({...config,bench:p.bench,settings:p.settings});}catch(error){loaded?.dispose();throw error;}
-    if(loaded){if(character){scene.remove(character.root);character.dispose();}character=loaded;assetKey=key;scene.add(character.root);character.root.traverse(node=>{if(node.isMesh){node.castShadow=true;node.receiveShadow=true;node.frustumCulled=false;}});}
+    if(loaded){if(character){scene.remove(character.root);character.dispose();}character=loaded;assetKey=assetIdentity;scene.add(character.root);character.root.traverse(node=>{if(node.isMesh){node.castShadow=true;node.receiveShadow=true;node.frustumCulled=false;}});}
     if(project)lifecycle('workout.changed');
     project=p;action=nextAction;originalAction=nextAction;lastEventSequence=0;mirrorJournal.length=0;mirrorCursor=0;mirrorTime=0;pendingMirrorCommands=0;if(isWorkout())time=0;
     if(workerClient){workerReady=false;try{await workerClient.configure({rig:character.rig,roles:character.roles,grips:character.grips,...(isWorkout()?{project:p}:{bench:p.bench,settings:p.settings})});if(mine!==generation||disposed)return;workerReady=true;}catch(error){if(error.name!=='AbortError'){workerError=error.message;workerClient.dispose();workerClient=null;}}}
@@ -133,6 +135,8 @@ export async function createNativeThreeView(canvas, options = {}) {
     for(const hook of rackHooks)hook.position.y=rackHeight-.018-.035/2;
     grid.position.x=p.bench.position[0];grid.position.z=p.bench.position[2];grid.position.y=p.bench.position[1]-.003;floor.position.y=p.bench.position[1]-.035;
     pullup.visible=bottle.visible=bottleStand.visible=isWorkout();
+    gymEnvironment.configure(p);floor.visible=grid.visible=!isWorkout();
+    renderer.toneMappingExposure=isWorkout()?1:1.15;ambient.intensity=isWorkout()?1.65:2.2;key.intensity=isWorkout()?1.8:3.1;fill.intensity=isWorkout()?.65:1.2;
     if(isWorkout()){
       pullup.position.fromArray(p.pullup.position);pullup.quaternion.fromArray(p.pullup.rotation);
       const standHeight=p.pullup.position[1]-p.bench.position[1];
@@ -157,6 +161,7 @@ export async function createNativeThreeView(canvas, options = {}) {
     if(disposed||!action)return null;
     const start=performance.now();frame=next;
     character.apply(frame.pose,frame.placement);
+    character.applyFace?.(frame.face);
     if(frame.bar){bar.position.fromArray(frame.bar.position);bar.quaternion.fromArray(frame.bar.rotation);bar.scale.setScalar(frame.bar.scale??1);bar.visible=frame.bar.visible!==false;}
     if(isWorkout()&&frame.bottle){bottle.position.fromArray(frame.bottle.position);bottle.quaternion.fromArray(frame.bottle.rotation);bottle.visible=frame.bottle.visible!==false;}
     resize();renderer.render(scene,camera);
@@ -212,10 +217,12 @@ export async function createNativeThreeView(canvas, options = {}) {
     cancel(request){return workoutCommand('cancel',[request]);},
     describe(){return action?.describe?.()??null;},
     subscribe(fn){if(typeof fn!=='function')throw new TypeError('An event callback is required.');if(disposed)throw new Error('This view has been disposed.');subscribers.add(fn);return ()=>subscribers.delete(fn);},
+    environmentState(){return gymEnvironment.state();},
+    moveLamp(index,position){return gymEnvironment.moveLamp(index,position);},
     cameraState(){return {position:camera.position.toArray(),target:controls.target.toArray(),height:(camera.top-camera.bottom)/camera.zoom};},
     stats(){const sorted=[...performanceSamples].sort((a,b)=>a-b);return {calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,cpuMedianMs:sorted[Math.floor(sorted.length*.5)]||0,cpuP95Ms:sorted[Math.floor(sorted.length*.95)]||0,motionWorker:workerReady,workerError};},
     exportHTML(p=project){return exportNativeBenchHTML(p);},
-    dispose(){if(disposed)return;disposed=true;generation++;lifecycle('workout.disposed');subscribers.clear();workerClient?.dispose();observer.disconnect();controls.dispose();character?.dispose();scene.traverse(node=>{if(node.isMesh&&!character?.root?.getObjectById(node.id))node.geometry.dispose();});for(const material of Object.values(materials))material.dispose();grid.geometry.dispose();grid.material.dispose();renderer.dispose();},
+    dispose(){if(disposed)return;disposed=true;generation++;lifecycle('workout.disposed');subscribers.clear();workerClient?.dispose();observer.disconnect();gymEnvironment.dispose();controls.dispose();character?.dispose();scene.traverse(node=>{if(node.isMesh&&!character?.root?.getObjectById(node.id))node.geometry.dispose();});for(const material of Object.values(materials))material.dispose();grid.geometry.dispose();grid.material.dispose();renderer.dispose();},
   };
   try{await setProject(options);return view;}catch(error){view.dispose();throw error;}
 }

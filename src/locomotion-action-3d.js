@@ -36,8 +36,19 @@ export function createLocomotionAction3D({rig,roles,grips,from,to,settings={}}){
 
  function sample(time){if(!Number.isFinite(time))throw Error('Action time must be finite.');const t=Math.max(0,Math.min(duration,time)),progress=Math.max(0,Math.min(1,(t-prepare)/walk)),first=t<prepare,last=t>=prepare+walk,turn=actionSmooth(first?t/prepare:last?(t-prepare-walk)/arrive:1),rotation=first?actionQuat(a.rotation).slerp(travelQ,turn):last?travelQ.clone().slerp(actionQuat(b.rotation),turn):travelQ.clone(),p={position:actionPoint(a.position).lerp(actionPoint(b.position),progress).toArray(),rotation:rotation.toArray(),scale:a.scale};
   if(t===0||t===duration){const pose=structuredClone(t===0?fromPose:toPose),exact=t===0?a:b,world=evaluateRig3D(context.compiled,pose,exact);return{time:t,duration,phase:t===0?'prepare':'complete',rep:null,effort:0,pose,placement:structuredClone(exact),world,contacts:[],diagnostics:[],valid:true,support:{seat:false,feet:['left','right'].map(side=>world[context.limbs[side+'Leg'].chain.tip].position)}};}
-  p.position[1]-=Math.min(context.limbs.leftLeg.length,context.limbs.rightLeg.length)*a.scale*.10*(first?turn:last?1-turn:1);
+  p.position[1]-=Math.min(context.limbs.leftLeg.length,context.limbs.rightLeg.length)*a.scale*.125*(first?turn:last?1-turn:1);
+  const stride=progress*steps*Math.PI,acting=first?turn:last?1-turn:1;
+  const sway=Math.sin(stride)*.018*a.scale*acting;
+  p.position[0]+=Math.cos(heading)*sway;p.position[2]-=Math.sin(heading)*sway;p.position[1]+=Math.sin(stride*2)*.009*a.scale*acting;
   const step=Math.min(steps-1,Math.floor(progress*steps)),u=progress*steps-step,goals=[],basePose={...(first?blendPose(fromPose,{},turn):last?blendPose({},toPose,turn):{}),...rootAt(progress)},baseWorld=evaluateRig3D(context.compiled,basePose,p);
+  // Counter-rotation and gaze belong to the rig, before solving planted feet.
+  for(const [role,yaw,roll] of [['pelvis',Math.sin(stride)*.035,-Math.sin(stride)*.02],['chest',-Math.sin(stride)*.065,Math.sin(stride)*.024],['head',Math.sin(progress*Math.PI*2)*.24+Math.sin(stride*.29)*.07,Math.sin(stride*.4)*.025]]){
+   const id=roles[role],joint=context.compiled.joints.find(j=>j.id===id);if(!joint)continue;
+   const parent=joint.parent?baseWorld[joint.parent].rotation:p.rotation,desired=new Quaternion().setFromAxisAngle(actionPoint([0,1,0]),yaw*acting).multiply(actionQuat(baseWorld[id].rotation));
+   desired.premultiply(new Quaternion().setFromAxisAngle(actionPoint([Math.cos(heading),0,-Math.sin(heading)]),roll*acting));
+   basePose[id]={...basePose[id],rotation:actionQuat(parent).invert().multiply(desired).normalize().toArray()};
+   Object.assign(baseWorld,evaluateRig3D(context.compiled,basePose,p));
+  }
   for(const[side,index]of[['left',0],['right',1]]){
    const limb=context.limbs[side+'Leg'],pivotU=Math.max(0,Math.min(1,((first?t/prepare:(t-prepare-walk)/arrive)-index*.5)*2)),pivotBlend=actionSmooth(pivotU),pivoting=(first||last)&&pivotU>0&&pivotU<1;
    const swinging=!first&&!last&&step%2===index,previousStep=step-1-((step-1-index)%2+2)%2,previous=previousStep<0?footAt(side,0):footAt(side,previousStep>=steps-2?1:Math.min(1,(previousStep+1.5)/steps)),destination=footAt(side,step>=steps-2?1:Math.min(1,(step+1.5)/steps));
@@ -47,7 +58,7 @@ export function createLocomotionAction3D({rig,roles,grips,from,to,settings={}}){
    const hip=actionPoint(baseWorld[limb.chain.root].position),forward=actionPoint([0,0,1]).applyQuaternion(rotation);let pole=hip.clone().add(forward.multiplyScalar(limb.length)).add(new Vector3(0,-.1,0));if(first)pole=actionPoint(fromWorld[limb.chain.middle].position).lerp(pole,turn);if(last)pole.lerp(actionPoint(toWorld[limb.chain.middle].position),turn);
    goals.push({id:side+'Leg',target:{position:[...target],rotation:footRotation.toArray()},pole:pole.toArray(),active:!swinging&&!pivoting});
   }
-  const actualHeading=Math.atan2(actionPoint([0,0,1]).applyQuaternion(rotation).x,actionPoint([0,0,1]).applyQuaternion(rotation).z),armGoals=nativeRelaxedGoals(context,baseWorld,actualHeading,Math.sin(progress*steps*Math.PI)*.055*a.scale*Math.sin(Math.PI*progress),a.scale);
+  const actualHeading=Math.atan2(actionPoint([0,0,1]).applyQuaternion(rotation).x,actionPoint([0,0,1]).applyQuaternion(rotation).z),armGoals=nativeRelaxedGoals(context,baseWorld,actualHeading,Math.sin(stride)*.10*a.scale*acting,a.scale);
   for(const goal of armGoals){const limb=context.limbs[goal.id];if(first){goal.target.position=actionPoint(fromWorld[limb.chain.tip].position).lerp(actionPoint(goal.target.position),turn).toArray();goal.pole=actionPoint(fromWorld[limb.chain.middle].position).lerp(actionPoint(goal.pole),turn).toArray();}if(last){goal.target.position=actionPoint(goal.target.position).lerp(actionPoint(toWorld[limb.chain.tip].position),turn).toArray();goal.pole=actionPoint(goal.pole).lerp(actionPoint(toWorld[limb.chain.middle].position),turn).toArray();goal.target.rotation=actionQuat(baseWorld[limb.chain.tip].rotation).slerp(actionQuat(toWorld[limb.chain.tip].rotation),turn).toArray();}}
   const solved=nativeActionSolve(context,basePose,p,[...goals,...armGoals]);return{time:t,duration,phase:first?'prepare':last?'arrive':'walk',rep:null,effort:0,...solved,support:{seat:false,feet:solved.contacts.filter(d=>d.id.endsWith('Leg')).map(d=>d.actual.position)}};
  }

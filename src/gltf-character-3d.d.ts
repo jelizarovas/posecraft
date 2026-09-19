@@ -7,6 +7,8 @@ export interface ImportedCharacter3D {
   root:Group;rig:Rig3D;compiledRig:CompiledRig3D;roles:Partial<Record<CharacterRole3D,string>>&{root:string;pelvis:string};grips:Partial<Record<'left'|'right',GripFrame3D>>;rest:World3D;animations:AnimationClip[];
   metadata:{height:number;sourceHeight:number;normalizationScale:number;facingYaw:number;bones:number;skinnedMeshes:number;triangles:number;morphTargets:number;animations:number};
   apply(pose?:Pose3D,placement?:Placement3D):World3D;
+  applyFace(face?:Partial<Record<'blink'|'strain'|'happy'|'tired'|'surprise'|'breath',number>>):void;
+  faceControls:string[];
   dispose():void;
 }
 export function createCharacter3D(gltf:{scene:Object3D;animations?:AnimationClip[]},options?:CharacterOptions3D):ImportedCharacter3D;

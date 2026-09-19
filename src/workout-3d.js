@@ -1,3 +1,4 @@
+import {workoutFace3D} from './face-3d.js';
 import {Quaternion,Vector3} from 'three';
 import {createBenchAction3D} from './bench-action-3d.js';
 import {createLocomotionAction3D} from './locomotion-action-3d.js';
@@ -18,7 +19,7 @@ export function createWorkout3D({rig,roles,grips,project}){
  function emit(type,item,error){events.push({sequence:++eventSerial,type,actor:'atlas',request:item.request,action:item.name,time,...(error?{error}:{})});if(events.length>64)events.shift();}
  function checkTime(t){if(!Number.isFinite(t)||t<0)throw Error('Workout time must be a nonnegative finite number.');}
  function snapshot(){return {activity:current?.walking?'walk':current?.item.name??'stopped',target:current?.item.name??null,stats:clone(stats),events:clone(events),lastOutcome:clone(lastOutcome),stopped,queued:pending?{action:pending.name,request:pending.request}:null,request:current?.item.request??null,time};}
- function wrap(frame){return {...frame,time,activityTime:frame.time,duration:Infinity,bar:frame.bar??clone(rack),bottle:frame.bottle??{...clone(project.bottle),visible:true,owner:null},workout:snapshot()};}
+ function wrap(frame){return {...frame,face:workoutFace3D(frame,time,stats),time,activityTime:frame.time,duration:Infinity,bar:frame.bar??clone(rack),bottle:frame.bottle??{...clone(project.bottle),visible:true,owner:null},workout:snapshot()};}
  function neutral(){return {...clone(previous),phase:'stopped',bar:clone(rack),bottle:{...clone(project.bottle),visible:true,owner:null}};}
  // Equipment-aware route in the bench's floor plane. Only this apparatus is
  // a blocking volume; arbitrary room navigation belongs in a separate planner.
@@ -34,14 +35,14 @@ export function createWorkout3D({rig,roles,grips,project}){
   const w=project.workout,exercise=item.name==='pullup'||item.name==='bench',reps=exercise?w.reps.min+Math.floor(random()*(w.reps.max-w.reps.min+1)):0,effort=clamp(project.settings.effort+stats.fatigue/250+(random()-.5)*.12,0,1),tempo=clamp(project.settings.tempo*(.92+random()*.16),.25,3),failed=exercise&&random()<clamp(w.failureBase+stats.fatigue*.004+stats.dehydration*.002,0,.95),failedRep=failed?Math.max(1,Math.min(reps,2+Math.floor(random()*Math.max(1,reps-1)))):undefined;
   let action;
   if(item.name==='bench'){
-   action=createBenchAction3D({...common,bench:project.bench,settings:{...project.settings,reps,effort,tempo}});
+   action=createBenchAction3D({...common,bench:project.bench,settings:{...project.settings,reps,effort,tempo,entryStyle:w.benchEntry&&w.benchEntry!=='varied'?w.benchEntry:random()<.5?'side-reach':'center'}});
    if(failed){
     const source=action,beat=source.beats.find(b=>b.id==='press-'+failedRep),at=beat.start+(beat.end-beat.start)*.56,hold=.6/tempo,retreat=1.4/tempo,rerack=source.beats.find(b=>b.id==='rerack').start,recoveryStart=at+hold+retreat,duration=recoveryStart+source.duration-rerack;
-    const failedSample=t=>{let f;if(t<=at)f=source.sample(t);else if(t<at+hold)f=source.sample(at);else if(t<recoveryStart)f=source.sample(at+(beat.start-at)*smooth((t-at-hold)/retreat));else f=source.sample(rerack+t-recoveryStart);return {...f,time:t,duration,...(t>=at&&t<recoveryStart?{phase:'attempt-failed',rep:failedRep}:{})};};
+    const failedSample=t=>{let f;if(t<=at)f=source.sample(t);else if(t<at+hold)f=source.sample(at+.025*Math.sin((t-at)*28)*Math.sin(Math.PI*(t-at)/hold)**2);else if(t<recoveryStart)f=source.sample(at+(beat.start-at)*smooth((t-at-hold)/retreat));else f=source.sample(rerack+t-recoveryStart);return {...f,time:t,duration,...(t>=at&&t<recoveryStart?{phase:'attempt-failed',rep:failedRep}:{})};};
     const beats=source.beats.filter(b=>b.end<=beat.start).concat({id:'press-'+failedRep,label:'Attempt, stall and recover',start:beat.start,end:recoveryStart,rep:failedRep,failed:true},source.beats.filter(b=>b.start>=rerack).map(b=>({...b,start:recoveryStart+b.start-rerack,end:recoveryStart+b.end-rerack})));
     action={duration,beats,sample:failedSample};
    }
-  }else if(item.name==='pullup')action=createPullupAction3D({...common,bar:project.pullup,settings:{...project.settings,reps,effort,tempo,failedRep}});
+  }else if(item.name==='pullup')action=createPullupAction3D({...common,bar:project.pullup,settings:{...project.settings,reps,effort,tempo,failedRep,variation:w.pullupStyle&&w.pullupStyle!=='varied'?w.pullupStyle:random()<.5?'left-lead':'right-lead',restBetweenReps:effort>.65}});
   else if(item.name==='drink')action=createDrinkAction3D({...common,bottle:project.bottle,settings:{duration:w.drinkDuration,soleHeight:initialBench.measurements.soleHeight}});
   else action=createRestAction3D({...common,frame:previous,duration:w.restDuration});
   const issue=audit(action);if(issue)throw Error(issue);
