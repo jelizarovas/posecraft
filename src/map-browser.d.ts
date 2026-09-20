@@ -24,7 +24,18 @@ export interface MapViewStats {
   camera: {x: number; y: number; zoom: number; tracking?: MapCameraTracking};
   visitedChunks: number; candidateTiles: number; candidateProps: number;
 }
+export interface MapViewPreferences {
+  movementMode: 'auto' | 'walk' | 'run';
+  followOnMove: boolean;
+  maxPixelRatio: number;
+  shadows: boolean;
+  showRoute: boolean;
+  reducedMotion: boolean | 'system';
+}
 export interface MapView {
+  preferences(): MapViewPreferences;
+  /** Update display and pointer movement preferences without resetting the scene. */
+  setPreferences(options: Partial<MapViewPreferences>): MapViewPreferences;
   controller: MapController;
   /** Settles after referenced image loads finish; failed images use fallback art and call onError. */
   ready: Promise<void>;
@@ -57,6 +68,10 @@ export function mountMap(element: HTMLElement, map: MapDocument, options?: {
   /** GPU static layers with compatible Canvas2D actors. Falls back on context loss or unsupported hardware. */
   renderer?: 'canvas2d' | 'webgl2' | 'auto';
   autoplay?: boolean;
+  movementMode?: 'auto' | 'walk' | 'run';
+  maxPixelRatio?: number;
+  shadows?: boolean;
+  showRoute?: boolean;
   /** Automatically follow accepted movement commands. Defaults to false. */
   followOnMove?: boolean;
   onCameraChange?: (tracking: MapCameraTracking) => void;

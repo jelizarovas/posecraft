@@ -11,11 +11,35 @@
       #game .map-stats { display: none; }
       #game canvas { outline: none; }
       #fps { position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); z-index: 10; padding: 5px 8px; border-radius: 5px; color: #edf3e9; background: #17251dcc; font: 12px/1.4 ui-monospace, monospace; font-variant-numeric: tabular-nums; pointer-events: none; }
+      #settings-toggle { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 20; width: 44px; height: 44px; border: 1px solid #d9e6d759; border-radius: 12px; background: #17251de8; color: #f3f5ec; font-size: 24px; cursor: pointer; }
+      #play-settings { box-sizing: border-box; width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 22px; border: 1px solid #71826b; border-radius: 16px; background: #203128; color: #f3f5ec; font: 15px/1.5 system-ui, sans-serif; box-shadow: 0 12px 50px #0008; overscroll-behavior: contain; }
+      #play-settings::backdrop { background: #101c1688; }
+      #play-settings h1 { margin: 0; font-size: 20px; }
+      #play-settings header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+      #play-settings label { display: flex; gap: 12px; justify-content: space-between; align-items: center; min-height: 44px; }
+      #play-settings select, #play-settings button { color: inherit; background: #35483a; border: 1px solid #74876f; border-radius: 7px; padding: 9px; font: inherit; cursor: pointer; }
+      #play-settings input { width: 20px; height: 20px; accent-color: #b5cd89; }
+      #play-settings [data-fullscreen] { width: 100%; margin-bottom: 12px; }
+      #play-settings [data-settings-message] { font-size: 12px; color: #d3dec9; margin: 10px 0 0; }
+      #play-settings :focus-visible, #settings-toggle:focus-visible { outline: 2px solid #d6eda8; outline-offset: 3px; }
     </style>
   </head>
   <body>
     <main id="game" aria-label="Littlelands game"></main>
     <output id="fps" title="Actual map frames drawn per second. Idle maps stop redrawing to save power.">— FPS</output>
+    <button id="settings-toggle" type="button" aria-label="Open game settings" aria-haspopup="dialog" aria-controls="play-settings" aria-expanded="false">☰</button>
+    <dialog id="play-settings" aria-labelledby="settings-title">
+      <header><h1 id="settings-title">Game settings</h1><button type="button" data-close aria-label="Close settings">✕</button></header>
+      <button type="button" data-fullscreen>Enter fullscreen</button>
+      <label>Movement<select data-setting="movementMode" aria-label="Movement"><option value="auto">Double-tap to run</option><option value="walk">Always walk</option><option value="run">Always run</option></select></label>
+      <label>Recenter on waypoint<input type="checkbox" data-setting="followOnMove"></label>
+      <label>Resolution<select data-setting="maxPixelRatio" aria-label="Resolution"><option value="1">Low · 1×</option><option value="1.5">Medium · 1.5×</option><option value="2">High · 2×</option></select></label>
+      <label>Shadows<input type="checkbox" data-setting="shadows"></label>
+      <label>Motion effects<select data-setting="reducedMotion" aria-label="Motion effects"><option value="system">System</option><option value="false">Full</option><option value="true">Reduced</option></select></label>
+      <label>Route arrows<input type="checkbox" data-setting="showRoute"></label>
+      <label>FPS counter<input type="checkbox" data-setting="showFPS"></label>
+      <p data-settings-message role="status"></p>
+    </dialog>
     <script type="module" src="/examples/map-play.js"></script>
   </body>
 </html>

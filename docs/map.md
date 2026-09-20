@@ -2,9 +2,9 @@
 
 ## Local game preview
 
-Run `npm run dev:map` and open `http://localhost:5246/play.html`. This page contains only the running Littlelands map, filling the viewport with no gallery, controls or stats. Vite reloads it when source files change. The command binds to all network interfaces; use the Network URL printed by Vite with `/play.html` on a phone connected to the same Wi-Fi. No GitHub deployment is needed. Stop the server with Ctrl+C.
+Run `npm run dev:map` and open `http://localhost:5246/play.html`. This page contains only the running Littlelands map, filling the viewport with a small settings button at the top right and an optional FPS counter. Vite reloads it when source files change. The command binds to all network interfaces; use the Network URL printed by Vite with `/play.html` on a phone connected to the same Wi-Fi. No GitHub deployment is needed. Stop the server with Ctrl+C.
 
-Tap to walk, double-tap to run, drag to pan, and pinch or scroll to zoom. Hold a destination or Alt-click to turn in place. The browser's address bar remains browser UI; the page itself has no surrounding layout.
+Tap to walk, double-tap to run, drag to pan, and pinch or scroll to zoom. Hold a destination or Alt-click to turn in place. The settings dialog can enter or exit browser fullscreen, and closes when you tap outside it or press Escape. Fullscreen includes the menu so its exit control stays accessible on mobile. Movement mode (always walk, always run, or double-tap to run), waypoint recentering, resolution, shadows, motion effects, route arrows and FPS are saved in local storage. A saved fullscreen preference resumes on the first game tap after reload because browsers require a user gesture.
 
 Run `node test/map-play-performance.mjs` while Vite is running to measure this page at portrait DPR2, both normally and with 4Ã— CPU slowdown. It exercises following a running character, panning and zooming. Results go to `test-results/map-play-performance-current.json`; set `MAP_PERF_LABEL` to keep separate before/after reports. These are desktop browser diagnostics, not measurements of a phone GPU. Real phone testing remains necessary.
 
@@ -169,3 +169,9 @@ Water tiles above exposed edges produce animated waterfalls automatically. Visib
 `birds` are independent aerial NPCs with `id`, `species` (`crow` or `eagle`), `home: {x,y,z}`, `radius`, and optional `seed` and `roost`. Their seeded flight, perch and foraging cycles avoid ground pathfinding. Birds clear raised ground; quiet flight envelopes use a delayed wake instead of continuous drawing.
 
 The map editor's Plateau tool places rectangular shelves at the three demo heights and erases them. Save/export retains terraces and birds. Open `play.html?view=cliffs` to inspect the local valley. Original cliff and nest artwork was generated with the built-in image tool; prompts are in `public/assets/map/terrain/cliff-prompts.json`.
+
+## Live display and input preferences
+
+`view.setPreferences({movementMode: 'run', followOnMove: false, maxPixelRatio: 1, shadows: false, showRoute: true, reducedMotion: true})` applies preferences without resetting the map or gameplay. `view.preferences()` returns the current values. Movement mode affects pointer destinations; programmatic moves retain their explicit gait. Resolution caps backing pixels at 0.5–2 times CSS size, further bounded by the existing pixel budget. Turning off waypoint recentering also releases any active camera follow. Shadows refers to engine-drawn contact and prop shadows; shading already painted into source artwork remains.
+
+Town fences with safe vaults participate in automatic waypoint routes, while an explicit fence click still crosses between its authored endpoints. Long fences use the local crossing point for hand support. Livestock defaults to routes without automatic vaults; controllers can explicitly opt in using `{allowVault: true}`. Blocked landings cause a detour.

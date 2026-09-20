@@ -5,6 +5,7 @@ import {startVillageLife} from './map-village-life.js';
 import {mountMap} from '../src/map-browser.js';
 import {assertMap} from '../src/map.js';
 import {upgradeStockBranches} from './map-editor-catalog.js';
+import {readPlaySettings,mountPlaySettings} from './map-play-settings.js';
 
 const draftKey='posecraft-map-editor-draft-v1';
 /** Add new visual-only wheat behavior to the bundled town artwork in old drafts. */
@@ -23,11 +24,13 @@ function editorDraft(){
   catch(error){console.warn('Map editor draft is unavailable. Opening the generated map instead.',error);return null;}
 }
 const map = editorDraft() || createTownMap();
+const settings=readPlaySettings();
 const view = mountMap(document.querySelector('#game'), map, {
+  ...settings,
   renderer: new URLSearchParams(location.search).get('renderer')==='webgl2'?'webgl2':'canvas2d',
-  followOnMove: true,
   onError(error) { if (error.name !== 'AbortError') console.error(error); },
 });
+const settingsMenu=mountPlaySettings(view,settings);
 view.zoomTo(2.5);
 view.focusActor(map.actors[0].id);
 // A local review link opens directly at the waterfall valley, with no extra UI.
@@ -55,6 +58,7 @@ document.addEventListener('visibilitychange',resetFPS);
 window.mapPlay = {map, view,townLife};
 if (import.meta.hot) import.meta.hot.dispose(() => {
   clearInterval(fpsTimer);
+  settingsMenu.dispose();
   document.removeEventListener('visibilitychange',resetFPS);
   townLife?.dispose();view.dispose();
   delete window.mapPlay;

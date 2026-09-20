@@ -137,11 +137,11 @@ export function createTownMap({width=128,height=128,seed=2026}={}){
   farmProp('chicken-coop','farm-coop',cx+18,cy-18)
  );
 
- // Simple spans keep precise click vaults. Their matching world endpoints use
+ // Simple spans keep precise explicit vaults. Their matching world endpoints use
  // deterministic post ownership, so corners and T joins still draw one post.
  const fenceSpan=(id,a,b)=>{
   const x=Math.floor(Math.min(a.x,b.x)),y=Math.floor(Math.min(a.y,b.y)),width=Math.max(1,Math.ceil(Math.max(a.x,b.x))-x),height=Math.max(1,Math.ceil(Math.max(a.y,b.y))-y),horizontal=a.y===b.y;
-  return{id,kind:'decoration',x,y,width,height,fence:{nodes:[{x:a.x-x,y:a.y-y},{x:b.x-x,y:b.y-y}],links:[[0,1]]},traversal:{activation:'click',kind:'vault',height:.55,endpoints:horizontal?[{x:(a.x+b.x)/2-x,y:a.y-y-.9},{x:(a.x+b.x)/2-x,y:a.y-y+.9}]:[{x:a.x-x-.9,y:(a.y+b.y)/2-y},{x:a.x-x+.9,y:(a.y+b.y)/2-y}]}};
+  return{id,kind:'decoration',x,y,width,height,fence:{nodes:[{x:a.x-x,y:a.y-y},{x:b.x-x,y:b.y-y}],links:[[0,1]]},traversal:{activation:'auto',kind:'vault',height:.55,endpoints:horizontal?[{x:(a.x+b.x)/2-x,y:a.y-y-.9},{x:(a.x+b.x)/2-x,y:a.y-y+.9}]:[{x:a.x-x-.9,y:(a.y+b.y)/2-y},{x:a.x-x+.9,y:(a.y+b.y)/2-y}]}};
  };
  const fencePoints={nw:{x:cx-3,y:cy+13.5},wg0:{x:cx+3,y:cy+13.5},wg1:{x:cx+5,y:cy+13.5},tn:{x:cx+12,y:cy+13.5},eg0:{x:cx+16,y:cy+13.5},eg1:{x:cx+18,y:cy+13.5},ne:{x:cx+23,y:cy+13.5},sw:{x:cx-3,y:cy+23},ts:{x:cx+12,y:cy+23},se:{x:cx+23,y:cy+23}};
  map.props.push(
@@ -160,7 +160,7 @@ export function createTownMap({width=128,height=128,seed=2026}={}){
  map.props.push(
  farmProp('west-pasture-gate','farm-fence-broken',cx+3,cy+13),
   farmProp('east-pasture-gate','farm-fence-broken',cx+16,cy+13),
-  {id:'town-boundary-fence',kind:'decoration',x:cx+2,y:cy-10,width:4,height:1,fence:{nodes:[{x:0,y:.5},{x:4,y:.5}],links:[[0,1]]},traversal:{activation:'click',kind:'vault',height:.55,endpoints:[{x:2,y:-.45},{x:2,y:1.45}]}},
+  {id:'town-boundary-fence',kind:'decoration',x:cx+2,y:cy-10,width:4,height:1,fence:{nodes:[{x:0,y:.5},{x:4,y:.5}],links:[[0,1]]},traversal:{activation:'auto',kind:'vault',height:.55,endpoints:[{x:2,y:-.45},{x:2,y:1.45}]}},
   farmProp('town-boundary-broken','farm-fence-broken',cx+6,cy-10),
   farmProp('sheep-1','farm-sheep',cx-1,cy+17),
   farmProp('sheep-2','farm-sheep',cx+3,cy+19),

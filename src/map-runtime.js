@@ -1,7 +1,7 @@
 import {MapNavigationJob} from './map-navigation.js';
 import {continuousSegmentClear} from './map-collision.js';
 import {planMapVault} from './map-vault.js';
-import {manualTraversalPlan,traversalActivation} from './map-traversal.js';
+import {manualTraversalPlan} from './map-traversal.js';
 import {groundHeight} from './map-art-layout.js';
 import {MapRoutePreparation,routeHeading,angleDelta,brakeMapMotion} from './map-motion.js';
 import {assertMap,MapIndex,MapPathJob,approachTiles,projectMap,unprojectMap} from './map.js';
@@ -56,15 +56,16 @@ export class MapController {
   Object.assign(actor,{walking:false,running:false,skidding:false,jumping:false,jumpProgress:0,rolling:false,rollProgress:0,turning:true,gaitWeight:0,lift:0});
   this.emit({type:'map.turn.started',actor:id,request,target:job.target});return promise;
  }
- moveTo(id,target,{signal,gait='walk'}={}){
+ moveTo(id,target,{signal,gait='walk',allowVault}={}){
   this.check();const actor=this.actors.get(id);if(!actor)throw Error('Unknown map actor.');
   if(gait!=='walk'&&gait!=='run')throw TypeError('Map gait must be walk or run.');
   if(signal!==undefined&&(!signal||typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw Error('Expected AbortSignal.');
   const prop=typeof target==='string'?this.index.prop(target):null;
   if(typeof target==='string'&&!prop)throw Error('Unknown map object.');
   if(!prop&&(!point(target)||target.x<0||target.y<0||target.x>=this.map.width||target.y>=this.map.height))throw Error('Map destination must be inside the grid.');
-  const continuous=this.map.navigation?.mode==='continuous',manual=prop&&traversalActivation(prop)==='click'?manualTraversalPlan(this.index,prop,actor):null;
-  if(prop&&traversalActivation(prop)==='click'&&!manual)return Promise.reject(Error('Traversal exit is blocked.'));
+  if(allowVault!==undefined&&typeof allowVault!=='boolean')throw TypeError('allowVault must be a boolean.');
+  const continuous=this.map.navigation?.mode==='continuous',authoredTraversal=prop?.traversal?.endpoints,manual=authoredTraversal?manualTraversalPlan(this.index,prop,actor):null;
+  if(authoredTraversal&&!manual)return Promise.reject(Error('Traversal exit is blocked.'));
   const destination=prop?null:continuous?{x:target.x,y:target.y}:cell(target);
   const goals=manual?[manual.entry]:prop?approachTiles(this.map,this.index,prop):[destination];
   if(!goals.length||goals.every(p=>continuous?this.index.isPointBlocked(p.x,p.y):this.index.isBlocked(p.x,p.y)))return Promise.reject(Error('Destination is blocked or has no accessible approach.'));
@@ -72,7 +73,7 @@ export class MapController {
   if(actor.jumping||actor.rolling){
    const active=this.active.get(id),heading=Math.atan2(goals[0].y-actor.y,goals[0].x-actor.x);
    if(active?.jump&&active.gait==='run'&&Math.abs(angleDelta(active.jump.heading,heading))>.35)active.rollOnLand=true;
-   return this.deferVault(id,()=>this.moveTo(id,target,{signal,gait}),signal);
+   return this.deferVault(id,()=>this.moveTo(id,target,{signal,gait,allowVault}),signal);
   }
   if(this.active.size>=16&&!this.active.has(id))return Promise.reject(Error('At most 16 map movements may be active.'));
   // Reject invalid destinations before replacing a valid movement.
@@ -81,7 +82,8 @@ export class MapController {
   const desired=Math.atan2(goals[0].y-actor.y,goals[0].x-actor.x);
   const skid=this.map.navigation?.mode==='continuous'&&previous?.gait==='run'&&velocity>.15&&(previous.skid||Math.abs(angleDelta(Math.atan2(momentum.y,momentum.x),desired))>.45)
    ?{velocity:{...momentum},deceleration:actor.speed*1.8*3.5}:null;
-  const promise=new Promise((resolve,reject)=>{const abort=()=>this.cancelRequest(id,request);job={actor:id,request,gait,skid,target:typeof target==='string'?target:destination,prop,goals,manualTraversal:manual,start:{x:actor.x,y:actor.y},resolve,reject,signal,abort,route:null,index:1,velocity:0,allowVault:!manual};signal?.addEventListener('abort',abort,{once:true});this.active.set(id,job);});
+  const actorAllowsVault=allowVault??(actor.appearance?.kind!=='livestock');
+  const promise=new Promise((resolve,reject)=>{const abort=()=>this.cancelRequest(id,request);job={actor:id,request,gait,skid,target:typeof target==='string'?target:destination,prop,goals,manualTraversal:manual,start:{x:actor.x,y:actor.y},resolve,reject,signal,abort,route:null,index:1,velocity:0,allowVault:!manual&&actorAllowsVault};signal?.addEventListener('abort',abort,{once:true});this.active.set(id,job);});
   promise.catch(()=>{});if(previous)this.finish(previous,abortError('Movement replaced.'));if(this.active.get(id)!==job)return promise;actor.walking=!!skid;actor.running=!!skid;actor.skidding=!!skid;actor.turning=false;if(!skid)actor.gaitWeight=0;actor.gait=gait;this.emit({type:'map.move.started',actor:id,request,target:job.target,gait});
   if(!skid)this.requestPath(job);
   return promise;

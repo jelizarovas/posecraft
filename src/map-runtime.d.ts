@@ -1,7 +1,7 @@
 import type {MapDocument,MapPoint,MapIndex,MapRect,MapProp} from './map.js';
 export interface MapEvent {type:string;actor?:string;request?:string;object?:string;target?:string|MapPoint;message?:string;[key:string]:unknown}
 export interface MapFrame {actors:Array<{id:string;x:number;y:number;speed:number;color?:string;facing:number;travelFacing:number;gaitWeight:number;gait:'walk'|'run';running:boolean;walking:boolean;skidding:boolean;jumping:boolean;jumpProgress:number;rolling:boolean;rollProgress:number;turning:boolean;lift:number;phase:number;traversalAction:'vault'|'climb-up'|'climb-down'|null;traversalProgress:number;supportContact:(MapPoint&{z:number})|null}>;objects:Record<string,{opened:true}>;route:MapPoint[]|null;destination:MapPoint|null;pending:number}
-export interface MapMoveOptions {signal?:AbortSignal;gait?:'walk'|'run'}
+export interface MapMoveOptions {signal?:AbortSignal;gait?:'walk'|'run';allowVault?:boolean}
 export interface MapState {format:'posecraft-map-state';version:1;map:string;actors:Array<{id:string;x:number;y:number;facing:number}>;objects:Record<string,{opened:true}>}
 export interface MapOptions {execution?:'worker'|'main';onEvent?:(event:MapEvent)=>void;onError?:(error:Error)=>void}
 export class MapController {

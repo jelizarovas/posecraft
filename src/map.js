@@ -153,9 +153,8 @@ export function assertMap(map) {
       const t=p.traversal,activation=t.activation??'auto';
       if(!record(t)||!['vault','climb'].includes(t.kind)||!['auto','click'].includes(activation)||!Number.isFinite(t.height)||t.height<=0||t.height>4||t.style!==undefined&&!['rock','branch'].includes(t.style))fail(`invalid traversal ${p.id}`);
       if(activation==='auto'&&(t.kind!=='vault'||!propBlocksMovement(p)))fail(`invalid automatic traversal ${p.id}`);
-      if(activation==='click'){
-        if(!Array.isArray(t.endpoints)||t.endpoints.length!==2||t.endpoints.some(q=>!point(q)||q.x < -2||q.y < -2||q.x>p.width+2||q.y>p.height+2||p.x+q.x<0||p.y+q.y<0||p.x+q.x>=map.width||p.y+q.y>=map.height)||Math.hypot(t.endpoints[1].x-t.endpoints[0].x,t.endpoints[1].y-t.endpoints[0].y)<.25)fail(`invalid traversal endpoints ${p.id}`);
-      }else if(t.endpoints!==undefined)fail(`automatic traversal cannot define endpoints ${p.id}`);
+      if(activation==='click'&&t.endpoints===undefined)fail(`invalid traversal endpoints ${p.id}`);
+      if(t.endpoints!==undefined&&(!Array.isArray(t.endpoints)||t.endpoints.length!==2||t.endpoints.some(q=>!point(q)||q.x < -2||q.y < -2||q.x>p.width+2||q.y>p.height+2||p.x+q.x<0||p.y+q.y<0||p.x+q.x>=map.width||p.y+q.y>=map.height)||Math.hypot(t.endpoints[1].x-t.endpoints[0].x,t.endpoints[1].y-t.endpoints[0].y)<.25))fail(`invalid traversal endpoints ${p.id}`);
     }
     if(propBlocksMovement(p))for (let y = p.y; y < p.y + p.height; y++) occupied.fill(1,y*map.width+p.x,y*map.width+p.x+p.width);
   }

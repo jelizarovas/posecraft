@@ -1,0 +1,57 @@
+import assert from 'node:assert/strict';
+import {chromium} from '@playwright/test';
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+try{
+ const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:2,hasTouch:true,isMobile:true});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://localhost:5246/play.html'+(process.env.MAP_SETTINGS_RENDERER==='webgl2'?'?renderer=webgl2':''));
+ await page.waitForFunction(()=>window.mapPlay?.view);
+ await page.evaluate(()=>mapPlay.view.ready);
+ await page.evaluate(()=>mapPlay.townLife?.dispose());
+ const menu=page.getByRole('button',{name:'Open game settings'}),dialog=page.getByRole('dialog');
+ await menu.click();assert.equal(await dialog.isVisible(),true);
+ await page.getByLabel('Movement',{exact:true}).selectOption('run');
+ await page.getByLabel('Recenter on waypoint').uncheck();
+ await page.getByLabel('Resolution',{exact:true}).selectOption('1');
+ await page.getByLabel('Shadows',{exact:true}).uncheck();
+ await page.getByLabel('Route arrows').uncheck();
+ await page.getByLabel('Motion effects').selectOption('true');
+ await page.getByLabel('FPS counter').uncheck();
+ assert.equal(await page.locator('#fps').isVisible(),false);
+ const pref=await page.evaluate(()=>mapPlay.view.preferences());
+ assert.deepEqual(pref,{movementMode:'run',followOnMove:false,maxPixelRatio:1,shadows:false,showRoute:false,reducedMotion:true});
+ await page.mouse.click(5,5);assert.equal(await dialog.isVisible(),false,'Backdrop dismisses without passing a waypoint through');
+ assert.equal(await page.evaluate(()=>mapPlay.view.controller.isMoving),false);
+ assert.equal(await page.evaluate(()=>document.querySelector('#game canvas').width),390,'Low resolution uses CSS-sized backing pixels');
+ await page.reload();await page.waitForFunction(()=>window.mapPlay?.view);await page.evaluate(()=>mapPlay.townLife?.dispose());
+ assert.deepEqual(await page.evaluate(()=>mapPlay.view.preferences()),pref,'Preferences survive reload');
+ const dest=await page.evaluate(()=>{
+   const {view,map}=mapPlay,a=view.controller.actorPosition(map.actors[0].id);
+   window.settingsEvents=[];view.controller.subscribe(e=>settingsEvents.push(e));
+   for(const [dx,dy]of [[2,0],[0,2],[-2,0],[0,-2]]){const p={x:a.x+dx,y:a.y+dy};if(!view.controller.index.isPointBlocked(p.x,p.y,.12))return view.mapToScreen(p);}
+   throw Error('No test destination');
+ });
+ await page.mouse.click(dest.x,dest.y);await page.waitForFunction(()=>settingsEvents.some(e=>e.type==='map.move.started'));
+ assert.equal(await page.evaluate(()=>settingsEvents.find(e=>e.type==='map.move.started').gait),'run');
+ assert.equal(await page.evaluate(()=>mapPlay.view.cameraTracking().following),false);
+ await menu.click();await page.getByLabel('Movement',{exact:true}).selectOption('walk');await page.getByLabel('Recenter on waypoint').check();
+ await page.keyboard.press('Escape');assert.equal(await dialog.isVisible(),false);
+ await page.evaluate(()=>{const v=mapPlay.view;v.controller.cancel(mapPlay.map.actors[0].id);window.settingsEvents=[];});
+ await page.mouse.click(dest.x,dest.y,{modifiers:['Shift']});await page.waitForFunction(()=>settingsEvents.some(e=>e.type==='map.move.started'));
+ assert.equal(await page.evaluate(()=>settingsEvents.find(e=>e.type==='map.move.started').gait),'walk','Always walk overrides run gesture');
+ assert.equal(await page.evaluate(()=>mapPlay.view.cameraTracking().following),true);
+ await menu.click();await page.getByRole('button',{name:'Enter fullscreen',exact:true}).click();
+ await page.waitForFunction(()=>!!document.fullscreenElement);
+ assert.equal(await page.evaluate(()=>document.fullscreenElement===document.documentElement),true,'Fullscreen contains settings menu');
+ assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('posecraft-map-play-settings-v1')).fullscreen),true);
+ await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();await page.waitForFunction(()=>!document.fullscreenElement);
+ assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('posecraft-map-play-settings-v1')).fullscreen),false);
+ await page.screenshot({path:'test-results/map-settings-mobile.png'});
+ await page.evaluate(()=>{const key='posecraft-map-play-settings-v1',saved=JSON.parse(localStorage.getItem(key));localStorage.setItem(key,JSON.stringify({...saved,fullscreen:true}));});
+ await page.reload();await page.waitForFunction(()=>window.mapPlay?.view);
+ assert.equal(await page.evaluate(()=>!!document.fullscreenElement),false,'Restoration waits for a gesture');
+ await page.mouse.click(150,200);await page.waitForFunction(()=>!!document.fullscreenElement);
+ await menu.click();await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({passed:true,preferences:pref,fullscreen:true,persistence:true}));
+}finally{await browser.close();}

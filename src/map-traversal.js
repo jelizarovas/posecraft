@@ -7,7 +7,7 @@ function supportPoint(index,prop){const parts=propCollisionParts(prop);let left=
 
 /** Resolve the authored entry and exit from the actor's current side. */
 export function manualTraversalPlan(index,prop,actor){
- const endpoints=traversalEndpoints(prop);if(!endpoints||traversalActivation(prop)!=='click')return null;
+ const endpoints=traversalEndpoints(prop);if(!endpoints)return null;
  const [a,b]=endpoints,entry=Math.hypot(actor.x-a.x,actor.y-a.y)<=Math.hypot(actor.x-b.x,actor.y-b.y)?a:b,exit=entry===a?b:a,radius=index.map.navigation?.radius??0;
  if(!continuousSegmentClear(index,entry,entry,radius)||!continuousSegmentClear(index,exit,exit,radius)||!continuousSegmentClear(index,entry,exit,radius,{ignoreProp:prop.id,ignoreCliffs:prop.traversal.kind==='climb'}))return null;
  const startZ=groundHeight(index.map,entry),endZ=groundHeight(index.map,exit),kind=prop.traversal.kind;

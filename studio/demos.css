@@ -51,3 +51,5 @@
 #demo-player.demo-fullscreen .demo-transport>:not(#demo-fullscreen),#demo-player.demo-fullscreen #demo-controls,#demo-player.demo-fullscreen .map-recenter,#demo-player.demo-fullscreen .map-stats{display:none!important}
 #demo-player.demo-fullscreen #demo-fullscreen{background:#fffef0e8;border:1px solid #4a59474d;box-shadow:0 2px 12px #17231930;border-radius:10px}
 #demo-player.demo-fullscreen button:not(#demo-fullscreen){display:none!important}
+
+.demo-heading{flex-wrap:wrap;gap:10px}.demo-heading-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.demo-heading-actions [hidden]{display:none}

@@ -1,10 +1,27 @@
 import {continuousSegmentClear,propCollisionParts,propHitsSegment} from './map-collision.js';
 import {groundHeight} from './map-art-layout.js';
 
-function traversalGeometry(prop,ux,uy,radius){
- const parts=propCollisionParts(prop);let left=Infinity,right=-Infinity,top=Infinity,bottom=-Infinity;
- for(const part of parts)if(part.shape==='circle'){left=Math.min(left,part.x-part.radius);right=Math.max(right,part.x+part.radius);top=Math.min(top,part.y-part.radius);bottom=Math.max(bottom,part.y+part.radius);}else{left=Math.min(left,part.x);right=Math.max(right,part.x+part.width);top=Math.min(top,part.y);bottom=Math.max(bottom,part.y+part.height);}
- const center={x:(left+right)/2,y:(top+bottom)/2};return{center,reach:Math.abs(ux)*(right-left)/2+Math.abs(uy)*(bottom-top)/2+radius};
+function hitInterval(part,from,to,radius){
+ const dx=to.x-from.x,dy=to.y-from.y;
+ if(part.shape==='circle'){
+  const px=from.x-part.x,py=from.y-part.y,r=part.radius+radius,a=dx*dx+dy*dy,b=2*(px*dx+py*dy),c=px*px+py*py-r*r,d=b*b-4*a*c;
+  if(d<0||a<1e-12)return null;const root=Math.sqrt(d);return[Math.max(0,(-b-root)/(2*a)),Math.min(1,(-b+root)/(2*a))];
+ }
+ let low=0,high=1;
+ for(const[start,delta,min,max]of[[from.x,dx,part.x-radius,part.x+part.width+radius],[from.y,dy,part.y-radius,part.y+part.height+radius]]){
+  if(Math.abs(delta)<1e-10){if(start<min||start>max)return null;continue;}
+  let a=(min-start)/delta,b=(max-start)/delta;if(a>b)[a,b]=[b,a];low=Math.max(low,a);high=Math.min(high,b);if(low>high)return null;
+ }
+ return[Math.max(0,low),Math.min(1,high)];
+}
+
+function traversalGeometry(prop,from,to,radius){
+ const intervals=propCollisionParts(prop).map(part=>hitInterval(part,from,to,radius)).filter(interval=>interval&&interval[0]<=interval[1]).sort((a,b)=>a[0]-b[0]);
+ if(!intervals.length)return null;
+ let [entry,exit]=intervals[0];
+ for(let i=1;i<intervals.length&&intervals[i][0]<=exit+1e-6;i++)exit=Math.max(exit,intervals[i][1]);
+ const dx=to.x-from.x,dy=to.y-from.y,length=Math.hypot(dx,dy),middle=(entry+exit)/2;
+ return{center:{x:from.x+dx*middle,y:from.y+dy*middle},entry:entry*length,exit:exit*length};
 }
 
 /** Find a nearby route crossing with a clear takeoff, flight corridor and landing. */
@@ -18,21 +35,22 @@ export function planMapVault(index,actor,route,routeIndex,gait){
   for(let y=Math.floor(Math.min(from.y,to.y))-1;y<=Math.floor(Math.max(from.y,to.y))+1;y++)for(let x=Math.floor(Math.min(from.x,to.x))-1;x<=Math.floor(Math.max(from.x,to.x))+1;x++)for(const prop of index.propsAt(x,y)){
    if(seen.has(prop.id)||prop.traversal?.kind!=='vault'||(prop.traversal.activation??'auto')!=='auto')continue;seen.add(prop.id);
    if(!propHitsSegment(prop,from,to,radius))continue;
-   const {center}=traversalGeometry(prop,ux,uy,radius),along=(center.x-from.x)*ux+(center.y-from.y)*uy;
-   if(along<0)continue;candidates.push({prop,along});
+   const crossing=traversalGeometry(prop,from,to,radius);if(!crossing)continue;
+   if(crossing.entry<0)continue;candidates.push({prop,along:crossing.entry});
   }
   candidates.sort((a,b)=>a.along-b.along);
   for(const {prop,along}of candidates){
-   const {center,reach}=traversalGeometry(prop,ux,uy,radius);
-   if(walked+along>reach+lead)continue;
-   const landingDistance=Math.min(length,along+reach+(running?.55:.35));
+   const crossing=traversalGeometry(prop,from,to,radius);if(!crossing)continue;
+   const {center}=crossing;if(walked+crossing.entry>lead)continue;
+   const landingDistance=Math.min(length,crossing.exit+(running?.55:.35));
    const landing={x:from.x+ux*landingDistance,y:from.y+uy*landingDistance};
    if(!continuousSegmentClear(index,landing,landing,radius)||!continuousSegmentClear(index,actor,landing,radius,{ignoreProp:prop.id}))continue;
    const distance=Math.hypot(landing.x-actor.x,landing.y-actor.y),speed=actor.speed*(running?1.8:1);
    if(distance<.15)continue;
-   const vx=(landing.x-actor.x)/distance,vy=(landing.y-actor.y)/distance,projection=(center.x-actor.x)*vx+(center.y-actor.y)*vy,startZ=groundHeight(index.map,actor),endZ=groundHeight(index.map,landing);
+   const vaultCrossing=traversalGeometry(prop,actor,landing,radius);if(!vaultCrossing)continue;
+   const startZ=groundHeight(index.map,actor),endZ=groundHeight(index.map,landing);
    let height=prop.traversal.height+(running?.65:.35),valid=true;
-   for(const t of [(projection-reach)/distance,(projection+reach)/distance]){
+   for(const t of [vaultCrossing.entry/distance,vaultCrossing.exit/distance]){
     if(t<=.01||t>=.99){valid=false;break;}
     const clearance=groundHeight(index.map,center)+prop.traversal.height+.06-(startZ+(endZ-startZ)*t);
     height=Math.max(height,clearance/(4*t*(1-t)));

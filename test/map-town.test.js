@@ -54,7 +54,7 @@ test('plaza, farm lanes, buildings, and NPC routes stay connected and collision-
   const gate=map.props.find(prop=>prop.id===gateId);assert.ok(gate,`${gateId} is placed`);assert.ok(!map.props.some(prop=>prop.id===replacedId),'broken gate replaces its intact fence segment');
   assert.equal(index.isPointBlocked(gate.x+1,gate.y+.5),false,`${gateId} leaves a walkable opening`);
  }
- const pasture=map.props.filter(prop=>prop.id.startsWith('pasture-')&&prop.fence);assert.equal(pasture.length,9,'nine connected spans enclose both pastures');assert.ok(pasture.every(prop=>prop.fence.nodes.length===2&&prop.fence.links.length===1&&prop.traversal?.activation==='click'),'every pasture span keeps a precise click vault');assert.ok(pasture.some(prop=>prop.id==='pasture-divider'),'shared divider joins both T posts');
+ const pasture=map.props.filter(prop=>prop.id.startsWith('pasture-')&&prop.fence);assert.equal(pasture.length,9,'nine connected spans enclose both pastures');assert.ok(pasture.every(prop=>prop.fence.nodes.length===2&&prop.fence.links.length===1&&prop.traversal?.activation==='auto'),'every pasture span supports automatic and explicit vaults');assert.ok(pasture.some(prop=>prop.id==='pasture-divider'),'shared divider joins both T posts');
  const livestock=map.actors.filter(actor=>actor.appearance?.kind==='livestock');assert.equal(livestock.length,8);
  for(const animal of livestock){
   assert.ok(!index.isPointBlocked(animal.x,animal.y),`${animal.id} does not overlap another collider`);

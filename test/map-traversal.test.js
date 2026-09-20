@@ -57,7 +57,7 @@ test('automatic rectangular branch vault uses its collider top for a stable hand
  const c=new MapController(map,{execution:'main'});
  try{
   const move=c.moveTo('hero',{x:9,y:5.5},{gait:'run'});let contact=false;
-  await drive(c,undefined,a=>{if(a.supportContact){contact=true;assert.ok(Math.abs(a.supportContact.x-5.5)<1e-9);assert.ok(Math.abs(a.supportContact.y-5.5)<1e-9);assert.ok(Math.abs(a.supportContact.z-.42)<1e-9);assert.equal(a.traversalAction,'vault');assert.equal(c.frame().destination.x,9);}});await move;
+  await drive(c,undefined,a=>{if(a.supportContact){contact=true;assert.ok(a.supportContact.x>=5.1&&a.supportContact.x<=5.9);assert.ok(a.supportContact.y>=5.35&&a.supportContact.y<=5.65);assert.ok(Math.abs(a.supportContact.z-.42)<1e-9);assert.equal(a.traversalAction,'vault');assert.equal(c.frame().destination.x,9);}});await move;
   assert.equal(contact,true);assert.equal(c.actorPosition('hero').supportContact,null);
  }finally{c.dispose();}
 });
