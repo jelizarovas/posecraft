@@ -31,6 +31,8 @@
     <dialog id="play-settings" aria-labelledby="settings-title">
       <header><h1 id="settings-title">Game settings</h1><button type="button" data-close aria-label="Close settings">✕</button></header>
       <button type="button" data-fullscreen>Enter fullscreen</button>
+      <label>Renderer<select data-setting="renderer" aria-label="Renderer"><option value="canvas2d">Canvas2D</option><option value="webgl2">WebGL2</option></select></label>
+      <p data-renderer-status style="font-size:12px;color:#d3dec9;margin:0 0 10px"></p>
       <label>Movement<select data-setting="movementMode" aria-label="Movement"><option value="auto">Double-tap to run</option><option value="walk">Always walk</option><option value="run">Always run</option></select></label>
       <label>Recenter on waypoint<input type="checkbox" data-setting="followOnMove"></label>
       <label>Resolution<select data-setting="maxPixelRatio" aria-label="Resolution"><option value="1">Low · 1×</option><option value="1.5">Medium · 1.5×</option><option value="2">High · 2×</option></select></label>

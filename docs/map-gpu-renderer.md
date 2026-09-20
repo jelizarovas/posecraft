@@ -1,6 +1,6 @@
 # Incremental GPU map renderer
 
-The existing map document, controller, navigation, behaviors, interactions, saves and editor remain in use. `mountMap` accepts `renderer: 'webgl2'` or `'auto'` to try the new backend. The default is still `'canvas2d'`. Both GPU options fall back to Canvas2D if WebGL2 is unavailable, the context is lost, or the renderer cannot meet its resource bounds.
+The existing map document, controller, navigation, behaviors, interactions, saves and editor remain in use. `mountMap` accepts `renderer: 'webgl2'` or `'auto'` to try the new backend. The SDK default is still `'canvas2d'`. The standalone game's settings menu saves a Canvas2D/WebGL2 choice locally; renderer query links override that choice for the visit. Both GPU options fall back to Canvas2D if WebGL2 is unavailable, the context is lost, or the renderer cannot meet its resource bounds.
 
 Local comparison links:
 

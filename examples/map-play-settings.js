@@ -1,5 +1,6 @@
 export const settingsKey='posecraft-map-play-settings-v1';
-const defaults={movementMode:'auto',followOnMove:true,maxPixelRatio:2,shadows:true,showRoute:true,reducedMotion:'system',showFPS:true,fullscreen:false};
+export const rendererResumeKey='posecraft-map-renderer-resume-v1';
+const defaults={renderer:'canvas2d',movementMode:'auto',followOnMove:true,maxPixelRatio:2,shadows:true,showRoute:true,reducedMotion:'system',showFPS:true,fullscreen:false};
 
 export function readPlaySettings(storage){
   let saved;try{saved=JSON.parse((storage??globalThis.localStorage).getItem(settingsKey));}catch{}
@@ -7,6 +8,7 @@ export function readPlaySettings(storage){
   if(!saved||typeof saved!=='object')return result;
   for(const key of ['followOnMove','shadows','showRoute','showFPS','fullscreen'])if(typeof saved[key]==='boolean')result[key]=saved[key];
   if(['auto','walk','run'].includes(saved.movementMode))result.movementMode=saved.movementMode;
+  if(['canvas2d','webgl2'].includes(saved.renderer))result.renderer=saved.renderer;
   if([1,1.5,2].includes(saved.maxPixelRatio))result.maxPixelRatio=saved.maxPixelRatio;
   if(typeof saved.reducedMotion==='boolean'||saved.reducedMotion==='system')result.reducedMotion=saved.reducedMotion;
   return result;
@@ -27,6 +29,7 @@ export function mountPlaySettings(view,initial){
   const refresh=()=>{
     for(const control of controls){const value=settings[control.dataset.setting];if(control.type==='checkbox')control.checked=!!value;else control.value=String(value);}
     fps.hidden=!settings.showFPS;syncFullscreen();
+    const state=view.stats();dialog.querySelector('[data-renderer-status]').textContent=state.rendererFallback?'WebGL2 unavailable. Currently using Canvas2D.':'Changing renderer reloads the scene and keeps your position and camera.';
   };
   const open=()=>{if(dialog.open)return;message.textContent='';refresh();dialog.showModal();button.setAttribute('aria-expanded','true');};
   const close=()=>dialog.close();
@@ -34,8 +37,16 @@ export function mountPlaySettings(view,initial){
   const clickaway=event=>{if(event.target!==dialog)return;const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)close();};
   const change=event=>{
     const input=event.target,key=input.dataset.setting;if(!key)return;
+    if(key==='renderer'){
+      if(!['canvas2d','webgl2'].includes(input.value)||input.value===settings.renderer)return;
+      try{
+        sessionStorage.setItem(rendererResumeKey,JSON.stringify({renderer:input.value,path:location.pathname,draft:new URLSearchParams(location.search).has('draft'),snapshot:view.snapshot()}));
+      }catch{refresh();message.textContent='Could not preserve your position. Renderer was not changed.';return;}
+      settings.renderer=input.value;save();
+      const url=new URL(location.href);url.searchParams.set('renderer',settings.renderer);location.replace(url.href);return;
+    }
     settings[key]=input.type==='checkbox'?input.checked:key==='maxPixelRatio'?Number(input.value):key==='reducedMotion'&&input.value!=='system'?input.value==='true':input.value;
-    const {showFPS,fullscreen:unused,...preferences}=settings;
+    const {showFPS,fullscreen:unused,renderer:unusedRenderer,...preferences}=settings;
     view.setPreferences(preferences);fps.hidden=!showFPS;save();
   };
   const toggleFullscreen=async()=>{

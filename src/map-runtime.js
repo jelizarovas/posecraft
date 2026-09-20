@@ -219,7 +219,7 @@ export class MapController {
    // therefore constrain movement through curves even at the maximum speed.
    const frequency=120*Math.max(1,Math.ceil(speed/(.04*120))),steps=Math.max(1,Math.ceil(dt*frequency)),h=dt/steps;
    let travelled=0;
-   for(let n=0;n<steps&&job.index<job.route.length;n++){
+   for(let n=0;n<steps&&job.route&&job.index<job.route.length;n++){
     if(!job.route)break;
     const target=job.route[job.index],direct=Math.atan2(target.y-actor.y,target.x-actor.x),ahead=angleDelta(direct,routeHeading(actor,job.route,job.index));
     const heading=direct+Math.max(-.35,Math.min(.35,ahead)),error=angleDelta(actor.facing,heading),maxTurn=7*h;

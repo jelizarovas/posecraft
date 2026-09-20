@@ -5,7 +5,7 @@ import {startVillageLife} from './map-village-life.js';
 import {mountMap} from '../src/map-browser.js';
 import {assertMap} from '../src/map.js';
 import {upgradeStockBranches} from './map-editor-catalog.js';
-import {readPlaySettings,mountPlaySettings} from './map-play-settings.js';
+import {readPlaySettings,mountPlaySettings,rendererResumeKey} from './map-play-settings.js';
 
 const draftKey='posecraft-map-editor-draft-v1';
 /** Add new visual-only wheat behavior to the bundled town artwork in old drafts. */
@@ -25,9 +25,10 @@ function editorDraft(){
 }
 const map = editorDraft() || createTownMap();
 const settings=readPlaySettings();
+const requestedRenderer=new URLSearchParams(location.search).get('renderer');
+if(['canvas2d','webgl2'].includes(requestedRenderer))settings.renderer=requestedRenderer;
 const view = mountMap(document.querySelector('#game'), map, {
   ...settings,
-  renderer: new URLSearchParams(location.search).get('renderer')==='webgl2'?'webgl2':'canvas2d',
   onError(error) { if (error.name !== 'AbortError') console.error(error); },
 });
 const settingsMenu=mountPlaySettings(view,settings);
@@ -38,6 +39,10 @@ if(new URLSearchParams(location.search).get('view')==='cliffs'&&map.terraces?.le
  const ledge=map.terraces.find(t=>t.id==='middle-falls')??map.terraces[0];
  view.zoomTo(window.innerWidth<600?.85:1.5);view.panTo(ledge.x+ledge.width/2,ledge.y+ledge.height*.6);
 }
+try{
+ const resume=JSON.parse(sessionStorage.getItem(rendererResumeKey)||'null');sessionStorage.removeItem(rendererResumeKey);
+ if(resume?.renderer===settings.renderer&&resume.path===location.pathname&&resume.draft===new URLSearchParams(location.search).has('draft'))await view.restore(resume.snapshot);
+}catch(error){console.warn('Could not restore the renderer-switch position.',error);}
 const routes=townNpcRoutes(map);
 const townLife=map.actors.some(actor=>actor.npc)?startVillageLife(view,{seed:map.seed,onError:error=>console.warn('Village routine:',error.message)}):map.id.startsWith('town-')&&Object.keys(routes).every(id=>map.actors.some(a=>a.id===id))
   ?startTownLife(view,{routes,onError:error=>console.warn('Town resident:',error.message)}):null;
