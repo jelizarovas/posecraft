@@ -9,6 +9,8 @@ export interface MapViewSnapshot {
   scene: ReturnType<MapController['snapshot']>;
 }
 export interface MapViewStats {
+  renderer: 'canvas2d' | 'webgl2'; rendererFallback: string | null;
+  gpu: {textureBytes: number; maxTextureBytes: number; geometryBytes: number; geometryBuilds: number; pages: number; textures: number; uploads: number; uploadBytes: number; drawCalls: number; quads: number; evictions: number} | null;
   visibleTiles: number; visibleProps: number; visibleActors: number;
   candidateActors: number; candidateRouteSegments: number;
   occlusionCandidates: number; maskedActors: number; scratchPixels: number;
@@ -52,6 +54,8 @@ export function mountMap(element: HTMLElement, map: MapDocument, options?: {
   onEvent?: NonNullable<ConstructorParameters<typeof MapController>[1]>['onEvent'];
   onError?: (error: Error) => void;
   execution?: 'worker' | 'main';
+  /** GPU static layers with compatible Canvas2D actors. Falls back on context loss or unsupported hardware. */
+  renderer?: 'canvas2d' | 'webgl2' | 'auto';
   autoplay?: boolean;
   /** Automatically follow accepted movement commands. Defaults to false. */
   followOnMove?: boolean;

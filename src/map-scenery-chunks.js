@@ -11,7 +11,7 @@ function union(a,b){const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y);return{x,y,wid
 function propBounds(map,prop){const art=mapPropArtBounds(map,prop),shadow=mapPropShadowGeometry(map,prop);return shadow?union(art,shadow.bounds):art;}
 
 /** Retained projected-world scenery. Camera movement only composites cached chunks. */
-export function createMapSceneryChunks(map,doc,{drawShadow,drawProp,extraProps=[]}){
+export function createMapSceneryChunks(map,doc,{drawShadow,drawProp,extraProps=[],fixedScale}){
   const buckets=new Map(),descriptors=new Map(),cache=new Map(),latest=new Map(),coarse=new Map();
   let pixels=0,coarsePixels=0,maxPixels=2*MIB,rasterScale=1,builds=0,pending=false,plan=[],planPixels=0,disposed=false,buildMs=0,fallbackDraws=0,lodReuses=0,coarseDraws=0;
   const props=[...map.props,...extraProps].map((prop,order)=>({prop,order,bounds:prop.cliffBounds??propBounds(map,prop),depth:prop.x+prop.width+prop.y+prop.height})).sort((a,b)=>a.depth-b.depth||a.order-b.order);
@@ -59,7 +59,7 @@ export function createMapSceneryChunks(map,doc,{drawShadow,drawProp,extraProps=[
   }
   function configure(rect,scale,viewportPixels,objects){
     const list=[];for(let cy=Math.floor(rect.y/CELL);cy<=Math.floor((rect.y+rect.height-1e-6)/CELL);cy++)for(let cx=Math.floor(rect.x/CELL);cx<=Math.floor((rect.x+rect.width-1e-6)/CELL);cx++){const id=`${cx}:${cy}`;if(!buckets.has(id))continue;const d=descriptor(cx,cy);if(intersects(d,rect))list.push(d);}
-    maxPixels=Math.max(2*MIB,Math.min(8*MIB,Math.max(0,viewportPixels)*4));const detailBudget=maxPixels-Math.min(MIB/2,maxPixels/8);let next=rasterTier(scale);const cost=s=>list.length*CELL*CELL*s*s;while(next>1/8&&cost(next)>detailBudget)next/=2;
+    maxPixels=fixedScale?12*MIB:Math.max(2*MIB,Math.min(8*MIB,Math.max(0,viewportPixels)*4));const detailBudget=maxPixels-Math.min(MIB/2,maxPixels/8);let next=fixedScale||rasterTier(scale);const cost=s=>list.length*CELL*CELL*s*s;while(next>1/8&&cost(next)>detailBudget)next/=2;
     if(plan.length&&next>rasterScale&&cost(next)>detailBudget*.65)next=rasterScale;
     rasterScale=next;planPixels=cost(next);
     plan=list.map(d=>{const state=stateKey(d,objects),latestKey=`${d.id}@${state}`;return{...d,state,latestKey,key:`${latestKey}@${rasterScale}`};});

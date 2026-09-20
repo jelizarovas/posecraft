@@ -16,6 +16,9 @@ import {continuousSegmentClear} from './map-collision.js';
 import {cliffDrawProps,drawCliffFace,drawCliffWater,drawRiverWater,cliffSceneryMasks,clipCliffScenery} from './map-cliff-renderer.js';
 import {createMapBirdLife,drawMapBirds,mapBirdWakeDelay} from './map-birds.js';
 import {terrainTileCorners} from './map-cliffs.js';
+import {createMapGpu} from './map-gpu.js';
+import {drawGpuRoute,drawGpuRiver} from './map-gpu-effects.js';
+import {createMapGpuTerrain} from './map-gpu-terrain.js';
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const shade=(x,y)=>((Math.imul(x+17,73856093)^Math.imul(y+31,19349663))>>>0)%5;
@@ -54,15 +57,20 @@ if(p.cliffFace){drawCliffFace(ctx,map,p,art);return;}if(isMapFence(p)){drawMapFe
   ctx.restore();
 }
 /** Mount a viewport-sized map. Offscreen tiles and props never enter the draw list. */
-export function mountMap(element,map,{onEvent,onError,execution='worker',autoplay=true,reducedMotion='system',followOnMove=false,onCameraChange}={}){
+export function mountMap(element,map,{onEvent,onError,execution='worker',autoplay=true,reducedMotion='system',followOnMove=false,onCameraChange,renderer='canvas2d'}={}){
   if(!element?.appendChild)throw new TypeError('mountMap needs a DOM element.');
   assertMap(map);
   if(execution!=='worker'&&execution!=='main')throw TypeError('Map execution must be main or worker.');
+  if(!['canvas2d','webgl2','auto'].includes(renderer))throw TypeError('Map renderer must be canvas2d, webgl2 or auto.');
   const doc=element.ownerDocument,win=doc.defaultView||globalThis,canvas=doc.createElement('canvas'),status=doc.createElement('div');
   canvas.tabIndex=0;canvas.setAttribute('role','application');canvas.setAttribute('aria-label',`${map.name||'Adventure map'}. Click to move or interact. Double-tap or Shift-click to run. Hold or Alt-click to face a point. Drag to pan, scroll to zoom, arrow keys to pan, Enter to return to your character.`);
   canvas.style.cssText='display:block;width:100%;height:100%;touch-action:none;outline-offset:-3px;';status.style.cssText='position:absolute;left:12px;bottom:10px;padding:5px 8px;border-radius:6px;color:#eaf0df;background:#263b3bcc;font:11px/1.4 system-ui;pointer-events:none;';status.setAttribute('role','status');status.className='map-stats';
   const originalPosition=element.style.position;if(win.getComputedStyle(element).position==='static')element.style.position='relative';element.append(canvas,status);
-  const ctx=canvas.getContext('2d',{alpha:false});if(!ctx){canvas.remove();status.remove();element.style.position=originalPosition;throw Error('Canvas 2D is unavailable.');}
+  const ctx=canvas.getContext('2d',{alpha:renderer!=='canvas2d'});if(!ctx){canvas.remove();status.remove();element.style.position=originalPosition;throw Error('Canvas 2D is unavailable.');}
+  const gpuCanvas=doc.createElement('canvas');gpuCanvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';gpuCanvas.setAttribute('aria-hidden','true');
+  let gpu=null,rendererFallback=null;
+  if(renderer!=='canvas2d')try{gpu=createMapGpu(gpuCanvas,{onLost:()=>useCanvasFallback('WebGL context lost')});if(!gpu)rendererFallback='WebGL2 unavailable';}catch(error){rendererFallback=error.message;}
+  if(gpu){element.insertBefore(gpuCanvas,canvas);canvas.style.position='relative';}
   const media=win.matchMedia?.('(prefers-reduced-motion: reduce)'),reduced=()=>reducedMotion==='system'?!!media?.matches:!!reducedMotion;
   const pixelRatio=()=>Math.min(win.devicePixelRatio||1,2,Math.sqrt(4*1024*1024/(width*height)));
   let disposed=false,playing=autoplay,visible=true,dirty=true,raf=0,last=null,width=1,height=1,zoom=1,drawnFrames=0,lastStats={};
@@ -93,8 +101,14 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   const sceneryArtIds=new Set([...Object.values(map.art?.props??{}).flat(),...map.props.flatMap(p=>p.art?[p.art]:[]),'cliff-rock','farm-fence-timber']);
   for(const id of [...sceneryArtIds]){const opened=map.art?.images[id]?.opened;if(opened)sceneryArtIds.add(opened);}
   const art=loadMapArt(map,{document:doc,onUpdate:id=>{artRevision++;if(terrainArtIds.has(id))terrain?.clear();if(sceneryArtIds.has(id))scenery?.clear();invalidate();},onError:report});
-  terrain=createMapTerrainChunks(map,doc,art,(ctx,t)=>tile(ctx,map,t,art),{onUpdate:()=>invalidate()});
-  scenery=createMapSceneryChunks(map,doc,{extraProps:cliffs,drawShadow:(ctx,p)=>drawMapPropShadow(ctx,map,p,art),drawProp:(ctx,p,state,fencePart)=>drawProp(ctx,map,p,state,{art,shadow:false,fencePart})});
+  function createLayers(){
+    terrain=gpu?createMapGpuTerrain(map,doc,art,{onUpdate:()=>invalidate()}):createMapTerrainChunks(map,doc,art,(ctx,t)=>tile(ctx,map,t,art),{onUpdate:()=>invalidate()});
+    scenery=createMapSceneryChunks(map,doc,{fixedScale:gpu?2:undefined,extraProps:cliffs,drawShadow:(ctx,p)=>drawMapPropShadow(ctx,map,p,art),drawProp:(ctx,p,state,fencePart)=>drawProp(ctx,map,p,state,{art,shadow:false,fencePart})});
+  }
+  createLayers();
+  function useCanvasFallback(reason){
+    if(!gpu)return;rendererFallback=reason;gpu.dispose();gpu=null;gpuCanvas.remove();terrain.dispose();scenery.dispose();createLayers();invalidate();
+  }
   const drawList=scenery.drawList,cachedOcclusion=new MapOcclusionIndex(map,[...map.props,...cliffs],scenery.worldBounds);
   let cachedView=null,cachedViewRect=null,latestRect=null,viewQueries=0,pickActors=[];
   const scratch=Array.from({length:4},()=>{const canvas=doc.createElement('canvas');canvas.width=canvas.height=1;return{canvas,ctx:canvas.getContext('2d')};});
@@ -133,14 +147,22 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     const contains=cachedViewRect&&rect.x>=cachedViewRect.x&&rect.y>=cachedViewRect.y&&rect.x+rect.width<=cachedViewRect.x+cachedViewRect.width&&rect.y+rect.height<=cachedViewRect.y+cachedViewRect.height;
     if(!contains){const padX=Math.max(48/zoom,rect.width*.35),padY=Math.max(48/zoom,rect.height*.35);cachedViewRect={x:rect.x-padX,y:rect.y-padY,width:rect.width+padX*2,height:rect.height+padY*2};cachedView=index.visible(cachedViewRect,0);viewQueries++;}
     const view=cachedView,frame=controller.visibleFrame(rect,view.props,{routeActor:map.actors[0]?.id??null});
-    ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#dae4d4';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.setTransform(dpr*zoom,0,0,dpr*zoom,dpr*(width/2-camera.x*zoom),dpr*(height/2-camera.y*zoom));
-    terrain.draw(ctx,view.tiles,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height,view:rect});
-    const animatedRiver=drawRiverWater(ctx,map,view.tiles,rect,now/1000,{reduced:reduced()});
-    drawMapRoute(ctx,map,frame,rect,{zoom,time:now,reduced:reduced()});
+    ctx.setTransform(1,0,0,1,0,0);if(gpu)ctx.clearRect(0,0,canvas.width,canvas.height);else{ctx.fillStyle='#dae4d4';ctx.fillRect(0,0,canvas.width,canvas.height);}ctx.setTransform(dpr*zoom,0,0,dpr*zoom,dpr*(width/2-camera.x*zoom),dpr*(height/2-camera.y*zoom));
+    let animatedRiver;
+    if(gpu)try{
+      gpu.begin({width,height,dpr,camera,zoom});
+      terrain.draw(gpu,view.tiles,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height,view:rect});
+      animatedRiver=drawGpuRiver(gpu,map,view.tiles,rect,now/1000,{reduced:reduced()});drawGpuRoute(gpu,map,frame,rect,{zoom,time:now,reduced:reduced()});
+      scenery.draw(gpu,rect,frame.objects,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height});gpu.end();
+    }catch(error){useCanvasFallback(error.message);return render(now);}
+    else{
+      terrain.draw(ctx,view.tiles,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height,view:rect});
+      animatedRiver=drawRiverWater(ctx,map,view.tiles,rect,now/1000,{reduced:reduced()});drawMapRoute(ctx,map,frame,rect,{zoom,time:now,reduced:reduced()});
+      scenery.draw(ctx,rect,frame.objects,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height});
+    }
     animationTime=now/1000;
     const actors=frame.actors.filter(a=>{const bounds=actorBounds(a);return bounds.x<rect.x+rect.width&&bounds.x+bounds.width>rect.x&&bounds.y<rect.y+rect.height&&bounds.y+bounds.height>rect.y;});
     visibleNpcAnimation=!reduced()&&actors.some(a=>{const action=presentations.get(a.id)?.action;return action&&action!=='idle'&&definitions.get(a.id)?.appearance;});
-    scenery.draw(ctx,rect,frame.objects,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height});
     const animatedFalls=drawCliffWater(ctx,map,cliffs,rect,now/1000,{reduced:reduced(),art});
     const occlusion=cachedOcclusion;let occlusionCandidates=0,maskedActors=0,scratchPixels=0;
     actors.sort((a,b)=>a.x+a.y-b.x-b.y);
@@ -150,7 +172,7 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     win.clearTimeout(birdWakeTimer);birdWakeTimer=0;
     if(playing&&!animatedBirds){const delay=mapBirdWakeDelay(map,birds,now/1000,rect,{reduced:reduced()});if(delay>0)birdWakeTimer=win.setTimeout(()=>{birdWakeTimer=0;invalidate();},delay);}
     visibleNpcAnimation ||= !reduced()&&(animatedFalls>0||animatedRiver>0||animatedBirds);
-    const terrainCache=terrain.stats(),sceneryCache=scenery.stats();drawnFrames++;lastStats={visibleTiles:view.tiles.length,visibleProps:view.props.length,visibleActors:actors.length,candidateActors:frame.candidateActors,candidateRouteSegments:frame.candidateRouteSegments,occlusionCandidates,maskedActors,scratchPixels,art:art.stats(),totalTiles:map.width*map.height,totalProps:map.props.length,drawnFrames,terrainBuilds:terrainCache.builds,sceneryBuilds:sceneryCache.builds,viewQueries,terrainCache,sceneryCache,paintMs:performance.now()-paintStart,backingWidth:canvas.width,backingHeight:canvas.height,camera:{...camera,zoom,tracking:cameraTracking()},...view.stats};
+    const terrainCache=terrain.stats(),sceneryCache=scenery.stats();drawnFrames++;lastStats={renderer:gpu?'webgl2':'canvas2d',rendererFallback,gpu:gpu?.stats()??null,visibleTiles:view.tiles.length,visibleProps:view.props.length,visibleActors:actors.length,candidateActors:frame.candidateActors,candidateRouteSegments:frame.candidateRouteSegments,occlusionCandidates,maskedActors,scratchPixels,art:art.stats(),totalTiles:map.width*map.height,totalProps:map.props.length,drawnFrames,terrainBuilds:terrainCache.builds,sceneryBuilds:sceneryCache.builds,viewQueries,terrainCache,sceneryCache,paintMs:performance.now()-paintStart,backingWidth:canvas.width,backingHeight:canvas.height,camera:{...camera,zoom,tracking:cameraTracking()},...view.stats};
     const statusText=`${view.tiles.length.toLocaleString()} / ${(map.width*map.height).toLocaleString()} tiles · ${view.props.length} / ${map.props.length} props in view`;if(status.textContent!==statusText)status.textContent=statusText;
     // Terrain work schedules its own bounded tasks and invalidates on progress.
     // Repainting an unchanged pending chunk only competes with that work.
@@ -244,5 +266,5 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   function focusActor(id){const actor=controller.actorPosition(id);if(!actor)throw Error(`Unknown map actor: ${id}`);stopFollowing();camera=projectMap(map,{x:actor.x,y:actor.y});invalidate();}
   function keydown(e){if(e.key.startsWith('Arrow'))stopFollowing();const amount=(e.shiftKey?120:40)/zoom;if(e.key==='ArrowLeft')camera.x-=amount;else if(e.key==='ArrowRight')camera.x+=amount;else if(e.key==='ArrowUp')camera.y-=amount;else if(e.key==='ArrowDown')camera.y+=amount;else if(e.key==='Enter'&&map.actors[0])followActor(trackedActor||map.actors[0].id);else if(e.key==='+'||e.key==='='){zoom=clamp(zoom*1.15,.45,5);cachedViewRect=null;}else if(e.key==='-'){zoom=clamp(zoom/1.15,.45,5);cachedViewRect=null;}else return;e.preventDefault();invalidate();}
   const listeners={pointerdown:pointerDown,pointermove:pointerMove,pointerup:pointerUp,pointercancel:pointerUp,lostpointercapture:pointerUp,keydown};for(const [name,listener]of Object.entries(listeners))canvas.addEventListener(name,listener);canvas.addEventListener('wheel',wheel,{passive:false});resize();
-  return{controller,ready:art.ready,setActorPresentation,moveTo,screenToMap,mapToScreen,panTo(x,y){if(!Number.isFinite(x)||!Number.isFinite(y))throw TypeError('Map coordinates must be finite.');stopFollowing();camera=projectMap(map,{x,y});invalidate();},zoomTo(value){if(!Number.isFinite(value))throw TypeError('Map zoom must be finite.');zoom=clamp(value,.45,5);cachedViewRect=null;invalidate();},focusActor,followActor,stopFollowing,cameraTracking,snapshot:()=>({format:'posecraft-map-view-state',version:1,camera:{...camera,zoom,tracking:cameraTracking()},scene:controller.snapshot()}),async restore(state){if(state?.format!=='posecraft-map-view-state'||state.version!==1||!state.camera||!Number.isFinite(state.camera.x)||!Number.isFinite(state.camera.y)||!Number.isFinite(state.camera.zoom)||state.camera.zoom<.45||state.camera.zoom>5)throw TypeError('Invalid map view snapshot.');const tracking=state.camera.tracking;if(tracking!==undefined&&(!tracking||typeof tracking.following!=='boolean'||tracking.actor!==null&&!definitions.has(tracking.actor)||tracking.following&&tracking.actor===null))throw TypeError('Invalid camera tracking state.');await controller.restore(state.scene);trackedActor=tracking?.actor??null;following=tracking?.following??false;notifyCamera();camera={x:state.camera.x,y:state.camera.y};zoom=state.camera.zoom;cachedViewRect=null;scenery.clear();invalidate();},play(){playing=true;last=null;invalidate();},pause(){playing=false;last=null;win.cancelAnimationFrame(raf);raf=0;if(dirty)schedule();},stats:()=>{const actual=latestRect&&index.visible(latestRect,0);if(!Object.hasOwn(lastStats,'scratchPixels'))return{scratchPixels:0,backingWidth:canvas.width,backingHeight:canvas.height,...actual?.stats};return{...lastStats,cachedTiles:lastStats.visibleTiles,cachedProps:lastStats.visibleProps,visibleTiles:actual.tiles.length,visibleProps:actual.props.length,...actual.stats};},dispose(){if(disposed)return;disposed=true;win.cancelAnimationFrame(raf);raf=0;resizeObserver.disconnect();intersection.disconnect();doc.removeEventListener('visibilitychange',visibility);media?.removeEventListener('change',invalidate);for(const[name,listener]of Object.entries(listeners))canvas.removeEventListener(name,listener);canvas.removeEventListener('wheel',wheel);win.clearTimeout(birdWakeTimer);controller.dispose();birds.dispose();art.dispose();terrain.dispose();scenery.dispose();for(const buffer of scratch)buffer.canvas.width=buffer.canvas.height=1;canvas.width=canvas.height=1;canvas.remove();status.remove();element.style.position=originalPosition;}};
+  return{controller,ready:art.ready,setActorPresentation,moveTo,screenToMap,mapToScreen,panTo(x,y){if(!Number.isFinite(x)||!Number.isFinite(y))throw TypeError('Map coordinates must be finite.');stopFollowing();camera=projectMap(map,{x,y});invalidate();},zoomTo(value){if(!Number.isFinite(value))throw TypeError('Map zoom must be finite.');zoom=clamp(value,.45,5);cachedViewRect=null;invalidate();},focusActor,followActor,stopFollowing,cameraTracking,snapshot:()=>({format:'posecraft-map-view-state',version:1,camera:{...camera,zoom,tracking:cameraTracking()},scene:controller.snapshot()}),async restore(state){if(state?.format!=='posecraft-map-view-state'||state.version!==1||!state.camera||!Number.isFinite(state.camera.x)||!Number.isFinite(state.camera.y)||!Number.isFinite(state.camera.zoom)||state.camera.zoom<.45||state.camera.zoom>5)throw TypeError('Invalid map view snapshot.');const tracking=state.camera.tracking;if(tracking!==undefined&&(!tracking||typeof tracking.following!=='boolean'||tracking.actor!==null&&!definitions.has(tracking.actor)||tracking.following&&tracking.actor===null))throw TypeError('Invalid camera tracking state.');await controller.restore(state.scene);trackedActor=tracking?.actor??null;following=tracking?.following??false;notifyCamera();camera={x:state.camera.x,y:state.camera.y};zoom=state.camera.zoom;cachedViewRect=null;scenery.clear();invalidate();},play(){playing=true;last=null;invalidate();},pause(){playing=false;last=null;win.cancelAnimationFrame(raf);raf=0;if(dirty)schedule();},stats:()=>{const actual=latestRect&&index.visible(latestRect,0);if(!Object.hasOwn(lastStats,'scratchPixels'))return{scratchPixels:0,backingWidth:canvas.width,backingHeight:canvas.height,...actual?.stats};return{...lastStats,cachedTiles:lastStats.visibleTiles,cachedProps:lastStats.visibleProps,visibleTiles:actual.tiles.length,visibleProps:actual.props.length,...actual.stats};},dispose(){if(disposed)return;disposed=true;win.cancelAnimationFrame(raf);raf=0;resizeObserver.disconnect();intersection.disconnect();doc.removeEventListener('visibilitychange',visibility);media?.removeEventListener('change',invalidate);for(const[name,listener]of Object.entries(listeners))canvas.removeEventListener(name,listener);canvas.removeEventListener('wheel',wheel);win.clearTimeout(birdWakeTimer);gpu?.dispose();gpuCanvas.remove();controller.dispose();birds.dispose();art.dispose();terrain.dispose();scenery.dispose();for(const buffer of scratch)buffer.canvas.width=buffer.canvas.height=1;canvas.width=canvas.height=1;canvas.remove();status.remove();element.style.position=originalPosition;}};
 }

@@ -10,6 +10,8 @@ Run `node test/map-play-performance.mjs` while Vite is running to measure this p
 
 See [map character rendering](map-character-rendering.md) for the current sprite pipeline, its memory cost, and the distinction between baked sprites and live characters with equipment.
 
+An opt-in GPU backend is available at `play.html?renderer=webgl2` and `map-editor.html?renderer=webgl2`, or through `mountMap(host, map, {renderer: 'webgl2'})`. It reuses the same gameplay and map format. Canvas2D remains the default while performance and phone validation continue. See [GPU migration status](map-gpu-renderer.md) for what has moved to the GPU, resource budgets, tests and remaining work.
+
 The [September 19 performance report](map-performance-2026-09-19.md) records the retained scenery implementation, measured results and remaining mobile limits.
 
 Posecraft maps keep the whole logical grid in memory and draw the current viewport. Panning does not create a map-sized canvas or render offscreen tiles into a hidden image. The canvas backing size follows its host element, with device pixel ratio capped at two.

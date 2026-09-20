@@ -5,7 +5,7 @@ import {createMapTerrainMasks} from './map-terrain-masks.js';
 
 const PAD=4;
 /** Bounded, lazy material and projected-tile caches. Never rasterize the entire map. */
-export function createMapTerrainPainter(map,doc,art){
+export function createMapTerrainPainter(map,doc,art,{materialLimit=256}={}){
   let SIZE=48;const materials=new Map(),tiles=new Map();let pixels=0,builds=0,pending=false,spent=0,rasterScale=1,maxPixels=4*1024*1024;
   const layer=doc.createElement('canvas'),masks=createMapTerrainMasks(doc);layer.width=layer.height=SIZE;
   // Software-backed intermediate surfaces avoid repeated small GPU uploads
@@ -68,7 +68,7 @@ export function createMapTerrainPainter(map,doc,art){
     edge.drawImage(output,0,0,1,SIZE,0,PAD,PAD,SIZE);edge.drawImage(output,SIZE-1,0,1,SIZE,SIZE+PAD,PAD,PAD,SIZE);
     for(const x of [0,1])for(const y of [0,1])edge.drawImage(output,x*(SIZE-1),y*(SIZE-1),1,1,x*(SIZE+PAD),y*(SIZE+PAD),PAD,PAD);
     output.width=output.height=1;padded.materialKey=key;materials.set(key,padded);
-    if(materials.size>256){const first=materials.keys().next().value,old=materials.get(first);old.width=old.height=1;materials.delete(first);}
+    if(materials.size>materialLimit){const first=materials.keys().next().value,old=materials.get(first);old.width=old.height=1;materials.delete(first);}
     spent+=performance.now()-started;return padded;
   };
   function triangle(ctx,image,p0,p1,p2,first){
@@ -82,6 +82,8 @@ export function createMapTerrainPainter(map,doc,art){
     ctx.drawImage(image,-PAD,-PAD);ctx.restore();
   }
   return{
+    // Share compiled materials with GPU terrain, which projects its own geometry.
+    prepareMaterial:material,
     beginFrame(scale=1,viewportPixels=0){const size=scale>2.5?96:48;if(size!==SIZE){SIZE=size;layer.width=layer.height=SIZE;}spent=0;pending=false;rasterScale=scale>2.5?4:scale>1.25?2:1;maxPixels=Math.max(4*1024*1024,Math.min(8*1024*1024,viewportPixels*2));evict();},
     drawReady(ctx,tile,{direct=false}={}){
       const image=material(tile);if(!image){

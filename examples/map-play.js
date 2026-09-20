@@ -24,6 +24,7 @@ function editorDraft(){
 }
 const map = editorDraft() || createTownMap();
 const view = mountMap(document.querySelector('#game'), map, {
+  renderer: new URLSearchParams(location.search).get('renderer')==='webgl2'?'webgl2':'canvas2d',
   followOnMove: true,
   onError(error) { if (error.name !== 'AbortError') console.error(error); },
 });
