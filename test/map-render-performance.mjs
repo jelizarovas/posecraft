@@ -34,7 +34,7 @@ try{
       const map=createWoodlandMap({seed:2026,width:128,height:128,elevation:mapVariant!=='flat72'});if(mapVariant==='flat72')map.tileSize={width:72,height:36};
       window.coldStart=performance.now();window.perfMap=mountMap(document.querySelector('#host'),map);window.perfCanvas=document.querySelector('canvas');await perfMap.ready;await perfMap.controller.ready;
     },mapVariant);
-    let coldSettled=true;try{await page.waitForFunction(()=>perfMap.stats().art?.loaded===10&&perfMap.stats().terrainCache?.pending!==true,{},{timeout:10000});}catch{coldSettled=false;console.log(JSON.stringify({config,coldSettleTimeout:true,stats:await page.evaluate(()=>perfMap.stats())}));}
+    let coldSettled=true;try{await page.waitForFunction(()=>perfMap.stats().art?.loaded===15&&perfMap.stats().terrainCache?.pending!==true,{},{timeout:10000});}catch{coldSettled=false;console.log(JSON.stringify({config,coldSettleTimeout:true,stats:await page.evaluate(()=>perfMap.stats())}));}
     const coldSettleMs=await page.evaluate(()=>performance.now()-coldStart);
     await page.screenshot({path:`test-results/map-perf-${label}-${config.name}.png`});
     for(const mode of ['idle','moving','panning']){

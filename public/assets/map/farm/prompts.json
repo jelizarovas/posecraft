@@ -1,0 +1,80 @@
+{
+  "generator": "built-in imagegen",
+  "assets": [
+    {
+      "id": "pumpkin",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: A planted patch of orange pumpkins with tangled low vines on soil. Small diamond shaped crop bed, no raised border.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-f81761fb-c741-49ef-b02b-f38fe950af72.png"
+    },
+    {
+      "id": "vegetables",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: A small planted vegetable bed with cabbages and carrot leaves in rows, brown soil. Small diamond footprint, no raised border.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-88f607f9-c827-4338-9d7a-d0388f479957.png"
+    },
+    {
+      "id": "soil",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: A small bare freshly tilled brown soil bed with parallel furrows. Diamond footprint with irregular natural edges, no raised border.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-ace7667d-7024-49c5-bc6d-4968f4b4c1e0.png"
+    },
+    {
+      "id": "shack",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: A small medieval wooden tool shed with weathered timber roof, open dark doorway, rake and shovel leaning against side.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-3af9c5d9-34e2-4adb-9b68-fae5b69c3e58.png"
+    },
+    {
+      "id": "tools",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: A pitchfork, wooden rake, spade, and wooden bucket lying in a loose cluster on the ground. No building.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-9e6d666a-f50f-450a-a114-0fae548eb51f.png"
+    },
+    {
+      "id": "scarecrow",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: A rustic scarecrow on a wooden cross, floppy straw hat, faded patched shirt and straw hands.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-fbba29a2-3cb3-47ee-80f4-2e73bfa53109.png"
+    },
+    {
+      "id": "poplar",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: One very tall narrow mature poplar tree with textured green leafy crown and visible slender trunk.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-b3cc3a2f-8aea-4659-a80c-c25e4b0b36e8.png"
+    },
+    {
+      "id": "mine",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: An abandoned mine entrance in a small rocky hillside outcrop, dark opening visibly barricaded with crossed weathered planks, rubble, one rusted rail stub.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-25431e23-4400-4fa7-a66c-4d7aee983f02.png"
+    },
+    {
+      "id": "fence-x",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: A straight rustic split rail fence section with three wooden posts and two horizontal rails. Ground line projects from lower left to upper right, a 26.565 degree ascending screen diagonal. No surrounding terrain.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-cf4a8849-90dc-460a-b40a-fd028dbf8e02.png"
+    },
+    {
+      "id": "fence-y",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: A straight rustic split rail fence section with three wooden posts and two horizontal rails. Ground line projects from upper left to lower right, a 26.565 degree descending screen diagonal. No surrounding terrain.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-71f96d49-b8da-414b-af26-1837536a1eeb.png"
+    },
+    {
+      "id": "fence-broken",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: A broken rustic split rail fence section, end posts intact with snapped rails sagging to the ground and an obvious walkable central gap. Ground line projects from lower left to upper right.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-37790965-ac2a-4e15-89ac-808adb737e11.png"
+    },
+    {
+      "id": "coop",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: A small rustic wooden chicken coop on short stilts, shingle roof, open little hatch and short ramp down to ground. No chickens or fencing.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-8145ff0a-b795-4f86-acbd-c1dd9d617afd.png"
+    },
+    {
+      "id": "sheep",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: One woolly cream colored sheep standing calmly, three quarter side view, head facing lower left. Four feet visible.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-b277ff1f-b459-465a-9713-76e9f0c3bcad.png"
+    },
+    {
+      "id": "chicken",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: One rust colored hen standing on the ground, three quarter side view, head facing lower left.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-9bcc7591-4513-48e1-b342-2f5ce1be6bbf.png"
+    },
+    {
+      "id": "cow",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic late 1990s prerendered fantasy strategy games, NOT cartoon, no thick outlines. Orthographic isometric camera, looking down 30 degrees, ground axes 2:1. Soft upper-left daylight, subtle contact shadow only. Isolate the complete subject, centered with generous transparent margin, no background scenery, no text, no frame, genuine transparent alpha. Subject: One brown and cream dairy cow standing calmly, three quarter side view, head facing lower left, all four hooves visible.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-59945d02-ff16-40c6-bd45-f81e6347d06e.png"
+    }
+  ]
+}

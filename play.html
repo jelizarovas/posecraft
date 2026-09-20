@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#263b2b" />
+    <title>Littlelands · Posecraft</title>
+    <style>
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; background: #263b2b; }
+      #game { position: fixed; inset: 0; width: 100%; height: 100%; height: 100dvh; }
+      #game .map-stats { display: none; }
+      #game canvas { outline: none; }
+      #fps { position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); z-index: 10; padding: 5px 8px; border-radius: 5px; color: #edf3e9; background: #17251dcc; font: 12px/1.4 ui-monospace, monospace; font-variant-numeric: tabular-nums; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <main id="game" aria-label="Littlelands game"></main>
+    <output id="fps" title="Actual map frames drawn per second. Idle maps stop redrawing to save power.">— FPS</output>
+    <script type="module" src="/examples/map-play.js"></script>
+  </body>
+</html>

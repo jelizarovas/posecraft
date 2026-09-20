@@ -1,0 +1,26 @@
+{
+  "generator": "Built-in image_gen",
+  "date": "2026-09-19",
+  "assets": [
+    {
+      "id": "cottage",
+      "prompt": "Original isolated isometric fantasy town game sprite, orthographic 2:1 strategy game camera, two visible sides, richly textured painted pre-rendered late-1990s fantasy RPG style matching warm timbered medieval inn. Daylight from upper-left. Genuine transparent alpha background, no surrounding landscape, no cast shadow, no text or people. Entire object visible with small margin, centered, ground base around lower quarter. Small medieval cottage, cream plaster and dark timber frame, mossy straw thatched roof, little stone chimney, flowerbox, wooden door on camera-facing left wall, low stone foundation. Compact home, not inn."
+    },
+    {
+      "id": "workshop",
+      "prompt": "Original isolated isometric fantasy town game sprite, orthographic 2:1 strategy game camera, two visible sides, richly textured painted pre-rendered late-1990s fantasy RPG style matching warm timbered medieval inn. Daylight from upper-left. Genuine transparent alpha background, no surrounding landscape, no cast shadow, no text or people. Entire object visible with small margin, centered, ground base around lower quarter. Open-front medieval blacksmith workshop, dark timber beams, slate blue roof, rough stone forge with chimney, glowing forge inside open bay, anvil and a small barrel under an attached timber awning. No smoke plume, no people. Rectangular compact building."
+    },
+    {
+      "id": "barn",
+      "prompt": "Original isolated isometric fantasy town game sprite, orthographic 2:1 strategy game camera, two visible sides, richly textured painted pre-rendered late-1990s fantasy RPG style matching warm timbered medieval inn. Daylight from upper-left. Genuine transparent alpha background, no surrounding landscape, no cast shadow, no text or people. Entire object visible with small margin, centered, ground base around lower quarter. Rustic farm barn with weathered reddish brown vertical wooden planks, steep worn straw roof, wide double timber doors on left visible wall, small hayloft opening, couple hay bales resting directly against barn wall. Stone footings. No surrounding crops."
+    },
+    {
+      "id": "wagon",
+      "prompt": "Original isolated isometric fantasy town game sprite, orthographic 2:1 strategy game camera, two visible sides, richly textured painted pre-rendered late-1990s fantasy RPG style matching warm timbered medieval inn. Daylight from upper-left. Genuine transparent alpha background, no surrounding landscape, no cast shadow, no text or people. Entire object visible with small margin, centered, ground base around lower quarter. A single medieval wooden four-wheeled merchant wagon, clearly four spoked wooden wheels, open bed containing sacks and barrels, curved folded canvas cover at rear, long forward wooden drawbar, no horse. Ground orientation upper left to lower right, entire wagon isolated. Detailed small RPG prop."
+    },
+    {
+      "id": "wheat",
+      "prompt": "Original isolated isometric fantasy town game sprite, orthographic 2:1 strategy game camera, two visible sides, richly textured painted pre-rendered late-1990s fantasy RPG style matching warm timbered medieval inn. Daylight from upper-left. Genuine transparent alpha background, no surrounding landscape, no cast shadow, no text or people. Entire object visible with small margin, centered, ground base around lower quarter. A rectangular raised crop bed filled with five neat parallel rows of ripe golden wheat, ears of wheat and green-gold stems, rich dark tilled earth below. Isometric diamond footprint, width twice projected height, edges clean but organically irregular. No fence, no surrounding landscape, no border. A single repeatable crop plot sprite, camera matches isometric village buildings."
+    }
+  ]
+}

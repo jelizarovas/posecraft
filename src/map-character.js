@@ -19,7 +19,8 @@ function footCycle(phase,moving,running=false){
 export function sampleMapActor(actor,reduced=false){
   const facing=finite(actor.facing),travel=Number.isFinite(actor.travelFacing)?actor.travelFacing:facing;
   const forward=unit(facing),right=unit(facing+Math.PI/2),stride=unit(travel);
-  const phase=finite(actor.phase),weight=Number.isFinite(actor.gaitWeight)?Math.max(0,Math.min(1,actor.gaitWeight)):1,moving=!!actor.walking&&!reduced&&weight>0;
+  const jumping=actor.jumping===true,rolling=actor.rolling===true,traversing=typeof actor.traversalAction==='string';
+  const phase=finite(actor.phase),weight=Number.isFinite(actor.gaitWeight)?Math.max(0,Math.min(1,actor.gaitWeight)):1,moving=!!actor.walking&&!reduced&&weight>0&&!jumping&&!rolling&&!traversing;
   const running=moving&&(actor.running===true||actor.gait==='run'),bob=moving?(running?1.4+Math.sin(phase*2)*1.3:Math.sin(phase*2)*.65)*weight:0;
   const point=(lateral,depth,height)=>{depth+=(running?3.2*weight:0)*Math.max(0,Math.min(1,(height-12)/22));return{x:right.x*lateral+forward.x*depth,y:right.y*lateral+forward.y*depth-height,depth:right.y*lateral+forward.y*depth};};
   const limbs=[-1,1].map((side,i)=>{
@@ -30,7 +31,16 @@ export function sampleMapActor(actor,reduced=false){
     const swing=moving?-Math.sin(phase+i*Math.PI)*(running?10:7)*weight:0,shoulder=point(side*5.1,0,25+bob),elbow=point(side*6,swing*.55,(running?20.5:19)+bob),hand=point(side*5.8,swing,(running?22:14.5)+bob);
     return{side,gait,hip,knee,foot,shoulder,elbow,hand,depth:point(side*5.8,swing*.3,0).depth};
   });
-  return{facing,forward,right,stride,phase,moving,running,bob,point,limbs};
+  if(jumping){
+    const tuck=Math.sin(Math.max(0,Math.min(1,finite(actor.jumpProgress)))*Math.PI);
+    for(const limb of limbs){
+      limb.foot.x=mix(limb.foot.x,limb.hip.x,.72*tuck);limb.foot.y=mix(limb.foot.y,limb.hip.y+5,.72*tuck);
+      limb.knee.x+=stride.x*5*tuck;limb.knee.y-=3*tuck;
+      limb.elbow.x=mix(limb.elbow.x,limb.shoulder.x,.5*tuck);limb.elbow.y+=4*tuck;
+      limb.hand.x=mix(limb.hand.x,limb.shoulder.x,.58*tuck);limb.hand.y+=6*tuck;
+    }
+  }
+  return{facing,forward,right,stride,phase,moving,running,bob,point,limbs,jumping,rolling,traversing};
 }
 
 function polygon(ctx,points,fill,stroke){ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=.8;ctx.stroke();}}
@@ -88,11 +98,52 @@ function drawHead(ctx,sample){
   const ear=sample.point((sample.right.y>=0?1:-1)*5,0,32+sample.bob);ellipse(ctx,ear.x,ear.y,1.4,1.9,'#d8ad7e');
 }
 
+function drawRollingFallback(ctx,sample){
+  const p=Math.max(0,Math.min(1,finite(sample.rollProgress))),curl=Math.sin(Math.min(1,p/.72)*Math.PI),recover=smooth(Math.max(0,(p-.7)/.3));
+  const center={x:sample.forward.x*4*Math.sin(p*Math.PI),y:-11+3*Math.sin(p*Math.PI)};
+  const torso={x:center.x,y:mix(center.y,-19,recover)},head={x:center.x+sample.forward.x*mix(7,0,recover),y:mix(center.y-1,-32,recover)};
+  line(ctx,[{x:torso.x-6,y:torso.y+2},{x:torso.x+6,y:torso.y+2}],'#393b31',5);
+  for(const side of [-1,1]){
+    const hip={x:torso.x+side*3,y:torso.y+4},knee={x:torso.x+side*mix(8,3,recover),y:torso.y+mix(8,10,recover)},foot={x:torso.x+side*mix(4,3,recover),y:torso.y+mix(2,18,recover)};
+    line(ctx,[hip,knee,foot],'#55513e',4);
+    const shoulder={x:torso.x+side*4,y:torso.y-4},hand={x:torso.x+side*mix(2,5,recover),y:torso.y+mix(5,5,recover)};
+    line(ctx,[shoulder,hand],sample.color,4.5);
+  }
+  ellipse(ctx,torso.x,torso.y,6.5,8-curl*2,sample.color);ellipse(ctx,head.x,head.y,5.2,6,'#d2a477');
+}
+
 /** Lightweight directional map adventurer; all joints share a projected body basis. */
-export function drawMapActor(ctx,map,actor,definition,reduced=false,{shadow=true}={}){
+export function drawMapActor(ctx,map,actor,definition,reduced=false,{shadow=true,art}={}){
   const sample=sampleMapActor(actor,reduced),position=projectMap(map,actor),scale=map.tileSize.width/64;
+  sample.rollProgress=actor.rollProgress;
   sample.color=definition?.color||'#68734b';ctx.save();ctx.translate(position.x,position.y);ctx.scale(scale,scale);
-  if(shadow){ellipse(ctx,5,2,12,3.8,'#19271c20');ellipse(ctx,0,1,7,2.5,'#13221b55');}
+  if(shadow){ctx.save();ctx.translate(13,6);ctx.rotate(.35);ellipse(ctx,0,0,20,5,'#19271c3d');ctx.restore();ellipse(ctx,0,1,7,2.5,'#13221b66');}
+  ctx.translate(0,-(actor.lift||0)*map.tileSize.height/scale);
+  const traversalClip={'vault':'vault','climb-up':'climbUp','climb-down':'climbDown'}[actor.traversalAction];
+  const clips=map.art?.actors?.[actor.id],action=traversalClip||(actor.rolling===true?'roll':actor.jumping===true?'jump':sample.moving?(sample.running?'run':'walk'):'idle'),clip=clips?.[action],image=clip&&art?.image(clip.image);
+  if(image){
+    const spec=map.art.images[clip.image],direction=((Math.round(sample.facing/TAU*clip.directions)%clip.directions)+clip.directions)%clip.directions;
+    let progress=traversalClip?actor.traversalProgress:action==='jump'?actor.jumpProgress:action==='roll'?actor.rollProgress:null;
+    if(action==='climbDown')progress=1-finite(progress);
+    const normalized=progress===null?null:Math.max(0,Math.min(1,finite(progress))),frame=normalized===null?Math.floor(((sample.phase/TAU)%1+1)%1*clip.frames):Math.min(clip.frames-1,Math.floor(normalized*clip.frames));
+    let x=-spec.anchorX*spec.width,y=-spec.anchorY*spec.height;
+    if(action==='vault'&&actor.supportContact&&clip.supportAnchors?.[direction]&&Array.isArray(clip.supportWindow)){
+      const contact=projectMap(map,actor.supportContact),directionAnchors=clip.supportAnchors[direction],anchor=Array.isArray(directionAnchors)?directionAnchors[frame]:directionAnchors,[start,end]=clip.supportWindow,ramp=.08;
+      if(anchor){
+      const strength=Math.max(0,Math.min(1,(normalized-start)/ramp,(end-normalized)/ramp));
+      const desiredX=(contact.x-position.x)/scale,desiredY=(contact.y-position.y+(actor.lift||0)*map.tileSize.height)/scale;
+      x+=(desiredX-(x+anchor.x/clip.frameWidth*spec.width))*strength;y+=(desiredY-(y+anchor.y/clip.frameHeight*spec.height))*strength;
+      }
+    }
+    ctx.drawImage(image,frame*clip.frameWidth,direction*clip.frameHeight,clip.frameWidth,clip.frameHeight,x,y,spec.width,spec.height);ctx.restore();return;
+  }
+  if(actor.rolling===true){drawRollingFallback(ctx,sample);ctx.restore();return;}
+  if(traversalClip){
+    const p=Math.max(0,Math.min(1,finite(actor.traversalProgress))),effort=Math.sin(p*Math.PI),support=sample.limbs[0];
+    if(actor.supportContact){const contact=projectMap(map,actor.supportContact);support.hand={x:(contact.x-position.x)/scale,y:(contact.y-position.y+(actor.lift||0)*map.tileSize.height)/scale};support.elbow={x:mix(support.shoulder.x,support.hand.x,.55),y:mix(support.shoulder.y,support.hand.y,.55)-3*effort};}
+    for(const limb of sample.limbs){limb.knee.y-=4*effort;limb.foot.x=mix(limb.foot.x,limb.hip.x,.55*effort);limb.foot.y=mix(limb.foot.y,limb.hip.y+7,.55*effort);}
+    if(traversalClip!=='vault'){for(const limb of sample.limbs){limb.hand.x+=sample.forward.x*7*effort;limb.hand.y-=6*effort;}}
+  }
   const limbs=[...sample.limbs].sort((a,b)=>a.foot.depth-b.foot.depth);for(const limb of limbs)drawLeg(ctx,sample,limb);
   for(const limb of sample.limbs.filter(limb=>limb.depth<0))drawArm(ctx,sample,limb);
   if(sample.forward.y>=0)drawPack(ctx,sample);

@@ -1,41 +1,52 @@
+import {terrainTileCorners} from './map-cliffs.js';
 import {projectMap} from './map.js';
 import {artTerrainSelection} from './map-art-layout.js';
+import {createMapTerrainMasks} from './map-terrain-masks.js';
 
-const smooth=v=>{v=Math.max(0,Math.min(1,v));return v*v*(3-2*v);};
 const PAD=4;
 /** Bounded, lazy material and projected-tile caches. Never rasterize the entire map. */
 export function createMapTerrainPainter(map,doc,art){
   let SIZE=48;const materials=new Map(),tiles=new Map();let pixels=0,builds=0,pending=false,spent=0,rasterScale=1,maxPixels=4*1024*1024;
-  const layer=doc.createElement('canvas'),mask=doc.createElement('canvas');layer.width=layer.height=mask.width=mask.height=SIZE;
-  const layerCtx=layer.getContext('2d',{willReadFrequently:true}),maskCtx=mask.getContext('2d',{willReadFrequently:true});
+  const layer=doc.createElement('canvas'),masks=createMapTerrainMasks(doc);layer.width=layer.height=SIZE;
+  // Software-backed intermediate surfaces avoid repeated small GPU uploads
+  // during texture construction. Removing this hint regressed frame pacing.
+  const layerCtx=layer.getContext('2d',{willReadFrequently:true});
   const evict=()=>{while(pixels>maxPixels&&tiles.size){const first=tiles.keys().next().value,old=tiles.get(first);pixels-=old.pixels;old.surface.width=old.surface.height=1;tiles.delete(first);}};
-  const value=(x,y)=>map.terrain[Math.max(0,Math.min(map.height-1,y))*map.width+Math.max(0,Math.min(map.width-1,x))];
+  const clamped=(x,y)=>({x:Math.max(0,Math.min(map.width-1,x)),y:Math.max(0,Math.min(map.height-1,y))});
+  const value=(x,y)=>{const p=clamped(x,y);return map.terrain[p.y*map.width+p.x];};
+  const paint=(x,y)=>{const p=clamped(x,y);return map.groundPaint?.[p.y*map.width+p.x]??null;};
   const material=(tile)=>{
     const neighbors=[];for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++)neighbors.push(value(tile.x+x,tile.y+y));
+    const painted=[];for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++)painted.push(paint(tile.x+x,tile.y+y));
     // World phase is preserved for arbitrary authored repeat sizes.
     const selections=[0,1,2,3].map(t=>artTerrainSelection(map,t));
-    if(!selections[tile.terrain]||!art.image(selections[tile.terrain].id))return null;
+    const effective=artTerrainSelection(map,tile.terrain,tile.y*map.width+tile.x);
+    if(!effective||!art.image(effective.id))return null;
     const needed=new Set([0,...neighbors]);const phase=selections.map((s,i)=>s&&needed.has(i)?[tile.x%(s.image.width/64),tile.y%(s.image.height/64)]:[]);
-    const key=JSON.stringify([SIZE,neighbors,phase]);
+    const paintPhase=[...new Set(painted.filter(Boolean))].sort().map(id=>{const image=map.art.images[id];return[id,tile.x%(image.width/64),tile.y%(image.height/64)];});
+    const key=JSON.stringify([SIZE,neighbors,phase,painted,paintPhase]);
     if(materials.has(key)){const result=materials.get(key);materials.delete(key);materials.set(key,result);return result;}
     if(spent>=6){pending=true;return null;}
     const started=performance.now(),output=doc.createElement('canvas');output.width=output.height=SIZE;const ctx=output.getContext('2d',{willReadFrequently:true});
     function texture(c,id){c.save();c.scale(SIZE,SIZE);c.translate(-tile.x,-tile.y);c.fillStyle=art.pattern(c,id);c.fillRect(tile.x,tile.y,1,1);c.restore();}
-    const base=selections[0]&&art.image(selections[0].id)?selections[0]:selections[tile.terrain];texture(ctx,base.id);
+    const base=selections[0]&&art.image(selections[0].id)?selections[0]:selections[tile.terrain]&&art.image(selections[tile.terrain].id)?selections[tile.terrain]:effective;texture(ctx,base.id);
     for(const kind of [3,2,1]){
       const selected=selections[kind],belongs=v=>kind===3?v===2||v===3:v===kind;
       if(!selected||!art.image(selected.id)||!neighbors.some(belongs))continue;
       if(neighbors.every(belongs)){texture(ctx,selected.id);continue;}
       layerCtx.clearRect(0,0,SIZE,SIZE);texture(layerCtx,selected.id);
-      const alpha=maskCtx.createImageData(SIZE,SIZE);
-      for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
-        const gx=(x+.5)/SIZE-.5,gy=(y+.5)/SIZE-.5,ix=Math.floor(gx),iy=Math.floor(gy);
-        const sx=smooth((gx-ix-.30)/.40),sy=smooth((gy-iy-.30)/.40);
-        const at=(dx,dy)=>belongs(neighbors[(iy+dy+1)*3+ix+dx+1])?1:0;
-        const a=(at(0,0)*(1-sx)+at(1,0)*sx)*(1-sy)+(at(0,1)*(1-sx)+at(1,1)*sx)*sy;
-        alpha.data[(y*SIZE+x)*4+3]=Math.round(a*255);
-      }
-      maskCtx.putImageData(alpha,0,0);layerCtx.globalCompositeOperation='destination-in';layerCtx.drawImage(mask,0,0);layerCtx.globalCompositeOperation='source-over';ctx.drawImage(layer,0,0);
+      const membership=neighbors.reduce((bits,value,i)=>bits|(belongs(value)?1<<i:0),0);
+      layerCtx.globalCompositeOperation='destination-in';layerCtx.drawImage(masks.get(SIZE,membership),0,0);layerCtx.globalCompositeOperation='source-over';ctx.drawImage(layer,0,0);
+    }
+    // Sparse visual paint is a second ground layer. It never changes terrain
+    // cost or collision, and only blends across cells with the same base kind.
+    const variants=[...new Set(painted.filter(Boolean))].sort();
+    for(const id of variants){
+      if(!art.image(id))continue;
+      const membership=painted.reduce((bits,value,i)=>bits|(value===id&&neighbors[i]===tile.terrain?1<<i:0),0);
+      if(!membership)continue;
+      layerCtx.clearRect(0,0,SIZE,SIZE);texture(layerCtx,id);
+      layerCtx.globalCompositeOperation='destination-in';layerCtx.drawImage(masks.get(SIZE,membership),0,0);layerCtx.globalCompositeOperation='source-over';ctx.drawImage(layer,0,0);
     }
     if(tile.terrain===1){
       // Continuous cart ruts follow road edges, not the orientation of a texture.
@@ -71,13 +82,13 @@ export function createMapTerrainPainter(map,doc,art){
     ctx.drawImage(image,-PAD,-PAD);ctx.restore();
   }
   return{
-    beginFrame(scale=1,viewportPixels=0){const size=scale>2.5?96:48;if(size!==SIZE){SIZE=size;layer.width=layer.height=mask.width=mask.height=SIZE;}spent=0;pending=false;rasterScale=scale>2.5?4:scale>1.25?2:1;maxPixels=Math.max(4*1024*1024,Math.min(8*1024*1024,viewportPixels*2));evict();},
+    beginFrame(scale=1,viewportPixels=0){const size=scale>2.5?96:48;if(size!==SIZE){SIZE=size;layer.width=layer.height=SIZE;}spent=0;pending=false;rasterScale=scale>2.5?4:scale>1.25?2:1;maxPixels=Math.max(4*1024*1024,Math.min(8*1024*1024,viewportPixels*2));evict();},
     drawReady(ctx,tile,{direct=false}={}){
       const image=material(tile);if(!image){
         return pending?null:false;
       }
-      const origin=projectMap(map,{x:tile.x,y:tile.y});
-      const points=[[0,0],[1,0],[1,1],[0,1]].map(([x,y])=>{const p=projectMap(map,{x:tile.x+x,y:tile.y+y});return{x:p.x-origin.x,y:p.y-origin.y};});
+      const corners=terrainTileCorners(map,tile.x,tile.y),origin=projectMap(map,corners[0]);
+      const points=corners.map(corner=>{const p=projectMap(map,corner);return{x:p.x-origin.x,y:p.y-origin.y};});
       if(direct){
         // The caller already retains a terrain chunk. Avoid allocating another
         // projected canvas for every distinct hill slope inside that chunk.
@@ -110,9 +121,9 @@ export function createMapTerrainPainter(map,doc,art){
       }
       ctx.drawImage(cached.surface,origin.x+cached.left,origin.y+cached.top,cached.width,cached.height);return true;
     },
-    draw(ctx,tile){const result=this.drawReady(ctx,tile);if(result!==null)return result;const points=[[0,0],[1,0],[1,1],[0,1]].map(([x,y])=>projectMap(map,{x:tile.x+x,y:tile.y+y}));ctx.save();ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=['#65804c','#baa781','#376a71','#c4b78e'][tile.terrain];ctx.fill();ctx.restore();return true;},
-    clear(){for(const t of tiles.values())t.surface.width=t.surface.height=1;for(const image of materials.values())image.width=image.height=1;tiles.clear();materials.clear();pixels=0;},
-    stats(){return{tiles:tiles.size,pixels,materials:materials.size,builds,pending,maxPixels,rasterScale};},
-    dispose(){this.clear();layer.width=layer.height=mask.width=mask.height=1;}
+    draw(ctx,tile){const result=this.drawReady(ctx,tile);if(result!==null)return result;const points=terrainTileCorners(map,tile.x,tile.y).map(p=>projectMap(map,p));ctx.save();ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=['#65804c','#baa781','#376a71','#c4b78e'][tile.terrain];ctx.fill();ctx.restore();return true;},
+    clear(){for(const t of tiles.values())t.surface.width=t.surface.height=1;for(const image of materials.values())image.width=image.height=1;tiles.clear();materials.clear();masks.clear();pixels=0;},
+    stats(){return{tiles:tiles.size,pixels,materials:materials.size,builds,pending,maxPixels,rasterScale,...masks.stats()};},
+    dispose(){this.clear();layer.width=layer.height=1;}
   };
 }

@@ -12,14 +12,14 @@ try {
   await page.goto(base+'/demos.html#littlelands-map');
   await page.waitForFunction(()=>window.mapDemo?.view.stats().visibleTiles>0);
   await page.evaluate(()=>mapDemo.view.ready);
-  await page.waitForFunction(()=>mapDemo.view.stats().art.loaded===10&&!mapDemo.view.stats().terrainCache?.pending);
+  await page.waitForFunction(()=>mapDemo.view.stats().art.loaded===15&&!mapDemo.view.stats().terrainCache?.pending);
   const initial=await page.evaluate(()=>mapDemo.view.stats());
   assert.equal(initial.totalTiles,16384);assert.ok(initial.visibleTiles<initial.totalTiles/4);assert.ok(initial.visibleProps<initial.totalProps/2);assert.equal(await page.locator('#edit-demo').isHidden(),true);
   assert.equal(await page.evaluate(()=>mapWorkers),1);
   // This destination is across the inn's blocked footprint from the starting cell.
   const destination=await page.evaluate(()=>{window.blockedSamples=[];window.walkSamples=0;window.routeSample=setInterval(()=>{const actor=mapDemo.view.controller.frame().actors[0];if(actor.walking){walkSamples++;if(mapDemo.view.controller.index.isBlocked(actor.x,actor.y))blockedSamples.push({x:actor.x,y:actor.y});}},16);return mapDemo.view.mapToScreen({x:69.5,y:60.5});});
   await page.locator('#demo-art canvas').click({position:destination});
-  await page.waitForFunction(()=>mapDemo.events.some(e=>e.type==='map.actor.arrived'&&e.x===69.5&&e.y===60.5),{},{timeout:20000});
+  await page.waitForFunction(()=>mapDemo.events.some(e=>e.type==='map.actor.arrived'&&Math.abs(e.x-69.5)<.001&&Math.abs(e.y-60.5)<.001),{},{timeout:20000});
   const collisionSamples=await page.evaluate(()=>{clearInterval(routeSample);return{blocked:blockedSamples,samples:walkSamples};});
   assert.deepEqual(collisionSamples.blocked,[]);assert.ok(collisionSamples.samples>5);
   await page.locator('#map-chest').click();

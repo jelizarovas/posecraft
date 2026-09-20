@@ -1,0 +1,53 @@
+// Original raster artwork; collision footprints remain independent of the pixels.
+import {fencePiece} from '../src/map-fence.js';
+const image=(name,width,height,anchorY=.78)=>({src:`./assets/map/farm/${name}.webp`,width,height,anchorX:.5,anchorY});
+export const farmImages={
+ 'farm-pumpkin':image('pumpkin',88,58.667,.57),
+ 'farm-vegetables':image('vegetables',94,62.667,.57),
+ 'farm-corn':image('corn',92,76.667,.82),
+ 'farm-soil':image('soil',76,50.667,.53),
+ 'farm-shack':image('shack',255,170,.79),
+ 'farm-tools':image('tools',81,54,.6),
+ 'farm-scarecrow':image('scarecrow',81.25,86.95,.86),
+ 'farm-poplar':image('poplar',220,330,.9),
+ 'farm-mine':image('mine',240,160,.78),
+ 'farm-fence-x':image('fence-y',102,68,.65),
+ 'farm-fence-y':image('fence-x',102,68,.65),
+ 'farm-fence-broken':image('fence-broken-descending',102,68,.65),
+ 'farm-fence-broken-y':image('fence-broken',102,68,.65),
+ 'farm-fence-timber':image('fence-timber',512,512,0),
+ 'farm-coop':image('coop',225,150,.79),
+ 'farm-sheep':image('sheep',72.5,60.413,.78),
+ 'farm-chicken':image('chicken',36.4,31.542,.8),
+ 'farm-cow':image('cow',118.75,79.166,.8),
+};
+const brush=(id,label,width,height,collision,extra={})=>({id,label,prop:{kind:'decoration',art:id,width,height,collision,...extra}});
+const none={shape:'none'};
+export const farmPropBrushes=[
+ brush('farm-pumpkin','Pumpkin field',1,1,none,{occlusion:{mode:'low-foliage',lowerBodyFraction:.12}}),
+ brush('farm-vegetables','Cabbage / vegetable field',1,1,none,{occlusion:{mode:'low-foliage',lowerBodyFraction:.1}}),
+ brush('farm-corn','Corn field',1,1,none,{occlusion:{mode:'low-foliage',lowerBodyFraction:2/3}}),
+ brush('farm-soil','Bare tilled soil',1,1,none,{occlusion:{mode:'ground'}}),
+ brush('farm-shack','Tool shack',3,3,{shape:'rect',x:.15,y:.15,width:2.7,height:2.7}),
+ brush('farm-tools','Scattered tools',1,1,none,{occlusion:{mode:'ground'}}),
+ brush('farm-scarecrow','Scarecrow',1,1,{shape:'circle',radius:.13}),
+ brush('farm-poplar','Tall poplar',1,1,{shape:'circle',radius:.34},{kind:'tree'}),
+ brush('farm-mine','Blocked mine',4,3,{shape:'rect',x:.15,y:.1,width:3.7,height:2.8}),
+ {...fencePiece('farm-fence-x','Fence east/west',['w','e']),prop:{...fencePiece('farm-fence-x','Fence east/west',['w','e']).prop,traversal:{activation:'click',kind:'vault',height:.55,endpoints:[{x:.5,y:-.45},{x:.5,y:1.45}]}}},
+ {...fencePiece('farm-fence-y','Fence north/south',['n','s']),prop:{...fencePiece('farm-fence-y','Fence north/south',['n','s']).prop,traversal:{activation:'click',kind:'vault',height:.55,endpoints:[{x:-.45,y:.5},{x:1.45,y:.5}]}}},
+ fencePiece('farm-fence-ne','Fence corner north/east',['n','e']),
+ fencePiece('farm-fence-es','Fence corner east/south',['e','s']),
+ fencePiece('farm-fence-sw','Fence corner south/west',['s','w']),
+ fencePiece('farm-fence-wn','Fence corner west/north',['w','n']),
+ fencePiece('farm-fence-t-n','Fence T north/east/west',['n','e','w']),
+ fencePiece('farm-fence-t-e','Fence T east/north/south',['e','n','s']),
+ fencePiece('farm-fence-t-s','Fence T south/east/west',['s','e','w']),
+ fencePiece('farm-fence-t-w','Fence T west/north/south',['w','n','s']),
+ fencePiece('farm-fence-cross','Fence crossing',['n','e','s','w']),
+ brush('farm-fence-broken','Broken fence',2,1,{shape:'compound',parts:[{shape:'rect',x:0,y:.42,width:.3,height:.16},{shape:'rect',x:1.7,y:.42,width:.3,height:.16}]}),
+ brush('farm-fence-broken-y','Broken fence north/south',1,2,{shape:'compound',parts:[{shape:'rect',x:.42,y:0,width:.16,height:.3},{shape:'rect',x:.42,y:1.7,width:.16,height:.3}]}),
+ brush('farm-coop','Chicken coop',3,3,{shape:'rect',x:.3,y:.225,width:2.4,height:2.55}),
+ brush('farm-sheep','Sheep',1,1,{shape:'circle',radius:.22}),
+ brush('farm-chicken','Chicken',1,1,none),
+ brush('farm-cow','Cow',2,1,{shape:'rect',x:.25,y:.2,width:1.5,height:.6}),
+];

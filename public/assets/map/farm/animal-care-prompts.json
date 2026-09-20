@@ -1,0 +1,30 @@
+{
+  "generator": "built-in imagegen",
+  "assets": [
+    {
+      "id": "hay-rack",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic prerendered fantasy strategy games. Not cartoon, no thick outlines. Orthographic isometric camera looking down30degrees, ground axes2:1. Soft upper-left daylight and very subtle contact shadow only. Complete subject centered, no background scenery, no text, no frame, actual transparent alpha. Subject: a low weathered wooden livestock hay feeding rack, rectangular trough base and V-shaped slatted manger filled with golden dry hay for sheep and cows. Open accessible feeding sides, no animals, no extra objects.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-f1d450be-8423-43db-9044-2f401b0ba642.png"
+    },
+    {
+      "id": "water-trough",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic prerendered fantasy strategy games. Not cartoon, no thick outlines. Orthographic isometric camera looking down30degrees, ground axes2:1. Soft upper-left daylight and very subtle contact shadow only. Complete subject centered, no background scenery, no text, no frame, actual transparent alpha. Subject: a low long wooden water trough for cows and sheep, made of weathered timber planks held by iron straps, clear blue green water visible inside, four short sturdy feet. No animals.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-bd666b6b-4baf-4a82-9162-5aeb7fa5f7a1.png"
+    },
+    {
+      "id": "water-bucket",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic prerendered fantasy strategy games. Not cartoon, no thick outlines. Orthographic isometric camera looking down30degrees, ground axes2:1. Soft upper-left daylight and very subtle contact shadow only. Complete subject centered, no background scenery, no text, no frame, actual transparent alpha. Subject: one wooden bucket with dark metal hoops and a curved iron handle, filled with water, sitting on the ground. Real wooden staves. No other objects.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-ff171af5-66e2-4563-a6cc-febaa867c8d5.png"
+    },
+    {
+      "id": "chicken-feeder",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric strategy RPG game prop sprite. Detailed hand painted realistic medieval countryside artwork, muted natural earthy colors, fine material texture, matching classic prerendered fantasy strategy games. Not cartoon, no thick outlines. Orthographic isometric camera looking down30degrees, ground axes2:1. Soft upper-left daylight and very subtle contact shadow only. Complete subject centered, no background scenery, no text, no frame, actual transparent alpha. Subject: a small rustic wooden chicken feeding hopper, sloping timber roof over a small grain bin with a shallow accessible feeding tray and visible golden grain. No chickens.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-0e56dbbe-d356-4eec-906d-d482b05826e4.png"
+    },
+    {
+      "id": "fence-timber",
+      "prompt": "Use case: stylized-concept. Asset type: seamless repeatable game material texture. Full frame square weathered grey-brown oak timber grain, straight fine lengthwise grain and small cracks running HORIZONTALLY left to right. Neutral diffuse lighting, no perspective, no edges, no planks, no shadows, no knots larger than small flecks, no objects, no text. Natural farm split rail fence wood. Opaque texture fills every pixel.",
+      "path": "C:\\Users\\Arnas\\.codex\\generated_images\\01a0acfc-07cd-7460-a372-fff74427f0c4\\exec-1c3dae85-52ee-492f-87bd-8ceb3f76dfa2.png"
+    }
+  ]
+}

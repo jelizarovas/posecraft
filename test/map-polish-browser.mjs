@@ -8,7 +8,7 @@ try{
  const page=await browser.newPage({viewport:{width:1100,height:800}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base+'/demos.html#littlelands-map');
- await page.waitForFunction(()=>window.mapDemo?.view.stats().art.loaded===10&&!mapDemo.view.stats().terrainCache.pending);
+ await page.waitForFunction(()=>window.mapDemo?.view.stats().art.loaded===15&&!mapDemo.view.stats().terrainCache.pending);
  await page.locator('#demo-fullscreen').click();
  await page.evaluate(()=>{mapDemo.view.panTo(64,64);mapDemo.view.zoomTo(3);});
  await page.waitForFunction(()=>!mapDemo.view.stats().terrainCache.pending);

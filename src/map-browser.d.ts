@@ -14,8 +14,10 @@ export interface MapViewStats {
   occlusionCandidates: number; maskedActors: number; scratchPixels: number;
   art: {requested: number; loaded: number; failed: number};
   totalTiles: number; totalProps: number; drawnFrames: number;
-  terrainBuilds: number; sceneryBuilds: number; paintMs: number;
-  terrainCache: {tiles: number; pixels: number; materials: number; builds: number; pending: boolean; maxPixels: number; rasterScale: number; chunks: number; completed: number; tilePixels: number; tileBuilds: number; visibleChunks: number; workingSetPixels: number};
+  terrainBuilds: number; sceneryBuilds: number; viewQueries: number; paintMs: number;
+  cachedTiles: number; cachedProps: number;
+  terrainCache: {tiles: number; pixels: number; materials: number; builds: number; pending: boolean; maxPixels: number; rasterScale: number; chunks: number; completed: number; tilePixels: number; tileBuilds: number; visibleChunks: number; workingSetPixels: number; workSlices: number; buildMs: number; staging: number; swaps: number; resamples: number; previewBuilds: number};
+  sceneryCache: {chunks: number; pixels: number; maxPixels: number; rasterScale: number; builds: number; pending: boolean; visibleChunks: number; workingSetPixels: number; buildMs: number; fallbackDraws: number; detailPixels: number; coarsePixels: number; coarseChunks: number; lodReuses: number; coarseDraws: number};
   backingWidth: number; backingHeight: number;
   camera: {x: number; y: number; zoom: number; tracking?: MapCameraTracking};
   visitedChunks: number; candidateTiles: number; candidateProps: number;
@@ -24,10 +26,12 @@ export interface MapView {
   controller: MapController;
   /** Settles after referenced image loads finish; failed images use fallback art and call onError. */
   ready: Promise<void>;
+  /** Lightweight visible action state; movement remains owned by MapController. */
+  setActorPresentation(id:string,state:({action:string;carrying?:string|null;target?:MapPoint|null;[key:string]:unknown})|null):void;
   moveTo: MapController['moveTo'];
   /** Center the camera on continuous grid coordinates. */
   panTo(x: number, y: number): void;
-  /** Zoom is clamped to 0.45–2.5. */
+  /** Zoom is clamped to 0.45–5. */
   zoomTo(value: number): void;
   /** Recenter once; does not lock the camera to the actor. */
   focusActor(id: string): void;

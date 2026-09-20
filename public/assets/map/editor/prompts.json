@@ -1,0 +1,46 @@
+{
+  "generator": "Built-in image_gen tool",
+  "date": "2026-09-19",
+  "assets": [
+    {
+      "id": "dry-grass",
+      "source": "exec-f0d646b9-47f6-4f33-8b37-c8f8f95a55f5.png",
+      "prompt": "Use case: stylized-concept. Asset type: seamlessly tiling game terrain texture. Create a square full-bleed orthographic TOP DOWN material of dry autumn meadow grass, muted straw yellow and olive brown, fine irregular blades, little green surviving clover, subtle dirt gaps. Detailed painted/pre-rendered late-1990s isometric fantasy RPG material, natural realistic scale, softly lit from upper left, no horizon, no perspective, no objects, no text, no vignette, no border, no shadows cast by unseen objects. Designed to tile seamlessly in both axes and blend with moss-green grass, not a scene illustration. Rich organic fine detail, restrained contrast, not cartoon vector."
+    },
+    {
+      "id": "moss-grass",
+      "source": "exec-6291f2e3-96db-40a7-91d8-2292000a853a.png",
+      "prompt": "Use case: stylized-concept. Asset type: seamlessly tiling game terrain texture. Create a square full-bleed orthographic TOP DOWN material of dark lush mossy forest grass, muted deep emerald and olive green, fine fern-like tiny ground growth, irregular clover, damp soil patches, tiny leaf flecks. Detailed painted/pre-rendered classic isometric fantasy RPG material with realistic organic detail, softly lit from upper left. Flat uniform top-down texture, seamlessly tileable in both axes. No trees, bushes, rocks, horizon, perspective, border, vignette, text or scene objects. Not cartoon vector."
+    },
+    {
+      "id": "bush",
+      "source": "exec-196b9367-ed73-4c6b-be7b-c0bd22c56824.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric RPG prop sprite. One low dense irregular woodland bush with dark olive green leaves, small lighter leaf clusters and a few thin woody stems, roots meeting one compact ground footprint. Classic richly detailed pre-rendered/painted isometric fantasy RPG style matching timbered medieval inns and realistic woodland trees, not a cartoon. Orthographic isometric view, camera azimuth45 degrees elevation30 degrees. Soft daylight from upper left, crisp detailed silhouette. Single isolated bush centered with generous transparent margin all around, fully visible, genuinely transparent background with alpha. No ground tile, scene, text, frame or external cast shadow. Leaves have natural uneven shape."
+    },
+    {
+      "id": "tombstone",
+      "source": "exec-55ca98f6-db60-421d-a46c-1f76d2ccb600.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric RPG prop sprite. One old medieval cemetery gravestone, rounded arch top, weathered gray stone with a shallow carved cross and eroded unreadable markings, small moss patches at base. Upright squat human-scale gravestone seated directly on ground, no surrounding terrain. Detailed painted/pre-rendered classic isometric fantasy RPG style, realistic textured stone, not cartoon. Orthographic isometric view from above at30degree elevation and45degree azimuth, top/front/right planes visible. Soft upper-left daylight. Fully visible centered object with generous transparent margin, genuinely transparent alpha background. No ground tile, plot, fence, people, readable text, external cast shadow or border."
+    },
+    {
+      "id": "branches",
+      "source": "exec-62f66e95-a5b6-4c87-93c0-c93f07bedb73.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric RPG ground-scatter sprite. A small flat irregular pile of three weathered broken branches and a handful of dried leaves, dark brown bark, one slender forked branch. Ground decoration, low enough to step over. Detailed pre-rendered/painted classic isometric fantasy RPG style matching realistic forest and medieval timber buildings. Orthographic isometric projection, camera45degree azimuth and30degree elevation. Soft upper-left daylight. Entire pile centered, transparent margin on all sides, genuine alpha transparency. No ground tile, landscape, scene, text, border or external cast shadow."
+    },
+    {
+      "id": "shipwreck",
+      "source": "exec-6b988405-9a4c-44f4-a54c-82fb09a60e59.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent isometric RPG prop sprite with a clearly walkable gap. A small wrecked wooden rowboat SPLIT INTO TWO detached halves, bow and stern separated by a broad empty ground corridor at the middle, wide enough for a person to walk between halves. Two weathered dark oak hull sections with broken ribs and moss, nautical wreckage, no sails or upright mast. Outer overall silhouette elongated along the isometric left-back to right-front axis. Each half solid detailed aged timber, the central gap genuinely empty transparent pixels, no plank bridging the gap. Classic highly detailed painted/pre-rendered fantasy RPG asset, realistic proportions, not cartoon vector. Orthographic isometric view elevation30 azimuth45, soft upper-left daylight. Both halves together as one single centered sprite, fully visible, generous transparent margins. Genuine transparent alpha background, no water, sand, ground tile, people, text, border or external cast shadow."
+    },
+    {
+      "id": "fence",
+      "source": "exec-05e102d2-f0d8-4be3-b8af-d69f0b9ea28b.png",
+      "prompt": "Create one transparent-background game sprite: a single low rustic wooden rail fence segment, two weathered timber posts and two rough horizontal rails, suitable for a person to vault with one hand. Isometric orthographic 2:1 strategy RPG view, painterly realistically textured pre-rendered late-90s fantasy game asset, warm brown aged oak with tiny moss accents, light from upper left. Fence runs along the isometric ground x axis: from upper-left to lower-right, ground line slopes down right at about 26.5 degrees. Entire isolated fence, minimal footprint grass only at post bases, no ground tile, no scenery, no characters, no text. Genuinely transparent alpha background. Wide composition, 3 units long and 0.7 units tall, clean readable silhouette at small scale. Save output for use in a browser RPG."
+    },
+    {
+      "id": "ridge",
+      "source": "exec-2654dae4-1050-41f6-b547-c6065f2a98af.png",
+      "prompt": "Single original game sprite on genuinely transparent alpha background: a short climbable rocky ridge ledge, stratified gray-brown stone vertical face about waist high capped with sparse meadow grass and moss. Isometric orthographic camera, ground x-axis ridge extends from upper-left toward lower-right at 26.5 degrees; higher ground is behind it toward upper-right, lower ground in front toward lower-left. Three units long, height .8 units. Painterly pre-rendered fantasy strategy/RPG asset, detailed craggy stones with obvious handholds, warm upper-left daylight, natural muted greens and stone brown. Show just isolated ledge with a narrow strip of grass on its top, no surrounding landscape, no base square, no people, no sky, no labels, NO background or ambient glow. Transparent pixels around entire cutout. Match a realistically textured rustic fantasy village."
+    }
+  ]
+}

@@ -313,6 +313,7 @@
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "dev:map": "vite --host 0.0.0.0 --port 5246 --strictPort --open /play.html",
     "build": "vite build && node tools/build-export-runtimes.mjs && node tools/build-native-runtime.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test test/*.test.js",

@@ -8,7 +8,7 @@ try{
   const page=await browser.newPage({viewport:{width:1366,height:900}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto(base+'/demos.html#littlelands-map');
-  await page.waitForFunction(()=>window.mapDemo?.view.stats().art.loaded===10);
+  await page.waitForFunction(()=>window.mapDemo?.view.stats().art.loaded===13);
   await page.evaluate(()=>{window.originalMapView=mapDemo.view;});
   const toggle=page.locator('#demo-fullscreen');
   await toggle.click();

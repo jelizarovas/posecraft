@@ -1,5 +1,9 @@
 import {artPropSelection,mapImageBounds,groundHeight} from './map-art-layout.js';
+import {continuousSegmentClear,propBlocksCell,propBlocksMovement,propHitsSegment} from './map-collision.js';
+import {cliffFaces,cliffGroundPick,terraceLevels,terrainHeightOffset,terrainTileCorners} from './map-cliffs.js';
+import {assertMapBirds} from './map-birds.js';
 export {groundHeight} from './map-art-layout.js';
+export {cliffFaces,cliffGroundPick,terrainHeightOffset,terrainTileCorners} from './map-cliffs.js';
 
 /** Serializable isometric maps. Coordinates are cells; renderers use projected pixels. */
 const integer = (n, min, max) => Number.isInteger(n) && n >= min && n <= max;
@@ -22,14 +26,78 @@ function assertArt(art,fail) {
     if(!id||!record(image)||!validArtURL(image.src)||!Number.isFinite(image.width)||image.width<=0||image.width>1024||!Number.isFinite(image.height)||image.height<=0||image.height>1024||!Number.isFinite(image.anchorX)||image.anchorX<0||image.anchorX>1||!Number.isFinite(image.anchorY)||image.anchorY<0||image.anchorY>1)fail(`invalid art image ${id}`);
   }
   const reference=id=>typeof id==='string'&&Object.hasOwn(art.images,id);
+  for(const [id,image]of Object.entries(art.images))if(image.opened!==undefined){
+    const target=art.images[image.opened];
+    if(!reference(image.opened)||['width','height','anchorX','anchorY'].some(key=>image[key]!==target[key]))fail(`invalid opened artwork ${id}: use the same canvas size and anchor`);
+  }
+  if(art.actors!==undefined){
+    if(!record(art.actors)||Object.keys(art.actors).length>64)fail('invalid actor artwork');
+    for(const clips of Object.values(art.actors))for(const name of ['idle','walk','run','jump','roll','vault','climbUp','climbDown']){
+      const clip=clips?.[name];
+      if(!['idle','walk','run'].includes(name)&&clip===undefined)continue;
+      if(!record(clip)||!reference(clip.image)||!integer(clip.frames,1,64)||!integer(clip.directions,1,64)||!integer(clip.frameWidth,1,512)||!integer(clip.frameHeight,1,512))fail('invalid directional actor clip');
+      if(clip.supportAnchors!==undefined){
+        const validAnchor=p=>point(p)&&p.x>=0&&p.y>=0&&p.x<=clip.frameWidth&&p.y<=clip.frameHeight;
+        if(!Array.isArray(clip.supportAnchors)||clip.supportAnchors.length!==clip.directions)fail('invalid actor support anchors');
+        const matrix=clip.supportAnchors.every(Array.isArray);
+        if(matrix?clip.supportAnchors.some(row=>row.length!==clip.frames||row.some(p=>p!==null&&!validAnchor(p))):clip.supportAnchors.some(p=>!validAnchor(p)))fail('invalid actor support anchors');
+      }
+      if(clip.supportWindow!==undefined&&(!Array.isArray(clip.supportWindow)||clip.supportWindow.length!==2||!clip.supportWindow.every(Number.isFinite)||clip.supportWindow[0]<0||clip.supportWindow[1]>1||clip.supportWindow[0]>clip.supportWindow[1]))fail('invalid actor support window');
+    }
+  }
   if(art.props!==undefined) {
     if(!record(art.props))fail('invalid art prop bindings');
-    for(const [kind,variants]of Object.entries(art.props))if(!['tree','rock','house','chest'].includes(kind)||!Array.isArray(variants)||!variants.length||variants.length>64||Array.from(variants).some(id=>!reference(id)))fail(`invalid art prop binding ${kind}`);
+    for(const [kind,variants]of Object.entries(art.props))if(!['tree','rock','house','chest','decoration'].includes(kind)||!Array.isArray(variants)||!variants.length||variants.length>64||Array.from(variants).some(id=>!reference(id)))fail(`invalid art prop binding ${kind}`);
   }
   if(art.terrain!==undefined) {
     if(!record(art.terrain))fail('invalid terrain art bindings');
     for(const [kind,id]of Object.entries(art.terrain))if(!['grass','road','water','sand'].includes(kind)||!reference(id))fail(`invalid terrain art binding ${kind}`);
   }
+}
+
+function assertCollision(prop,fail){
+  const collision=prop.collision;if(collision===undefined)return;
+  if(!record(collision))fail(`invalid collision ${prop.id}`);
+  if(collision.shape==='none')return;
+  const part=(shape,{centered=false}={})=>{
+    if(!record(shape))fail(`invalid collision ${prop.id}`);
+    if(shape.shape==='rect'){
+      if(!Number.isFinite(shape.x)||!Number.isFinite(shape.y)||!Number.isFinite(shape.width)||!Number.isFinite(shape.height)||shape.x<0||shape.y<0||shape.width<=0||shape.height<=0||shape.x+shape.width>prop.width||shape.y+shape.height>prop.height)fail(`invalid collision ${prop.id}`);
+      return;
+    }
+    if(shape.shape==='circle'){
+      const hasX=shape.x!==undefined,hasY=shape.y!==undefined;
+      if(hasX!==hasY||(!centered&&(!hasX||!hasY)))fail(`invalid collision ${prop.id}`);
+      const x=hasX?shape.x:prop.width/2,y=hasY?shape.y:prop.height/2;
+      if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(shape.radius)||shape.radius<=0||x-shape.radius<0||y-shape.radius<0||x+shape.radius>prop.width||y+shape.radius>prop.height)fail(`invalid collision ${prop.id}`);
+      return;
+    }
+    fail(`invalid collision ${prop.id}`);
+  };
+  if(collision.shape==='compound'){
+    if(!Array.isArray(collision.parts)||!collision.parts.length||collision.parts.length>32)fail(`invalid collision ${prop.id}`);
+    for(const shape of collision.parts)part(shape);
+  }else part(collision,{centered:true});
+}
+
+function assertOcclusion(prop,fail){
+  const occlusion=prop.occlusion;
+  if(occlusion===undefined)return;
+  if(!record(occlusion)||!['low-foliage','ground'].includes(occlusion.mode)||(occlusion.mode==='ground'&&occlusion.lowerBodyFraction!==undefined)||(occlusion.mode==='low-foliage'&&occlusion.lowerBodyFraction!==undefined&&(!Number.isFinite(occlusion.lowerBodyFraction)||occlusion.lowerBodyFraction<=0||occlusion.lowerBodyFraction>1)))fail(`invalid occlusion ${prop.id}`);
+}
+
+function assertFence(prop,fail){
+ const fence=prop.fence;if(fence===undefined)return;
+ if(!record(fence)||!Array.isArray(fence.nodes)||fence.nodes.length<2||fence.nodes.length>128||!Array.isArray(fence.links)||!fence.links.length||fence.links.length>192)fail(`invalid fence ${prop.id}`);
+ for(const node of fence.nodes)if(!point(node)||node.x<0||node.y<0||node.x>prop.width||node.y>prop.height)fail(`invalid fence node ${prop.id}`);
+ const seen=new Set();
+ for(const link of fence.links){
+  if(!Array.isArray(link)||link.length!==2||!link.every(index=>integer(index,0,fence.nodes.length-1))||link[0]===link[1])fail(`invalid fence link ${prop.id}`);
+  const key=[...link].sort((a,b)=>a-b).join(':');if(seen.has(key))fail(`duplicate fence link ${prop.id}`);seen.add(key);
+  const [a,b]=link.map(index=>fence.nodes[index]);if(Math.hypot(a.x-b.x,a.y-b.y)<1e-8||Math.abs(a.x-b.x)>1e-8&&Math.abs(a.y-b.y)>1e-8)fail(`fence links must be nonzero and axis-aligned ${prop.id}`);
+ }
+ if(prop.art!==undefined||prop.occlusion!==undefined)fail(`fence ${prop.id} draws from its graph`);
+ if(prop.traversal!==undefined&&(fence.nodes.length!==2||fence.links.length!==1))fail(`fence junction ${prop.id} cannot define traversal`);
 }
 
 export function assertMap(map) {
@@ -39,6 +107,7 @@ export function assertMap(map) {
   if (!integer(map.width, 1, 512) || !integer(map.height, 1, 512)) fail('dimensions must be integers between 1 and 512');
   if (!Number.isSafeInteger(map.seed)) fail('seed must be a safe integer');
   if (map.art !== undefined) assertArt(map.art, fail);
+  if(map.navigation!==undefined&&(!record(map.navigation)||map.navigation.mode!=='continuous'||!Number.isFinite(map.navigation.radius)||map.navigation.radius<.04||map.navigation.radius>.3))fail('invalid continuous navigation');
   if(map.elevations!==undefined){
     const stride=map.width+1;
     if(!Array.isArray(map.elevations)||map.elevations.length!==stride*(map.height+1))fail('elevations require one height per grid vertex');
@@ -52,6 +121,18 @@ export function assertMap(map) {
   if (!integer(map.tileSize.width, 8, 512) || !integer(map.tileSize.height, 4, 256)) fail('invalid tileSize');
   if (!Array.isArray(map.terrain) || map.terrain.length !== map.width * map.height) fail('terrain must contain one valid terrain value per cell');
   for (const value of map.terrain) if (!integer(value, 0, 3)) fail('terrain must contain one valid terrain value per cell');
+  if(map.groundPaint!==undefined){
+    if(!record(map.groundPaint)||!map.art)fail('groundPaint requires map art');
+    for(const [key,id]of Object.entries(map.groundPaint))if(!/^(0|[1-9]\d*)$/.test(key)||Number(key)>=map.terrain.length||typeof id!=='string'||!Object.hasOwn(map.art.images,id))fail(`invalid ground paint ${key}`);
+  }
+  if(map.terraces!==undefined){
+    if(!Array.isArray(map.terraces)||map.terraces.length>256)fail('terraces must be an array of at most 256 rectangles');
+    const terraceIds=new Set();
+    for(const t of map.terraces){
+      if(!record(t)||typeof t.id!=='string'||!t.id||terraceIds.has(t.id))fail('terrace ids must be unique nonempty strings');terraceIds.add(t.id);
+      if(!integer(t.x,0,map.width-1)||!integer(t.y,0,map.height-1)||!integer(t.width,1,map.width)||!integer(t.height,1,map.height)||t.x+t.width>map.width||t.y+t.height>map.height||!integer(t.heightOffset,1,16))fail(`invalid terrace ${t.id}`);
+    }
+  }
   if (!Array.isArray(map.props) || map.props.length > 65536 || !Array.isArray(map.actors) || map.actors.length > 4096) fail('invalid props or actors');
   const ids = new Set();
   const occupied = new Uint8Array(map.width * map.height);
@@ -61,17 +142,42 @@ export function assertMap(map) {
   };
   for (const p of map.props) {
     identify(p);
-    if (!['tree', 'rock', 'chest', 'house'].includes(p.kind)) fail(`unsupported prop kind ${p.kind}`);
-    if (!integer(p.x, 0, map.width - 1) || !integer(p.y, 0, map.height - 1) || !integer(p.width, 1, 16) || !integer(p.height, 1, 16) || p.x + p.width > map.width || p.y + p.height > map.height) fail(`invalid footprint ${p.id}`);
-    for (let y = p.y; y < p.y + p.height; y++) occupied.fill(1, y * map.width + p.x, y * map.width + p.x + p.width);
+    if (!['tree', 'rock', 'chest', 'house','decoration'].includes(p.kind)) fail(`unsupported prop kind ${p.kind}`);
+    const maxFootprint=p.fence?32:16;
+    if (!integer(p.x, 0, map.width - 1) || !integer(p.y, 0, map.height - 1) || !integer(p.width, 1, maxFootprint) || !integer(p.height, 1, maxFootprint) || p.x + p.width > map.width || p.y + p.height > map.height) fail(`invalid footprint ${p.id}`);
+    assertCollision(p,fail);
+    assertOcclusion(p,fail);
+    assertFence(p,fail);
+    if(p.art!==undefined&&(typeof p.art!=='string'||!map.art||!Object.hasOwn(map.art.images,p.art)))fail(`invalid art override ${p.id}`);
+    if(p.traversal!==undefined){
+      const t=p.traversal,activation=t.activation??'auto';
+      if(!record(t)||!['vault','climb'].includes(t.kind)||!['auto','click'].includes(activation)||!Number.isFinite(t.height)||t.height<=0||t.height>4||t.style!==undefined&&!['rock','branch'].includes(t.style))fail(`invalid traversal ${p.id}`);
+      if(activation==='auto'&&(t.kind!=='vault'||!propBlocksMovement(p)))fail(`invalid automatic traversal ${p.id}`);
+      if(activation==='click'){
+        if(!Array.isArray(t.endpoints)||t.endpoints.length!==2||t.endpoints.some(q=>!point(q)||q.x < -2||q.y < -2||q.x>p.width+2||q.y>p.height+2||p.x+q.x<0||p.y+q.y<0||p.x+q.x>=map.width||p.y+q.y>=map.height)||Math.hypot(t.endpoints[1].x-t.endpoints[0].x,t.endpoints[1].y-t.endpoints[0].y)<.25)fail(`invalid traversal endpoints ${p.id}`);
+      }else if(t.endpoints!==undefined)fail(`automatic traversal cannot define endpoints ${p.id}`);
+    }
+    if(propBlocksMovement(p))for (let y = p.y; y < p.y + p.height; y++) occupied.fill(1,y*map.width+p.x,y*map.width+p.x+p.width);
   }
   for (const a of map.actors) {
     identify(a);
     if (!point(a) || a.x < 0 || a.y < 0 || a.x >= map.width || a.y >= map.height || !Number.isFinite(a.speed) || a.speed <= 0 || a.speed > 100) fail(`invalid actor ${a.id}`);
     if (a.color !== undefined && (typeof a.color !== 'string' || !/^#[0-9a-f]{6}$/i.test(a.color))) fail(`invalid actor color ${a.id}`);
+    if(a.stride!==undefined&&(!Number.isFinite(a.stride)||a.stride<.1||a.stride>10))fail(`invalid actor stride ${a.id}`);
+    if(a.appearance!==undefined){
+      const look=a.appearance,color=value=>typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value);
+      if(!record(look)||!['livestock','villager'].includes(look.kind)||look.scale!==undefined&&(!Number.isFinite(look.scale)||look.scale<.25||look.scale>2))fail(`invalid actor appearance ${a.id}`);
+      if(look.kind==='livestock'&&!map.art?.images?.[look.image])fail(`invalid actor appearance image ${a.id}`);
+      if(look.kind==='villager'&&(!color(look.palette)||look.skin!==undefined&&!color(look.skin)||look.hat!==undefined&&!['none','straw','cap','hood'].includes(look.hat)))fail(`invalid villager appearance ${a.id}`);
+    }
+    if(a.npc!==undefined){
+      const npc=a.npc,h=npc?.home;
+      if(!record(npc)||!['human','child','sheep','cow','chicken'].includes(npc.species)||!point(h)||!Number.isFinite(h.width)||!Number.isFinite(h.height)||h.x<0||h.y<0||h.width<=0||h.height<=0||h.x+h.width>map.width||h.y+h.height>map.height||npc.role!==undefined&&!['farmer','carrier','herder','villager'].includes(npc.role))fail(`invalid NPC routine ${a.id}`);
+    }
     const cell = Math.floor(a.y) * map.width + Math.floor(a.x);
-    if (map.terrain[cell] === 2 || occupied[cell]) fail(`actor ${a.id} starts in a blocked cell`);
+    if (map.terrain[cell] === 2 || (occupied[cell]&&map.props.some(p=>propHitsSegment(p,a,a,map.navigation?.mode==='continuous'?map.navigation.radius:0)))) fail(`actor ${a.id} starts in a blocked cell`);
   }
+  assertMapBirds(map);
   return map;
 }
 
@@ -81,16 +187,26 @@ export function projectMap(map, p) {
 
 function flatUnproject(map,p){return { x: p.x / map.tileSize.width + p.y / map.tileSize.height, y: p.y / map.tileSize.height - p.x / map.tileSize.width };}
 export function unprojectMap(map, p) {
-  if(!map.elevations)return flatUnproject(map,p);
+  if(!map.elevations&&!map.terraces?.length)return flatUnproject(map,p);
   // The slope constraint makes projected Y monotonic along this viewing ray.
   // All valid heights fit this bracket; fixed iterations also bound picking work.
   const difference=2*p.x/map.tileSize.width,base=2*p.y/map.tileSize.height;
-  let low=base-32,high=base+32;
-  for(let i=0;i<44;i++){
+  let best=null;
+  for(const level of terraceLevels(map)){
+    let low=base+2*level-32,high=base+2*level+32;
+    for(let i=0;i<44;i++){
+      const sum=(low+high)/2,q={x:(sum+difference)/2,y:(sum-difference)/2};
+      const smooth=groundHeight({...map,terraces:undefined},q);
+      if(sum/2-smooth-level>p.y/map.tileSize.height)high=sum;else low=sum;
+    }
     const sum=(low+high)/2,q={x:(sum+difference)/2,y:(sum-difference)/2};
-    if(sum/2-groundHeight(map,q)>p.y/map.tileSize.height)high=sum;else low=sum;
+    if(terrainHeightOffset(map,q)===level&&(!best||sum>best.sum))best={...q,sum};
   }
-  const sum=(low+high)/2;return {x:(sum+difference)/2,y:(sum-difference)/2};
+  const cliff=cliffGroundPick(map,p);
+  if(cliff&&(!best||cliff.depth>best.sum+1e-7))return{x:cliff.x,y:cliff.y};
+  if(best)return{x:best.x,y:best.y};
+  if(cliff)return{x:cliff.x,y:cliff.y};
+  return flatUnproject(map,p);
 }
 
 function generatedElevations(map){
@@ -165,11 +281,13 @@ export class MapIndex {
     this.chunkSize = chunkSize;
     this.chunks = new Map();
     this.props = new Map();
+    this.cellProps = new Map();
     this.blocked = new Uint8Array(map.width * map.height);
     const tw=map.tileSize.width,th=map.tileSize.height,scale=tw/64;
     this.artBounds=new Map();
     this.minElevation=map.elevations?.[0]??0;this.maxElevation=this.minElevation;
     for(const height of map.elevations||[]){this.minElevation=Math.min(this.minElevation,height);this.maxElevation=Math.max(this.maxElevation,height);}
+    this.maxElevation+=terraceLevels(map).at(-1)??0;
     this.propReach={left:0,right:0,top:0,bottom:0};
     // Terrain images repeat on the ground plane and remain clipped to tiles.
     this.tileBounds=Array.from({length:4},()=>({x:-tw/2,y:-th/2,width:tw,height:th}));
@@ -184,7 +302,7 @@ export class MapIndex {
       this.artBounds.set(p.id,bounds);
       this.propReach.left=Math.max(this.propReach.left,center.x-bounds.x);this.propReach.right=Math.max(this.propReach.right,bounds.x+bounds.width-center.x);
       this.propReach.top=Math.max(this.propReach.top,center.y-bounds.y);this.propReach.bottom=Math.max(this.propReach.bottom,bounds.y+bounds.height-center.y);
-      for (let y = p.y; y < p.y + p.height; y++) for (let x = p.x; x < p.x + p.width; x++) this.blocked[y * map.width + x] = 1;
+      for (let y = p.y; y < p.y + p.height; y++) for (let x = p.x; x < p.x + p.width; x++){const cell=y*map.width+x;if(propBlocksCell(p,x,y))this.blocked[cell]=1;if(!this.cellProps.has(cell))this.cellProps.set(cell,[]);this.cellProps.get(cell).push(p);}
       for (let y = Math.floor(p.y / chunkSize); y <= Math.floor((p.y + p.height - 1) / chunkSize); y++) for (let x = Math.floor(p.x / chunkSize); x <= Math.floor((p.x + p.width - 1) / chunkSize); x++) {
         const key = `${x},${y}`;
         if (!this.chunks.has(key)) this.chunks.set(key, []);
@@ -197,6 +315,8 @@ export class MapIndex {
     return !Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x >= this.map.width || y >= this.map.height || this.blocked[y * this.map.width + x] === 1;
   }
   prop(id) { return this.props.get(id); }
+  propsAt(x,y){return this.cellProps.get(Math.floor(y)*this.map.width+Math.floor(x))||[];}
+  isPointBlocked(x,y,radius=this.map.navigation?.radius??0){return !continuousSegmentClear(this,{x,y},{x,y},radius);}
   visible(rect, overscan = 128) {
     if (!point(rect) || !Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0 || !Number.isFinite(overscan) || overscan < 0 || overscan > 2048) throw new TypeError('Invalid map viewport');
     const map = this.map;
@@ -216,9 +336,9 @@ export class MapIndex {
     for (let y = tileRange.minY; y <= tileRange.maxY; y++) for (let x = tileRange.minX; x <= tileRange.maxX; x++) {
       stats.candidateTiles++;
       const terrain=map.terrain[y*map.width+x];
-      if(map.elevations){
-        const i=y*(map.width+1)+x,h=map.elevations,base=(x+y)*map.tileSize.height/2,th=map.tileSize.height;
-        const a=base-h[i]*th,b=base+th/2-h[i+1]*th,c=base+th-h[i+map.width+2]*th,d=base+th/2-h[i+map.width+1]*th;
+      if(map.elevations||map.terraces?.length){
+        const corners=terrainTileCorners(map,x,y),base=(x+y)*map.tileSize.height/2,th=map.tileSize.height;
+        const a=base-corners[0].z*th,b=base+th/2-corners[1].z*th,c=base+th-corners[2].z*th,d=base+th/2-corners[3].z*th;
         if(intersects((x-y-1)*map.tileSize.width/2,Math.min(a,b,c,d),(x-y+1)*map.tileSize.width/2,Math.max(a,b,c,d)))tiles.push({x,y,terrain});
       }else{
         const p=projectMap(map,{x:x+.5,y:y+.5}),bounds=this.tileBounds[terrain];
@@ -312,7 +432,7 @@ export class MapPathJob {
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         if ((!dx && !dy) || (!this.diagonal && dx && dy)) continue;
         const nx = x + dx, ny = y + dy;
-        if (this.index.isBlocked(nx, ny) || (dx && dy && (this.index.isBlocked(x + dx, y) || this.index.isBlocked(x, y + dy)))) continue;
+        if (this.index.isBlocked(nx, ny)||terrainHeightOffset(this.map,{x:x+.5,y:y+.5})!==terrainHeightOffset(this.map,{x:nx+.5,y:ny+.5}) || (dx && dy && (this.index.isBlocked(x + dx, y) || this.index.isBlocked(x, y + dy)||terrainHeightOffset(this.map,{x:x+dx+.5,y:y+.5})!==terrainHeightOffset(this.map,{x:x+.5,y:y+.5})||terrainHeightOffset(this.map,{x:x+.5,y:y+dy+.5})!==terrainHeightOffset(this.map,{x:x+.5,y:y+.5})))) continue;
         const id = ny * this.map.width + nx;
         if (this.closed[id]) continue;
         const t = this.map.terrain[id], g = node.g + (dx && dy ? Math.SQRT2 : 1) * (t === 1 ? 1 : t === 3 ? 1.6 : 1.2);

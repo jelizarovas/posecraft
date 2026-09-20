@@ -1,0 +1,6 @@
+{
+  "tool": "built-in imagegen",
+  "prompt": "Use case: stylized-concept. Asset type: transparent isometric game crop sprite for a realistic painterly medieval village, detailed pre-rendered RPG art. A compact square ground footprint planted densely with 6 mature green corn stalks in two rows, broad arching leaves, visible golden ears and pale tassels. Orthographic isometric view, ground diamond has 2:1 width to height, camera elevated 30 degrees, warm daylight from upper left. Stalks about 1.4 metres tall. Isolated entirely on genuinely transparent alpha background, no scenery, no border, no text, no baked long shadow. Small soil at base only. All leaves and stalks fully inside canvas with narrow transparent margins. Sprite should tile into a larger corn field when repeated next to itself. Realistic proportions and materials, crisp foliage, subdued green matching a medieval country farm, not cartoon.",
+  "source": "C:/Users/Arnas/.codex/generated_images/01a0acfc-07cd-7460-a372-fff74427f0c4/exec-df37185d-52b8-4392-aafd-5a01f9a8d25f.png",
+  "output": "corn.webp"
+}

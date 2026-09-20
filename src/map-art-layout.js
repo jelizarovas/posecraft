@@ -1,16 +1,21 @@
+import {terrainHeightOffset} from './map-cliffs.js';
+
 /** Pure image placement shared by spatial queries and browser drawing. */
 /** Continuous NW-NE-SE / NW-SE-SW ground triangles, clamped beyond map edges. */
 export function groundHeight(map, point) {
-  if (!map.elevations) return 0;
+  const offset=terrainHeightOffset(map,point);
+  if (!map.elevations) return offset;
   const px = Math.max(0, Math.min(map.width, point.x)), py = Math.max(0, Math.min(map.height, point.y));
   const x = Math.min(map.width - 1, Math.floor(px)), y = Math.min(map.height - 1, Math.floor(py));
   const fx = px - x, fy = py - y, stride = map.width + 1, i = y * stride + x, h = map.elevations;
-  return fx >= fy
+  return offset+(fx >= fy
     ? h[i] + (h[i + 1] - h[i]) * fx + (h[i + stride + 1] - h[i + 1]) * fy
-    : h[i] + (h[i + stride + 1] - h[i + stride]) * fx + (h[i + stride] - h[i]) * fy;
+    : h[i] + (h[i + stride + 1] - h[i + stride]) * fx + (h[i + stride] - h[i]) * fy);
 }
 
-export function artPropSelection(map, prop) {
+export function artPropSelection(map, prop, state) {
+  if(state?.opened){const base=artPropSelection(map,prop);const id=base?.image.opened;if(id)return {id,image:map.art.images[id]};}
+  if(prop.art!==undefined)return {id:prop.art,image:map.art.images[prop.art]};
   const variants = map.art?.props?.[prop.kind];
   if (!variants?.length) return null;
   let hash = (2166136261 ^ map.seed) >>> 0;
@@ -19,8 +24,9 @@ export function artPropSelection(map, prop) {
   return { id, image: map.art.images[id] };
 }
 
-export function artTerrainSelection(map, terrain) {
-  const id = map.art?.terrain?.[['grass', 'road', 'water', 'sand'][terrain]];
+export function artTerrainSelection(map, terrain, tileIndex) {
+  const painted=tileIndex===undefined?undefined:map.groundPaint?.[tileIndex];
+  const id = painted??map.art?.terrain?.[['grass', 'road', 'water', 'sand'][terrain]];
   return id === undefined ? null : { id, image: map.art.images[id] };
 }
 
