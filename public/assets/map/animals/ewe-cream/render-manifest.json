@@ -1,0 +1,54 @@
+{
+  "id": "ewe-cream",
+  "name": "Cream Ewe",
+  "type": "animal",
+  "height": 0.85,
+  "anchorY": 0.7165061242913795,
+  "actions": {
+    "idle": {
+      "frames": 8,
+      "directions": 16,
+      "frameWidth": 176,
+      "frameHeight": 144,
+      "duration": 1.6,
+      "anchorY": 0.7165061242913795,
+      "rootMotion": "map-owned"
+    },
+    "walk": {
+      "frames": 12,
+      "directions": 16,
+      "frameWidth": 176,
+      "frameHeight": 144,
+      "duration": 1.333,
+      "anchorY": 0.7165061242913795,
+      "rootMotion": "map-owned"
+    },
+    "turn": {
+      "frames": 8,
+      "directions": 16,
+      "frameWidth": 176,
+      "frameHeight": 144,
+      "duration": 0.8,
+      "anchorY": 0.7165061242913795,
+      "rootMotion": "map-owned"
+    },
+    "graze": {
+      "frames": 16,
+      "directions": 16,
+      "frameWidth": 176,
+      "frameHeight": 144,
+      "duration": 1.6,
+      "anchorY": 0.7165061242913795,
+      "rootMotion": "map-owned"
+    },
+    "interact": {
+      "frames": 12,
+      "directions": 16,
+      "frameWidth": 176,
+      "frameHeight": 144,
+      "duration": 1.2,
+      "anchorY": 0.7165061242913795,
+      "rootMotion": "map-owned"
+    }
+  }
+}

@@ -6,6 +6,7 @@ import {mountMap} from '../src/map-browser.js';
 import {assertMap} from '../src/map.js';
 import {upgradeStockBranches} from './map-editor-catalog.js';
 import {readPlaySettings,mountPlaySettings,rendererResumeKey} from './map-play-settings.js';
+import {applyAuthenticCast} from './village-cast.js';
 
 const draftKey='posecraft-map-editor-draft-v1';
 /** Add new visual-only wheat behavior to the bundled town artwork in old drafts. */
@@ -23,7 +24,7 @@ function editorDraft(){
   try{const value=upgradeStockWheatOcclusion(upgradeStockBranches(upgradeWoodlandArt(JSON.parse(localStorage.getItem(draftKey)||''))));assertMap(value);if(!value.actors.length)throw Error('The draft has no player actor.');return value;}
   catch(error){console.warn('Map editor draft is unavailable. Opening the generated map instead.',error);return null;}
 }
-const map = editorDraft() || createTownMap();
+const map = applyAuthenticCast(editorDraft() || createTownMap());
 const settings=readPlaySettings();
 const requestedRenderer=new URLSearchParams(location.search).get('renderer');
 if(['canvas2d','webgl2'].includes(requestedRenderer))settings.renderer=requestedRenderer;

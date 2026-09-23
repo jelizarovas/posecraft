@@ -1,5 +1,6 @@
 import {projectMap} from './map.js';
 import {sampleMapActor} from './map-character.js';
+import {getAuthenticCast, resolveAuthenticAction} from './map-cast.js';
 
 const TAU=Math.PI*2;
 const paletteCache=new Map();
@@ -125,9 +126,101 @@ function drawVillager(ctx,map,actor,definition,reduced,options){
   ctx.restore();drawSharedBall(ctx,map,actor,presentation);return true;
 }
 
+const authenticImages = new Map();
+function getAuthenticImage(dir, action, art) {
+  const key = `${dir}/${action}`;
+  if (art?.image) {
+    const fromArt = art.image(key) || art.image(`${dir}-${action}`);
+    if (fromArt) return fromArt;
+  }
+  if (authenticImages.has(key)) return authenticImages.get(key);
+  if (typeof Image === 'undefined') return null;
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.decoding = 'async';
+  img.src = `./assets/map/${dir}/${action}-page-00.webp`;
+  img.onerror = () => {
+    if (img.src.endsWith('.webp')) {
+      img.src = `./assets/map/${dir}/${action}-page-00.png`;
+    }
+  };
+  authenticImages.set(key, img);
+  return img;
+}
+
+function drawAuthenticActor(ctx, map, actor, definition, authentic, reduced, options) {
+  const presentation = options.presentation || actor.presentation || {};
+  const moving = !!actor.walking && !reduced;
+  const rawAction = actionOf(actor, presentation);
+  const actionClip = resolveAuthenticAction(authentic, rawAction, moving);
+  if (!actionClip) return false;
+
+  const image = getAuthenticImage(authentic.dir, actionClip.name, options.art);
+  if (!image || !image.complete || !image.naturalWidth) {
+    // If authentic image is still decoding or unavailable, return false to let fallback draw
+    return false;
+  }
+
+  const sample = sampleMapActor(actor, reduced);
+  const position = projectMap(map, actor);
+  const mapScale = map.tileSize.width / 64;
+  // Pip and other cast members are modeled and baked at genuine metric scale (no runtime downscale)
+  const scale = mapScale;
+  const spec = authentic.spec;
+
+  const direction = ((Math.round(sample.facing / TAU * actionClip.directions) % actionClip.directions) + actionClip.directions) % actionClip.directions;
+  let frame = 0;
+  if (moving) {
+    frame = Math.floor((((sample.phase / TAU) % 1) + 1) % 1 * actionClip.frames);
+  } else {
+    const time = finite(presentation.time, sample.phase / 2);
+    const duration = actionClip.duration || 1.6;
+    const progress = (time % duration) / duration;
+    frame = Math.floor(progress * actionClip.frames) % actionClip.frames;
+  }
+  frame = clamp(frame, 0, actionClip.frames - 1);
+
+  ctx.save();
+  ctx.translate(position.x, position.y);
+  ctx.scale(scale, scale);
+
+  if (options.shadow !== false) {
+    if (authentic.species === 'human' || authentic.species === 'child') {
+      drawShadow(ctx, 18);
+    } else {
+      drawShadow(ctx, spec.width * 0.34);
+    }
+  }
+
+  ctx.translate(0, -finite(actor.lift) * map.tileSize.height / scale);
+
+  const sx = frame * authentic.frameWidth;
+  const sy = direction * authentic.frameHeight;
+  const sw = authentic.frameWidth;
+  const sh = authentic.frameHeight;
+  const dx = -spec.anchorX * spec.width;
+  const dy = -spec.anchorY * spec.height;
+  const dw = spec.width;
+  const dh = spec.height;
+
+  ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh);
+  ctx.restore();
+
+  if (authentic.id === 'npc-child-1') {
+    drawSharedBall(ctx, map, actor, presentation);
+  }
+
+  return true;
+}
+
 /** Draw a specialized town NPC. Returns false when the normal actor renderer should handle it. */
 export function drawMapNpc(ctx,map,actor,definition,reduced=false,{shadow=true,art,presentation,drawBase}={}){
   const appearance=definition?.appearance;if(!appearance)return false;
+  const authentic = getAuthenticCast(actor.id, definition);
+  if (authentic) {
+    const drawn = drawAuthenticActor(ctx, map, actor, definition, authentic, reduced, {shadow, art, presentation});
+    if (drawn) return true;
+  }
   if(appearance.kind==='livestock')return drawAnimal(ctx,map,actor,appearance,reduced,{shadow,art,presentation});
   if(appearance.kind==='villager')return drawVillager(ctx,map,actor,definition,reduced,{shadow,art,presentation,drawBase});
   return false;
@@ -136,8 +229,11 @@ export function drawMapNpc(ctx,map,actor,definition,reduced=false,{shadow=true,a
 /** Conservative screen-space local bounds around the actor anchor, for occlusion scratch canvases. */
 export function npcActorBounds(map,actor,definition,presentation){
   const appearance=definition?.appearance;if(!appearance)return null;
-  const scale=map.tileSize.width/64*finite(appearance.scale,1),spec=appearance.kind==='livestock'&&map.art?.images?.[appearance.image];
-  const width=(spec?.width||64)*scale,height=(spec?.height||56)*scale,extra=appearance.kind==='villager'?18*scale:5*scale;
+  const authentic = getAuthenticCast(actor.id, definition);
+  const scale = map.tileSize.width / 64 * (authentic ? 1 : finite(appearance.scale, 1));
+  const spec = authentic ? authentic.spec : (appearance.kind==='livestock'&&map.art?.images?.[appearance.image]);
+  const isHuman = authentic ? (authentic.species === 'human' || authentic.species === 'child') : appearance.kind === 'villager';
+  const width = (spec?.width || 64) * scale, height = (spec?.height || 56) * scale, extra = isHuman ? 18 * scale : 5 * scale;
   const p=projectMap(map,actor),lift=finite(actor.lift)*map.tileSize.height;
   let bounds={x:p.x-width*.62-extra,y:p.y-lift-height-extra,width:width*1.24+extra*2,height:height+extra*1.5+lift};
   const ball=presentation?.ball;if(ball?.from&&ball?.to&&(!ball.ownerId||ball.ownerId===actor.id)){
@@ -147,6 +243,6 @@ export function npcActorBounds(map,actor,definition,presentation){
 }
 
 /** Clears the small shared style cache; useful for long-lived hot-reload hosts. */
-export function disposeMapNpcRenderer(){paletteCache.clear();for(const canvas of variantCache.values())canvas.width=canvas.height=1;variantCache.clear();imageIds=new WeakMap();nextImageId=1;}
+export function disposeMapNpcRenderer(){paletteCache.clear();for(const canvas of variantCache.values())canvas.width=canvas.height=1;variantCache.clear();imageIds=new WeakMap();nextImageId=1;authenticImages.clear();}
 
-export function mapNpcRendererStats(){return{paletteStyles:paletteCache.size,paletteStyleLimit:16,spriteVariants:variantCache.size,spriteVariantLimit:variantLimit};}
+export function mapNpcRendererStats(){return{paletteStyles:paletteCache.size,paletteStyleLimit:16,spriteVariants:variantCache.size,spriteVariantLimit:variantLimit,authenticImages:authenticImages.size};}

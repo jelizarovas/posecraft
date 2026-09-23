@@ -1,0 +1,54 @@
+{
+  "id": "npc-miller",
+  "name": "Bram",
+  "type": "npc",
+  "height": 1.78,
+  "anchorY": 0.7997777105572947,
+  "actions": {
+    "idle": {
+      "frames": 8,
+      "directions": 16,
+      "frameWidth": 128,
+      "frameHeight": 176,
+      "duration": 1.6,
+      "anchorY": 0.7997777105572947,
+      "rootMotion": "map-owned"
+    },
+    "walk": {
+      "frames": 12,
+      "directions": 16,
+      "frameWidth": 128,
+      "frameHeight": 176,
+      "duration": 1.333,
+      "anchorY": 0.7997777105572947,
+      "rootMotion": "map-owned"
+    },
+    "turn": {
+      "frames": 8,
+      "directions": 16,
+      "frameWidth": 128,
+      "frameHeight": 176,
+      "duration": 0.8,
+      "anchorY": 0.7997777105572947,
+      "rootMotion": "map-owned"
+    },
+    "work": {
+      "frames": 12,
+      "directions": 16,
+      "frameWidth": 128,
+      "frameHeight": 176,
+      "duration": 1.333,
+      "anchorY": 0.7997777105572947,
+      "rootMotion": "map-owned"
+    },
+    "interact": {
+      "frames": 12,
+      "directions": 16,
+      "frameWidth": 128,
+      "frameHeight": 176,
+      "duration": 1.2,
+      "anchorY": 0.7997777105572947,
+      "rootMotion": "map-owned"
+    }
+  }
+}
