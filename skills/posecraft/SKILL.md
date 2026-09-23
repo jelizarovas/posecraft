@@ -1,47 +1,25 @@
 ---
 name: posecraft
-description: Author, validate, preview, and embed Posecraft 2D scenes using this repository's shared scene SDK and CLI. Use for Posecraft character packs, animation tracks, state inputs, studio projects, or React embedding.
+description: Author or edit Posecraft scene documents and integrate their playback using this repository's SDK and CLI.
 ---
 
 # Posecraft
 
-Read [the API](../../docs/api.md) for document fields, supported features, and runtime ownership. Use [Ona](../../examples/characters/ona.json) as a working scene. Keep artwork provenance and license notices with reused assets.
+Choose the guide for the document and runtime involved. The 2D scene, native 3D and map APIs have different schemas and coordinate contracts; support in one does not imply support in another. Read only relevant guides.
 
-Run these commands from the repository root:
+| Task | Reference |
+| --- | --- |
+| 2D scene fields, transactions, browser or React embedding | [API](../../docs/api.md); [Ona example](../../examples/characters/ona.json) |
+| Hand/foot contacts, carried or shared props | [Contacts](../../docs/contacts.md), [attachments](../../docs/attachments.md), [shared objects](../../docs/shared-objects.md) |
+| Actions, independent actor routines or physical reactions | [Actions](../../docs/actions.md), [actor behaviors](../../docs/actor-behaviors.md), [reactions](../../docs/reactions.md) |
+| 2D turns, deformation or lighting | [Spatial rigs](../../docs/spatial.md), [skinned meshes](../../docs/skinned-mesh.md), [lighting](../../docs/lighting.md) |
+| Sequences, camera shots or webcam takes | [Director](../../docs/director.md), [capture](../../docs/capture.md) |
+| Native 3D rigs and equipment actions | [Native 3D](../../docs/native-3d.md), [native Studio](../../docs/native-studio.md), [workout](../../docs/workout.md) |
+| Game interactions or isometric maps | [Game API](../../docs/game-api.md), [map SDK](../../docs/map.md), [map editor](../../docs/map-editor.md) |
+| Demo documents or worker integration | [Demos](../../docs/demos.md), [performance](../../docs/performance.md) |
 
-```sh
-node tools/cli.mjs capabilities
-node tools/cli.mjs inspect examples/characters/ona.json
-node tools/cli.mjs validate examples/characters/ona.json
-node tools/cli.mjs preview examples/characters/ona.json preview.svg 0.5
-```
+For 2D document edits, use `DocumentStore.transact` or `posecraft edit`. Transactions carry `expectedRevision`; a conflict requires rereading the document. Studio and agents share validation and commands. Select declared character inputs rather than inventing fields. Keep asset provenance and licenses with source artwork.
 
-Make edits through `DocumentStore.transact` or `posecraft edit`. A transaction file contains `expectedRevision` and `commands`. Operations are `set` with an array path and JSON value. Use the revision from `inspect`; a conflict means reread before editing. Write the result to a separate output path to retain rollback. Validate and render that result, inspect the SVG, and open its JSON in Studio. Studio and agents use the same validation and command implementation.
+The repository CLI exposes `capabilities`, `inspect`, `validate`, `preview` and `simulate` through `node tools/cli.mjs`. Use the commands relevant to the edit; these are not a mandatory sequence or a capability inventory for the native and map APIs. Director has separate episode commands documented in its guide.
 
-```json
-{"expectedRevision":0,"commands":[{"op":"set","path":["actors",0,"appearance","clothing"],"value":"#bddae5"}]}
-```
-
-Use `simulate` with an ordered scenario file to test input transitions and acceleration. Time is seconds, angles are degrees, coordinates are SVG units. Host acceleration is CSS pixels per second squared. The simulation step is 1/120 second. Report capability gaps instead of inventing data fields that the runtime will ignore.
-
-The JSON runtime accepts structured path geometry, not raw SVG markup or scripts. Portable Ona, wwwzard, seated Rusty, and original Dummy scenes are in `examples/characters/`. Read their declared input options before setting action, emotion, or hair. Persist defaults per instance in `actor.inputs`; use `actor.appearance` for colors. wwwzard uses rigid sleeves in Studio; its separate trusted-code demo retains procedural cloth. Ona has shoulder articulation; elbow/palm IK and Rusty locomotion are not implemented. When tightening a joint limit, clamp affected rotation keys in the same transaction. Use `previewClip` to inspect an authored key independently of the live state-machine clock. Keep Ukis application records, navigation, and modal choreography outside this repository. Changes to consumers and public publication follow the user's requested scope.
-
-For physical modes, facial response states, sound effects, and scenario events, read [reactions](../../docs/reactions.md). Physical profiles use collision boxes and bounded protective targets; clamp `physics.responses` when tightening joint limits. Distinguish physical mode changes, which preserve momentum, from Animated mode, which returns to the authored pose. Treat curl/hold-self as a pose, not a grip constraint. Audio is a separate optional adapter that starts from a user gesture.
-
-For static props, use the `props` fields in the API. Collision boxes have local offsets and rotate with their visible rectangle. Keep starting collision boxes clear of physical characters. Validate, render with `colliders: true`, and simulate the intended fall. Inspect contact `surface` IDs to prove a prop was hit. Props are static during playback; do not promise moving attachments or dynamic prop bodies.
-
-Read [performance](../../docs/performance.md) for the worker boundary and routing limits. Browser controllers default to queued commands and cached snapshots; use the synchronous scene controller for CLI verification. Cancel obsolete path requests. Do not describe static-obstacle routes as walking or crowd avoidance. Preserve one in-flight simulation batch, bounded work, and worker termination on disposal.
-
-For multi-scene sequences, read [Director](../../docs/director.md). Use `posecraft/episode` and the `episode-validate`, `episode-inspect`, and `episode-preview` CLI commands. Keep source frames/timestamps separate from reusable assets, shot keys, and seeded motion recipes. Compare intermediate frames before replacing keys with a procedural rule. Do not promise pixel-perfect reconstruction, automated tracing, lip sync, or movie encoding. Episode playback samples authored animation; interactive physics must be baked by a future pipeline.
-
-For webcam takes, read [capture](../../docs/capture.md). Use `posecraft/performance` to validate, sample and apply numeric performance takes. Keep camera acquisition behind an explicit UI action; automated tests use fixtures or simulated streams. Preserve the single in-flight bitmap, same-origin asset-only fetch policy, and camera/worker cleanup. Retarget only supported joints and keep the distinction between continuous rotation, discrete facial drawings, gesture labels and unimplemented finger/body capture. After applying a take, validate the episode and inspect both the captured interval and surrounding frames.
-
-For ready-made multi-character examples, use `createDemo(id)` and `demoCatalog` from `examples/showcase.js`; see [demos](../../docs/demos.md). The factory returns independent scene or episode documents. Gallery editor copies use separate local storage. Preserve that isolation when adding presets, and run the demo validation and browser checks before publishing another gallery entry.
-
-For assisted get-up and walking, use `behavior.autoRecover` and `walkTo(actor, sceneX)` as documented in [reactions](../../docs/reactions.md#assisted-get-up-and-walking). Keep the distinction between authored assistance and physical balance. Walk commands need standing actors and clear supported routes; blocked recovery stays in place. Phone input is an explicit opt-in adapter, separate from host position sampling. Use synthetic sensor events for automated tests, and disable sensors on pause, hide, switching demos and disposal.
-
-For turns, foreshortening and front/back overlap, read [spatial rigs](../../docs/spatial.md). Use the opt-in study packs before modifying original artwork. Keep morph paths topologically identical, choose valid clip masks, and inspect front, both profiles, both rear quarters and back. Depth keys change layer order without detaching joint anchors. Yaw/pitch move connected bones in depth. Projection is visual only; do not describe it as 3D collisions or a finished turnaround sheet. Save keys through the same validated scene API, and inspect combined turn/bend poses as well as isolated controls.
-
-For surface gradients, highlights, floor/wall shadows and planar reflections, read [lighting](../../docs/lighting.md). Use validated `scene.lighting` data and position the receiver planes against the artwork. Inspect both grounded and airborne poses. Keep reflection/blur optional for crowds; the simulation worker does not remove SVG paint cost. Do not describe planar effects as mesh lighting, self-shadowing or arbitrary prop receivers.
-
-For cel coverage/contrast and moving point lights, use the lighting guide fields. Choose connected corner receivers indoors and floor-only outdoors. Inspect the seam and light direction on both sides of the source. Use `layer` and `unlit` for scenery or emissive fire, and spatial `opacityChannel` tracks for fades. The campfire factory is a portable example of these fields. Keep action transitions reachable and hide action-specific attachments when switching states.
+Use the selected API's schema and affected runtime code to resolve stale documentation or unsupported fields. Preserve the distinction between authored poses, contact constraints and physical simulation when describing results.

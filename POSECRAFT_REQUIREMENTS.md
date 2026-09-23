@@ -1,6 +1,8 @@
 # Posecraft Product and Engineering Requirements
 
-Version 0.1 draft | September 17 2026
+Version 0.1 product brief | September 17, 2026. Guidance clarified September 23, 2026.
+
+This document records product requirements and initial proposals, not an implementation inventory. Use the [roadmap](docs/studio-roadmap.md) and task-specific API guides for reported implementation status; verify the affected code when changing behavior. Later explicit decisions supersede initial defaults.
 
 ## 1 Purpose and instructions for Codex
 
@@ -10,7 +12,7 @@ The defining behavior is that a scene can respond to its surroundings. Moving or
 
 Use this document as the product brief when implementation is requested. Preserve the full requirements across milestones. A milestone can ship a defined subset; it must identify remaining requirements explicitly.
 
-Before implementation, inspect the existing repository, its instructions, architecture, dependencies, tests, and working features. Extend suitable existing work. Map these requirements to the current implementation and identify gaps. Record important architecture decisions, propose a dependency-aware plan, and begin the first feasible milestone when authorized by the implementation request. Resolve routine technical choices using evidence and document assumptions. Ask only about consequential ambiguity that cannot be resolved from the repository or this brief.
+For a scoped change, inspect the affected implementation and relevant contracts. For a new subsystem or milestone, map the relevant requirements to existing capabilities, identify gaps and record consequential architecture decisions. Extend suitable existing work. This does not require a repository-wide review or a new plan for every edit.
 
 Do not describe unimplemented behavior as working. Proposed API examples and package names in this document are design sketches, not existing interfaces or verified available npm names.
 
@@ -28,20 +30,20 @@ Do not describe unimplemented behavior as working. Proposed API examples and pac
 - Some fluid simulation, including a ship-in-a-bottle demo.
 - AI agents must be able to use Posecraft to create, edit, and inspect work.
 
-### Proposed defaults
+### Initial proposals and later decisions
 
 These are starting decisions, not previously confirmed user constraints. Use them unless existing project decisions or new user instructions supersede them. The detailed requirements below are a proposed engineering contract derived from the confirmed scope. Explicitly optional extensions are not release gates for the baseline feature.
 
-- Start with 2D scenes and articulated 2D characters in browsers. Depth ordering and visual perspective are allowed; true 3D simulation is a later decision.
+- Historical starting scope: 2D scenes and articulated 2D characters. The later [native 3D direction](docs/engine-quality-reset.md#architecture-contract) adds world-space rigs and contacts while preserving the separate 2D format. The original starting scope is not a restriction on current native 3D or map work.
 - Prefer TypeScript for the public SDK and React integration. Select the simulation and rendering implementations after inspecting existing work and testing a small representative scene.
 - Make essential editing, local saving, exporting, and embedded playback work without a required hosted service or paid API.
 - Use a versioned, inspectable document format with assets stored alongside it. A compact compiled runtime format can be added later.
 - Treat the milestone order below as a proposed delivery sequence. Advanced character behavior and fluid support remain product requirements even when delivered after the initial MVP.
 - Keep physics, character control, and fluids optional dependencies for consumers who do not use them.
 
-Free distribution and open-source licensing are separate decisions. Select the project license and verify dependency compatibility before public distribution. Do not silently assume a license, public npm namespace, hosted backend, or pricing model.
+Confirmed decision: Posecraft uses [MIT](LICENSE), as chosen by the user. Preserve dependency and asset license notices and check compatibility for additions. Public npm namespaces, hosted backends and pricing are separate decisions.
 
-Initial delivery does not require full Rive feature parity, Rive file compatibility, true 3D, arbitrary creature motion generation, multiplayer collaboration, a marketplace, or learned locomotion models. The architecture should leave room for growth without requiring those features to complete the first release.
+The original MVP scope did not require full Rive feature parity, Rive file compatibility, true 3D, arbitrary creature motion generation, multiplayer collaboration, a marketplace, or learned locomotion models. That historical MVP boundary does not cancel later requested milestones.
 
 ## 3 Product outcomes
 

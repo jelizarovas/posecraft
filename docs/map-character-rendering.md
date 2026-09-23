@@ -1,5 +1,7 @@
 # Map character rendering
 
+For replacement NPC and animal artwork, follow the [asset production brief](npc-asset-production.md) and [per-character shot list](npc-asset-shot-list.csv). They specify distinct source designs, action frames, tool contacts and mobile packaging. They are production instructions, not completed assets or implemented loader features.
+
 ## What the current demo uses
 
 Littlelands currently draws a baked sprite character. The source is a rigged Quaternius glTF with 24 animation clips. The map loads idle, walk, run, jump and roll WebP atlases, each with 16 directions. Walk and run each contain 12 frames per direction; idle contains one, jump eight and roll sixteen. The hop uses crouch/tuck poses sampled from the authored Roll clip; the roll includes its recovery. World movement and jump height belong to the runtime, not the images.

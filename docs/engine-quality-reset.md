@@ -1,6 +1,6 @@
 # Engine and character quality reset
 
-September 18, 2026. This responds to the user's rejection of the Atlas 3D pilot's visual quality. It supersedes incremental Atlas silhouette patches as the next implementation priority. This document records the diagnosis and acceptance contract. The first native bench workflow is implemented; its limits and review evidence are tracked below.
+Quality contract established September 18, 2026; documentation reorganized September 23, 2026. Product standards, architecture requirements and acceptance criteria below remain guidance for the affected work. The historical findings at the end explain their origin; they are not a current defect inventory.
 
 ## Product standard
 
@@ -14,21 +14,7 @@ Evaluate those priorities separately:
 
 Competitive superiority is an outcome to establish with fair comparisons and creator feedback, not a status inferred from architecture, a single CPU timing or an ambition statement. Keep the software and scene data inspectable and portable so professional users can evaluate the workflow without losing their source work.
 
-## What failed
-
-The GPU experiment established a rendering option and a lower measured CPU submission cost. It did not establish a production character pipeline. The previous release treated finite geometry, preserved projected anchors, screenshot collection and a working demo as stronger evidence of quality than they were. The user did not accept the result visually.
-
-| Failure | Current evidence | Required correction |
-| --- | --- | --- |
-| Screen coordinates substitute for a physical skeleton | `src/spatial.js` uses local joint offsets with zero Z; pose Z contributes to painter ordering. `src/contacts.js` minimizes projected XY error. | Author a native 3D bind skeleton, transforms and contact frames. Camera projection happens after pose solving. Preserve the separate 2D format through an explicit compatibility path. |
-| Equipment has competing definitions | `examples/gym-room.js` generates projected furniture and targets; `examples/gym-three-room.js` separately reconstructs furniture and depth. Static 3D furniture is not driven by Studio equipment edits. | Store each object's geometry, transform, grip points and supporting surfaces together. Moving a bench must move all of them. |
-| The renderer repairs pose defects | `evaluateThreeAtlasPose` in `src/three-atlas.js` knows Atlas's dimensions, guesses depth and allows up to 15% reach stretch. It infers bar contact from proximity. | Remove anatomy and equipment-specific guesses from drawing. Named rig chains and explicit grip/support states produce one authoritative solved pose. Unreachable contacts trigger diagnostics and motion recovery, not silent bone elongation. |
-| The asset lacks designed deformation | `examples/gym-skin.js` lofts rings with coordinate-based weights and one left-elbow corrective. The 3D head, beard, hands and shoes are constructed from overlapping primitives in code. | Establish a deliberately modeled silhouette, shoulder/hip topology, skin weights, twist distribution, corrective shapes and facial controls. A connected mesh alone does not supply these. Procedural generation remains useful only when its output meets the same asset bar. |
-| Movement and physical support are separate approximations | Gym pose formulas set many joints and transitions directly. Existing contact solves are projected. `PhysicalCharacter` uses per-character 2D worlds. | Layer approved motion with world-space goals, reach/support constraints and collision proxies. Treat active ragdoll as a later controlled system, not a substitute for animation or an attribute automatically supplied by 3D rendering. |
-| Tests preserve defects as well as correct behavior | GPU parity uses the same adapter as its reference. Shared frame labels come from one host function. Screenshot tests check existence/finite bounds and collect images. | Add independent geometric constraints and a blocking review of complete motion. Label correctness, visual approval and performance as separate outcomes. |
-| Reuse has not been demonstrated | The pilot depends on Atlas names, dimensions, a projected gym and code-defined face features. | Repeat the same pipeline on a separately authored character and changed equipment geometry without character-specific renderer branches. |
-
-## Architecture to build toward
+## Architecture contract
 
 Retain the scene/document transactions, event and behavior systems, seeded replay, worker scheduling, ownership/attachment concepts, authoring UI and selective export infrastructure. Their 3D bindings require explicit work and tests; compatibility is not automatic.
 
@@ -47,11 +33,17 @@ The intended evaluation order is:
 
 Exact coupling and solver choice must be demonstrated in the acceptance scene before being generalized. Avoid building a second custom rendering engine or a new physics solver when an established component meets the requirements.
 
-## Next implementation milestone
+## Implementation status references
+
+The following summarizes previously reported implementation, not a fresh verification in this documentation update. Consult the linked subsystem and review records for evidence and remaining limits.
 
 The [native 3D modules](native-3d.md) provide versioned world-space scene data, quaternion skeleton evaluation, rigid two-bone contacts and reach/conflict diagnostics. The [native Studio](native-studio.md) now connects two authored skinned GLBs, a proportion-aware bench action, palm frames and finger poses, editable furniture/camera/bend limits, safe completion, worker playback, JSON reopening and a self-contained website export. It remains a focused bench authoring workflow rather than a replacement for the general 2D Studio. See [implementation and review evidence](native-3d-review.md) for what was checked and what is still missing.
 
-The gym's default gallery path now uses the native rig and a reusable workout director. Walking, pull-ups, bench transfers and water breaks share world-space equipment targets, completion events and the same Studio/export runtime. The recorded 2D conversion remains an explicit comparison. See the [workout contract](workout.md) for implemented mechanics and limits. Continue improving these motions and their visual acceptance before adding more showcase scenes.
+The gym's default gallery path now uses the native rig and a reusable workout director. Walking, pull-ups, bench transfers and water breaks share world-space equipment targets, completion events and the same Studio/export runtime. The recorded 2D conversion remains an explicit comparison. See the [workout contract](workout.md) for implemented mechanics and limits. Use the acceptance criteria below when changing these motions; the user's current task determines which milestone is active.
+
+## Bench acceptance target
+
+These criteria define the reusable bench milestone. They do not imply that every item is still unimplemented or that every unrelated change must repeat the entire review.
 
 ### A. Asset and spatial contract
 
@@ -79,6 +71,8 @@ The scene must then be editable in Studio: place equipment, pick grips/supports,
 
 ## Acceptance gates
 
+A recorded visual review here means inspecting the result and documenting defects or acceptance evidence. It does not automatically require a user checkpoint. Continue routine corrections within the authorized task; ask when a consequential artistic choice needs the user's judgment or the user requested that checkpoint.
+
 The following are proposed starting tolerances to validate against approved motion, not current capabilities or sufficient proof of visual quality:
 
 - Planted grip error at most 0.2% of character height; stance drift at most 0.5%; unintended floor penetration at most 0.2%.
@@ -91,6 +85,32 @@ The following are proposed starting tolerances to validate against approved moti
 
 The milestone is complete only when both the visible result and these invariants pass. A faster renderer, more controls or a larger test count cannot substitute for that result.
 
-## Pilot disposition
+## Historical pilot disposition
 
-Keep the published Atlas 3D page as a diagnostic comparison. Its CPU measurements remain useful. Do not promote its synthesized depth, hardcoded facial geometry or inferred bar contact into the general engine contract. The current roadmap's larger Studio and cartoon goals remain valid; this foundation precedes further expansion.
+Keep the published Atlas 3D page as a diagnostic comparison. Its CPU measurements remain useful. Do not promote its synthesized depth, hardcoded facial geometry or inferred bar contact into the general engine contract. This was the disposition of the diagnostic pilot, not a prohibition on later user-requested work.
+
+## Collaboration findings, September 23, 2026
+
+These findings come from the user's review of the gym and Littlelands work. They record project preferences and agent mistakes, not a claim that every issue below remains in the current implementation. Repository working rules are in [AGENTS.md](../AGENTS.md).
+
+1. **Visible quality is part of correctness.** Repeated corrections to backward elbows, sliding transfers, occlusion and world scale showed that the agent accepted technical checks too readily. Complete motion and scene review must accompany automated checks. The user should not have to restate this standard for each demo.
+2. **Asset identity is an explicit requirement.** Recolored heroes, scaled adults used as children and translated standing animal pictures did not satisfy the request for distinct villagers and articulated animals. Declare temporary substitutes before treating the work as delivered. The [asset production brief](npc-asset-production.md) defines the Littlelands-specific replacement requirements; these are not a ban on shared rigs or procedural artwork elsewhere.
+3. **Demo improvements must carry into the product.** The user repeatedly asked whether scene fixes would also be available in Studio. Shared behavior and authorable scene data are part of Posecraft's intended value. Report missing Studio or export support instead of implying that a demo establishes it.
+4. **Mobile performance requires comparable, functioning workloads.** Renderer names and desktop timings do not establish a better phone experience. Keep scene, camera, settings and behavior comparable; a stalled action can make a benchmark misleading. Distinguish physical-device results from throttled or emulated diagnostics.
+5. **Exploration is useful; completion claims need tighter boundaries.** The shift from illustrations toward a living game emerged through use. Those discoveries were not all preventable with a longer initial prompt. The agent should translate new intent into a small observable example, label assumptions and report implementation, visual review and performance evidence separately. This makes intent clearer without transferring responsibility for quality back to the user.
+
+These findings reinforce the existing acceptance gates. They do not authorize extra implementation, deployment or new approval steps outside the user's current request.
+
+## What failed in the September 18 pilot
+
+The GPU experiment established a rendering option and a lower measured CPU submission cost. It did not establish a production character pipeline. The previous release treated finite geometry, preserved projected anchors, screenshot collection and a working demo as stronger evidence of quality than they were. The user did not accept the result visually.
+
+| Failure | Evidence recorded in the pilot review | Required correction |
+| --- | --- | --- |
+| Screen coordinates substitute for a physical skeleton | `src/spatial.js` uses local joint offsets with zero Z; pose Z contributes to painter ordering. `src/contacts.js` minimizes projected XY error. | Author a native 3D bind skeleton, transforms and contact frames. Camera projection happens after pose solving. Preserve the separate 2D format through an explicit compatibility path. |
+| Equipment has competing definitions | `examples/gym-room.js` generates projected furniture and targets; `examples/gym-three-room.js` separately reconstructs furniture and depth. Static 3D furniture is not driven by Studio equipment edits. | Store each object's geometry, transform, grip points and supporting surfaces together. Moving a bench must move all of them. |
+| The renderer repairs pose defects | `evaluateThreeAtlasPose` in `src/three-atlas.js` knows Atlas's dimensions, guesses depth and allows up to 15% reach stretch. It infers bar contact from proximity. | Remove anatomy and equipment-specific guesses from drawing. Named rig chains and explicit grip/support states produce one authoritative solved pose. Unreachable contacts trigger diagnostics and motion recovery, not silent bone elongation. |
+| The asset lacks designed deformation | `examples/gym-skin.js` lofts rings with coordinate-based weights and one left-elbow corrective. The 3D head, beard, hands and shoes are constructed from overlapping primitives in code. | Establish a deliberately modeled silhouette, shoulder/hip topology, skin weights, twist distribution, corrective shapes and facial controls. A connected mesh alone does not supply these. Procedural generation remains useful only when its output meets the same asset bar. |
+| Movement and physical support are separate approximations | Gym pose formulas set many joints and transitions directly. Existing contact solves are projected. `PhysicalCharacter` uses per-character 2D worlds. | Layer approved motion with world-space goals, reach/support constraints and collision proxies. Treat active ragdoll as a later controlled system, not a substitute for animation or an attribute automatically supplied by 3D rendering. |
+| Tests preserve defects as well as correct behavior | GPU parity uses the same adapter as its reference. Shared frame labels come from one host function. Screenshot tests check existence/finite bounds and collect images. | Add independent geometric constraints and a blocking review of complete motion. Label correctness, visual approval and performance as separate outcomes. |
+| Reuse has not been demonstrated | The pilot depends on Atlas names, dimensions, a projected gym and code-defined face features. | Repeat the same pipeline on a separately authored character and changed equipment geometry without character-specific renderer branches. |
