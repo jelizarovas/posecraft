@@ -13,3 +13,7 @@ Gym now uses a small torso breathing layer and fatigue-dependent effort noise. E
 The lightweight compiler selects the motion-layer provider when used. `test/motion-layers.test.js` verifies repeatability, clamping and preview exclusion. The real Gym export browser check verifies full/lightweight pose agreement with no Planck dependency.
 
 `opacity` is also an additive channel, with amplitude and final output clamped to 0–1. It works on ordinary or spatial joints. An unset layer baseline is zero. The day/night sky uses an input layer to fade existing artwork without replacing its action clip.
+
+## Independent input weight
+
+A layer may set `weightInput` to a numeric input on its actor. The solver clamps that input to 0..1 and multiplies the sampled displacement by it. Omit it for full weight. This separates a signed direction from an independently timed influence, such as focusing up toward a field while attention fades back to work. Studio exposes it as Weight input in Motion & website. It survives JSON save/reopen and compiled export; missing or nonnumeric references fail validation.

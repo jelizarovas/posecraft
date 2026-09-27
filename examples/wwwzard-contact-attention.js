@@ -2,6 +2,8 @@
  * its keyboard channels. Timing and amplitudes are saved scene authoring data. */
 export function addContactAttention(scene){
   const hero=scene.packs.wwzard;
+  hero.inputs.focusX={type:'number',default:1,min:-1,max:1};
+  hero.inputs.focusY={type:'number',default:-.5,min:-1,max:1};
   hero.inputs.attention={type:'number',default:0,min:0,max:1};
   hero.inputs.attentionBack={type:'number',default:0,min:-1,max:0};
   scene.requiredFeatures=[...new Set([...scene.requiredFeatures,'actor-behaviors'])];
@@ -25,7 +27,7 @@ export function addContactAttention(scene){
     rates:[{variable:'reverse',perSecond:-3.334,when:{variable:'phase',op:'eq',value:1}},{variable:'reverse',perSecond:2,when:{variable:'phase',op:'eq',value:2}},{variable:'look',perSecond:3.334,when:{variable:'phase',op:'eq',value:1}},{variable:'look',perSecond:-2,when:{variable:'phase',op:'eq',value:2}}],
     outputs:[{variable:'look',source:'input.attention'},{variable:'reverse',source:'input.attentionBack'}],
   }];
-  for(const [joint,channel,amplitude,input] of [['head','rotation',9,'attentionBack'],['head','x',7,'attention'],['head','y',4,'attentionBack'],['hat','rotation',2,'attention']]){
-    scene.motionLayers.push({id:`attention-${joint}-${channel}`,actor:'wwzard',joint,channel,type:'input',amplitude,input,range:[-1,1],frequency:1,phase:0,seed:0,clips:['ready','typing','prepared']});
+  for(const [joint,channel,amplitude,input] of [['head','rotation',16,'focusY'],['head','x',7,'focusX'],['head','y',6,'focusY'],['hat','rotation',3,'focusY']]){
+    scene.motionLayers.push({id:`attention-${joint}-${channel}`,actor:'wwzard',joint,channel,type:'input',amplitude,input,weightInput:'attention',range:[-1,1],frequency:1,phase:0,seed:0,clips:['ready','typing','prepared']});
   }
 }

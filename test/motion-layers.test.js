@@ -80,3 +80,15 @@ test('actor input and scene variable layers run together without replacing the c
  base.dispose();c.dispose();
  }
 });
+
+
+test('saved weight input fades signed direction independently of the action',()=>{
+ const d=inputScene(),pack=d.packs.drawing;pack.inputs.lookWeight={type:'number',default:0,min:0,max:1};
+ d.motionLayers[0].weightInput='lookWeight';assert.equal(validateDocument(d).valid,true);
+ const c=new SceneController(d),f=c.frame();f.behavior={variables:{hand:-1}};f.actors[0].inputs={lookWeight:.25};
+ assert.equal(applyMotionLayers(d,f).actors[0].pose['root.x'],-3);
+ f.actors[0].inputs.lookWeight=0;assert.equal(applyMotionLayers(d,f).actors[0].pose['root.x'],0);
+ f.actors[0].inputs.lookWeight=2;assert.equal(applyMotionLayers(d,f).actors[0].pose['root.x'],-12);
+ assert.equal(JSON.parse(JSON.stringify(d)).motionLayers[0].weightInput,'lookWeight');
+ d.motionLayers[0].weightInput='missing';assert.equal(validateDocument(d).valid,false);c.dispose();
+});
