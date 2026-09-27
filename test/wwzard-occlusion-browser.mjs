@@ -6,7 +6,7 @@ const server=await createServer({configFile:false,root:process.cwd(),server:{hos
 await server.listen();
 const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
 try{
- const page=await browser.newPage();await page.goto('http://127.0.0.1:5193/wwzard.html');
+ const page=await browser.newPage();await page.goto((process.env.POSECRAFT_URL||'http://127.0.0.1:5193')+'/wwzard.html',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>!!window.posecraft);
  const result=await page.evaluate(async()=>{
   const [{createWwzardIllustration},{IllustrationController},{evaluateDrawing},{renderCanvas},{renderSVG},{BehaviorRuntime},{ScenePointerInteraction}]=await Promise.all([import('/examples/wwzard-illustration.js'),import('/src/illustration.js'),import('/src/render-evaluation.js'),import('/src/canvas.js'),import('/src/svg.js'),import('/src/behaviors.js'),import('/src/pointer-interactions.js')]);
   const providers={behaviorFactory:BehaviorRuntime,pointerFactory:ScenePointerInteraction};
@@ -18,7 +18,7 @@ try{
   const canvas=()=>{const el=document.createElement('canvas');el.width=513;el.height=529;return el;};
   const pixels=el=>el.getContext('2d').getImageData(0,0,513,529).data;
   const render=(source,frame)=>{const el=canvas();renderCanvas(el.getContext('2d'),evaluateDrawing(source,frame));return pixels(el);};
-  const svgPixels=async(source,frame)=>{const url=URL.createObjectURL(new Blob([renderSVG(source,frame)],{type:'image/svg+xml'})),image=new Image();try{image.src=url;await image.decode();const el=canvas();el.getContext('2d').drawImage(image,0,0);return pixels(el);}finally{URL.revokeObjectURL(url);}};
+  const svgPixels=async(source,frame)=>{const markup=renderSVG(source,frame),parseError=new DOMParser().parseFromString(markup,'image/svg+xml').querySelector('parsererror');if(parseError)throw new Error(parseError.textContent);const url=URL.createObjectURL(new Blob([markup],{type:'image/svg+xml'})),image=new Image();try{image.src=url;await image.decode();const el=canvas();el.getContext('2d').drawImage(image,0,0);return pixels(el);}finally{URL.revokeObjectURL(url);}};
   const hitContext=canvas().getContext('2d');
   const pathInside=(path,x,y)=>{const [a,b,c,d,e,f]=path.matrix,det=a*d-b*c;return hitContext.isPointInPath(new Path2D(path.d),(d*(x-e)-c*(y-f))/det,(-b*(x-e)+a*(y-f))/det);};
   const inside=(command,x,y)=>pathInside(command,x,y)&&(command.clips||[]).every(clip=>pathInside(clip,x,y));

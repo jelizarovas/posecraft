@@ -1,6 +1,6 @@
 {
   "name": "@posecraft/runtime",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "description": "Playback for authored Posecraft 2D living illustrations",
   "type": "module",
   "license": "MIT",

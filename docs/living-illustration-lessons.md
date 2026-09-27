@@ -52,3 +52,9 @@ Keep runtime code in @posecraft/runtime, artwork and behavior in scene documents
 Review full movement in day and night at embed size, then verify the exact live build. Do not blame caching when the screenshot already shows the latest flawed art. Automated numeric bounds cannot certify an expressive silhouette. Tests must intercept contact requests rather than send real messages.
 
 The saved scenes and shared contracts are available now. A complete no-code authoring workflow and reuse on a separately designed second character remain acceptance work. Physical-phone performance remains unverified. Raw Home scene JSON has a 30 KiB gzip check; this is not the complete website transfer budget. Record complete host cost and equivalent one/multiple-embed frame timings separately. Preserve current performance evidence in [Wwwzard performance](wwzard-performance.md).
+
+## Follow-up: night fingers and tucked sleeves
+
+A day-approved open hand still read as dark spikes at night. The lighting evaluator sampled the collapsed rest contour of the finger part rather than its displayed morph. Runtime alpha.3 now samples the evaluated contour, including interruption blends, and invalidates its bounds cache when that shape changes. A generic regression compares unfolded geometry with identical static geometry. Finger silhouettes are shorter and rounder.
+
+The near arm also collapsed into a thin strip when the retraction warp compressed its width along X. Its saved retraction target now has a deliberately drawn hanging sleeve and matching shadow while preserving the wrist and depth contracts. The day/night review checks resting and both emotional tucked poses, plus geometric sleeve width. Judge both themes and the entire retract/return, not only the wave peak.

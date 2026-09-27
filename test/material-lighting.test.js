@@ -61,3 +61,17 @@ test('reflected light preserves dark material color; emission is selected, shutt
  for(const field of ['emission','highlights'])for(const selection of [{actor:'missing',parts:['paint']},{actor:'character',parts:['missing']},{actor:'character',parts:[]}]){d.materialLighting.lights[1][field]=selection;assert.equal(validateDocument(d).valid,false);delete d.materialLighting.lights[1][field];}
  c.dispose();
 });
+
+
+test('an unfolded contour receives the same light as identical static geometry',()=>{
+ const d=fixture(),part=d.packs.drawing.parts[0],open=part.d;
+ part.d='M50 50L50 50L50 50L50 50Z';
+ part.spatial={morph:{channel:'root.bend',target:open}};
+ const c=new SceneController(d),f=c.frame();f.actors[0].pose['night.bend']=1;
+ const stops=(doc)=>evaluateDrawing(doc,f).units.flatMap(u=>u.commands).find(c=>c.pick?.part==='paint').fill.stops;
+ f.actors[0].pose['root.bend']=1;const unfolded=stops(d);
+ const reference=structuredClone(d);reference.packs.drawing.parts[0].d=open;delete reference.packs.drawing.parts[0].spatial;
+ assert.deepEqual(unfolded,stops(reference),'lighting must use the visible geometry, not the collapsed rest bounds');
+ f.actors[0].pose['root.bend']=0;assert.notDeepEqual(stops(d),unfolded,'contour changes invalidate cached lighting bounds');
+ c.dispose();
+});

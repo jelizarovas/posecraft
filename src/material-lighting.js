@@ -33,7 +33,9 @@ export function sampleMaterialLighting(doc,frame){
 /** Relight authored stops in place; their topology, offsets and direction stay authored. */
 export function materialAppearance(state,part,actor,evaluated,paint,spatial){
  if(!state||state.actors&&!state.actors.has(actor.id))return paint;
- let cache=materials.get(part);if(!cache||cache.d!==paint.d||cache.gradient!==paint.gradient||cache.transform!==paint.transform||cache.fill!==paint.fill){cache={d:paint.d,gradient:paint.gradient,transform:paint.transform,fill:paint.fill,bounds:pathBounds(paint.d),matrix:parseTransform(paint.transform),colors:paint.gradient?paint.gradient.stops.map(([,c])=>rgb(c)):[rgb(paint.fill)]};materials.set(part,cache);}
+ // Shade the displayed contour, including captured interruption blends.
+ const displayed=spatial?.parts.get(part.id)?.d??paint.d;
+ let cache=materials.get(part);if(!cache||cache.d!==displayed||cache.gradient!==paint.gradient||cache.transform!==paint.transform||cache.fill!==paint.fill){cache={d:displayed,gradient:paint.gradient,transform:paint.transform,fill:paint.fill,bounds:pathBounds(displayed),matrix:parseTransform(paint.transform),colors:paint.gradient?paint.gradient.stops.map(([,c])=>rgb(c)):[rgb(paint.fill)]};materials.set(part,cache);}
  const joint=spatial?.parts.get(part.id)?.matrix||placementMatrix({...evaluated.world[part.joint],scale:1}),matrix=multiplyMatrix(placementMatrix(evaluated.placement||actor.transform),multiplyMatrix(joint,cache.matrix)),b=cache.bounds,center=transformPoint(matrix,(b.minX+b.maxX)/2,(b.minY+b.maxY)/2),g=paint.gradient;
  const shade=(base,index,offset)=>{if(!base)return index===undefined?paint.fill:g.stops[index][1];const u=g?g.x1+(g.x2-g.x1)*offset:.5,v=g?g.y1+(g.y2-g.y1)*offset:.5,p=transformPoint(matrix,b.minX+b.width*u,b.minY+b.height*v),nx=p.x-center.x,ny=p.y-center.y,length=Math.hypot(nx,ny)||1;
   const result=base.map((value,i)=>value*state.ambient*.92+state.tint[i]*(1-state.ambient)*.08);

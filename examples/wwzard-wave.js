@@ -47,9 +47,9 @@ export function addWwzardWave(scene) {
   // the hand joint and bend channel, including captured interruption poses.
   const skin=pack.parts.find(part=>part.id==='left-hand');
   const fingers = [
-    'M265 309L261 289Q260 284 264 284Q267 284 268 289L273 307Z',
-    'M273 305L272 282Q272 278 276 278Q280 278 280 283L281 306Z',
-    'M281 308L284 287Q285 283 288 284Q291 285 290 289L288 312Z',
+    'M265 309L262 296Q261 291 265 291Q269 291 270 296L274 307Z',
+    'M273 305L272 290Q272 285 277 285Q282 285 282 290L282 307Z',
+    'M281 308L285 294Q286 290 290 291Q294 292 292 297L288 312Z',
   ].join('');
   const collapsed = fingers.replace(/[-+]?(?:\d*\.\d+|\d+\.?\d*)\s+[-+]?(?:\d*\.\d+|\d+\.?\d*)/g, '276 310');
   pack.parts.push({

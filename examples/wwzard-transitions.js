@@ -33,6 +33,11 @@ export function addWwzardTransitions(scene){
    const shape=delta=>movePath(part.d,(x,y)=>{const w=Math.max(0,Math.min(1,(x-arm.origin)/arm.span));return [x+delta[0]*w,y+delta[1]*w];});
    const layer={channel:arm.control+'.bend',frames:[{value:.5,target:shape(arm.pull)}],target:shape(arm.down)};
    if(!part.spatial.morph)throw Error('Retraction requires an authored sleeve morph');
+   // Preserve a hanging sleeve's volume instead of compressing its entire
+   // width through an x-weighted translation. The wrist still meets the hand.
+   if (arm.side === 'left') layer.target = part.id.endsWith('shadow')
+    ? 'M186 279Q187 309 202 339L213 357L216 367L192 328Q180 309 177 286Z'
+    : 'M181 244Q193 234 207 246Q222 266 220 294Q222 323 225 338L225 357L211 369Q199 349 192 328Q180 309 177 286Q169 272 177 253Z';
    part.spatial.morph.layers=[layer];
   }
  }
