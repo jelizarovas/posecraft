@@ -1,3 +1,4 @@
+import type {HostTransitionSample} from './host-transition.js';
 import type {ActorBehaviorRuntime} from './actor-behaviors.js';
 import type {CheckpointOptions,CheckpointStats} from './replay-checkpoints.js';
 import type {ObjectCommand,SceneObjects} from './scene-objects.js';
@@ -35,10 +36,11 @@ export class IllustrationController {
  triggerEnsemble(event:string,payload?:{actor?:string;x?:number;y?:number}):void;
  previewClip(actor:string,clip:string,time:number,overrides?:Record<string,number>):Frame;
  clearPreview(actor:string):void;
+ setHostTransition(sample:HostTransitionSample):Frame;clearHostTransition():Frame;
  setAcceleration(ax:number,ay:number):void;
  sampleHost(sample:{x:number;y:number;time:number;teleport?:boolean}):void;
  step(dt:number):Frame;frame():Frame;seek(time:number):Frame;reset():Frame;play():void;pause():void;rebaseline():void;dispose():void;
  subscribe(listener:(event:SceneEvent)=>void):()=>void;
 }
-export interface IllustrationPlayer {objectCommand(command:ObjectCommand):void;refreshScroll():void;fluidInput(command:FluidCommand):void;enableMotion():Promise<boolean>;disableMotion():void;setVariable(name:string,value:boolean|number):void;pointer(command:PointerCommand):void;controller:IllustrationController;setInput(actor:string,name:string,value:string|number|boolean):void;dispatch(event:string,payload?:{actor?:string;x?:number;y?:number}):void;interact(actor:string,type:Interaction,strength?:number):void;play():void;pause():void;reset():void;seek(time:number):void;dispose():void}
-export function mountIllustration(element:HTMLElement,document:SceneDocument,options?:IllustrationProviders&{host?:HTMLElement;scroll?:ScrollOptions|false;checkpoints?:CheckpointOptions|false;reducedMotion?:boolean|'system';onEvent?:(event:SceneEvent)=>void;onError?:(error:Error)=>void;label?:string;autoplay?:boolean}):IllustrationPlayer;
+export interface IllustrationPlayer {setHostTransition(sample:HostTransitionSample):void;clearHostTransition():void;previewClip(actor:string,clip:string,time:number,overrides?:Record<string,number>):void;clearPreview(actor:string):void;objectCommand(command:ObjectCommand):void;refreshScroll():void;fluidInput(command:FluidCommand):void;enableMotion():Promise<boolean>;disableMotion():void;setVariable(name:string,value:boolean|number):void;pointer(command:PointerCommand):void;controller:IllustrationController;setInput(actor:string,name:string,value:string|number|boolean):void;dispatch(event:string,payload?:{actor?:string;x?:number;y?:number}):void;interact(actor:string,type:Interaction,strength?:number):void;play():void;pause():void;reset():void;seek(time:number):void;dispose():void}
+export function mountIllustration(element:HTMLElement,document:SceneDocument,options?:IllustrationProviders&{host?:HTMLElement;hostMotion?:boolean;scroll?:ScrollOptions|false;checkpoints?:CheckpointOptions|false;reducedMotion?:boolean|'system';onEvent?:(event:SceneEvent)=>void;onError?:(error:Error)=>void;label?:string;autoplay?:boolean}):IllustrationPlayer;

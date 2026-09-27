@@ -20,6 +20,14 @@ test('limb depth changes drawing order and a tucked knee projects toward the cam
 test('shape morphs interpolate coordinates without changing path topology or source data',()=>{
  const d=doc(),p={d:'M0 0L10 20Z',spatial:{morph:{channel:'root.bend',target:'M0 0L20 10Z'}}},source=p.d;assert.equal(morphPath(p,0),morphPath(p,-1));assert.equal(morphPath(p,1),morphPath(p,2));assert.notEqual(morphPath(p,.5),morphPath(p,0));assert.equal(p.d,source);
 });
+test('held morphs respect edited source and target contours and keep exact endpoints',()=>{
+ const p={d:'M0.00001 0L10 20Z',spatial:{morph:{channel:'root.bend',target:'M0 0L20 10Z'}}};
+ assert.equal(morphPath(p,0),p.d);assert.equal(morphPath(p,1),p.spatial.morph.target);
+ assert.equal(morphPath(p,.5),'M0 0L15 15Z');assert.equal(morphPath(p,.5),'M0 0L15 15Z');
+ p.spatial.morph.target='M0 0L30 10Z';assert.equal(morphPath(p,.5),'M0 0L20 15Z');
+ p.d='M0 0L20 20Z';assert.equal(morphPath(p,.5),'M0 0L25 15Z');
+ assert.equal(morphPath(p,0),p.d);assert.equal(morphPath(p,1),p.spatial.morph.target);
+});
 test('spatial clips survive JSON, seek and the episode pipeline',()=>{
  const d=JSON.parse(JSON.stringify(doc())),c=new SceneController(d);assertDocument(d);c.previewClip('ona','turnaround',3);const f=c.frame().actors[0];assert.equal(f.pose['root.yaw'],180);const svg=renderSVG(d,c.frame());assert.match(svg,/<clipPath/);assert.match(svg,/data-slot="shirt-back-seam"/);
  const base=createDemo('www-after-hours'),project={...base,scenes:{study:d},shots:[{...base.shots[0],scene:'study',actors:{ona:{clip:'glance',offset:0,speed:1,pose:{'root.yaw':[[0,45],[4,135]],'rightArm.bend':[[0,0],[4,1]]}}}}]};const e=new EpisodeController(project);assert.equal(e.frame(2).actors[0].pose['root.yaw'],90);assert.equal(e.frame(2).actors[0].pose['rightArm.bend'],.5);assert.deepEqual(e.frame(2),new EpisodeController(project).frame(2));

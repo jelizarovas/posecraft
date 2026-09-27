@@ -1,5 +1,7 @@
 # Map character rendering
 
+Scope clarification, September 26, 2026: follow the [current 2D product direction](product-direction.md). The live skinned-model route below is an earlier proposal for map equipment, not the required next implementation or the studio's asset pipeline. Existing renderer facts and memory tradeoffs remain useful evidence; expanding maps requires a current task need.
+
 For replacement NPC and animal artwork, follow the [asset production brief](npc-asset-production.md) and [per-character shot list](npc-asset-shot-list.csv). They specify distinct source designs, action frames, tool contacts and mobile packaging. They are production instructions, not completed assets or implemented loader features.
 
 ## What the current demo uses

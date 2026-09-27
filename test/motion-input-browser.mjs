@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import http from 'node:http';
+import {chromium} from '@playwright/test';
+import {createDrawing} from '../src/vector-authoring.js';
+import {compileScene} from '../tools/compile-scene.mjs';
+
+const scene=createDrawing(),pack=scene.packs.drawing;
+pack.parts=[{id:'body',joint:'root',d:'M0 0L30 0L30 60L0 60Z',fill:'#8844bb'}];
+const base=process.env.POSECRAFT_URL||'http://127.0.0.1:5247';
+const browser=await chromium.launch({channel:'msedge',headless:true}),errors=[];
+let server;
+try{
+ const page=await browser.newPage({viewport:{width:1400,height:1000},acceptDownloads:true});page.on('pageerror',error=>errors.push(error.message));
+ await page.addInitScript(()=>{window.showOpenFilePicker=undefined;window.showSaveFilePicker=undefined;});
+ await page.goto(base+'/');await page.locator('#clip').waitFor();
+ const chooser=page.waitForEvent('filechooser');await page.locator('#import').click();await(await chooser).setFiles({name:'input-motion.posecraft.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(scene))});
+ await page.waitForFunction(()=>JSON.parse(localStorage.getItem('posecraft.studio.v2')).id==='drawing');
+ const openTools=async()=>{await page.locator('#scene-workspace').click();await page.locator('#scene-flows').click();};
+ await openTools();await page.locator('#flow-add').click();await page.locator('#flow-wave').selectOption('input');
+ await page.locator('#flow-channel').selectOption('x');await page.locator('[data-flow-number="amplitude"]').fill('18');await page.locator('[data-flow-number="amplitude"]').press('Tab');
+ const saved=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('posecraft.studio.v2')));
+ let data=await saved();assert.equal(data.behaviorGraph.variables.motionInput,0);assert.equal(data.motionLayers[0].type,'input');assert.deepEqual(data.motionLayers[0].range,[-1,1]);assert.equal(data.motionLayers[0].amplitude,18);
+ const download=page.waitForEvent('download');await page.locator('#export').click();data=JSON.parse(await fs.readFile(await(await download).path(),'utf8'));assert.equal(data.motionLayers[0].variable,'motionInput');
+ await page.reload();await page.locator('#clip').waitFor();await openTools();assert.equal(await page.locator('#flow-wave').inputValue(),'input');assert.equal(await page.locator('#flow-variable').inputValue(),'motionInput');assert.equal(await page.locator('[data-flow-number="amplitude"]').inputValue(),'18');
+ data.packs.drawing.inputs.attention={type:'number',default:0,min:-1,max:1};
+ const secondImport=page.waitForEvent('filechooser');await page.locator('#import').click();await(await secondImport).setFiles({name:'actor-input.posecraft.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
+ await page.waitForFunction(()=>JSON.parse(localStorage.getItem('posecraft.studio.v2')).packs.drawing.inputs.attention?.type==='number');
+ await openTools();await page.locator('#flow-add').click();await page.locator('#flow-wave').selectOption('input');await page.locator('#flow-variable').selectOption('input:attention');await page.locator('#flow-channel').selectOption('rotation');
+ data=await saved();assert.equal(data.motionLayers[1].input,'attention');assert.equal(data.motionLayers[1].variable,undefined);
+ await page.reload();await page.locator('#clip').waitFor();await openTools();await page.locator('#flow-layer').selectOption('1');assert.equal(await page.locator('#flow-variable').inputValue(),'input:attention');
+ const actorDownload=page.waitForEvent('download');await page.locator('#export').click();data=JSON.parse(await fs.readFile(await(await actorDownload).path(),'utf8'));assert.equal(data.motionLayers[1].input,'attention');await page.close();
+ await fs.mkdir('test-results',{recursive:true});const directory=await fs.mkdtemp(path.resolve('test-results/motion-input-export-'));
+ const manifest=await compileScene(data,directory);assert.equal(manifest.runtime,'illustration');assert(manifest.features.includes('motion-layers'));assert(!manifest.files.some(f=>f.modules.some(m=>/planck|\/src\/physics\.js/.test(m))));
+ server=http.createServer(async(req,res)=>{try{const name=new URL(req.url,'http://localhost').pathname,filename=path.resolve(directory,'.'+(name==='/'?'/index.html':name));if(!filename.startsWith(directory+path.sep))throw Error('Invalid path');const content=await fs.readFile(filename);res.writeHead(200,{'content-type':filename.endsWith('.js')?'text/javascript':filename.endsWith('.json')?'application/json':'text/html'});res.end(content);}catch{res.writeHead(404);res.end();}});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const exported=await browser.newPage();exported.on('pageerror',error=>errors.push(error.message));await exported.goto(`http://127.0.0.1:${server.address().port}`);await exported.waitForFunction(()=>!!window.posecraft);
+ const samples=await exported.evaluate(()=>{const p=window.posecraft;p.pause();const read=value=>{p.setVariable('motionInput',value);return {pose:p.controller.frame().actors[0].pose['root.x'],transform:document.querySelector('[data-joint="root"]').getAttribute('transform')};};const negative=read(-1),middle=read(0),positive=read(1);p.setInput('character','attention',1);const attention=p.controller.frame().actors[0].pose['root.rotation'];p.controller.step(.25);const held=p.controller.frame().actors[0].pose['root.x'];p.dispose();return {negative,middle,positive,held,attention};});
+ assert.equal(samples.negative.pose,-18);assert.equal(samples.middle.pose,0);assert.equal(samples.positive.pose,18);assert.equal(samples.held,18);assert.notEqual(samples.negative.transform,samples.positive.transform);assert.deepEqual(errors,[]);
+ assert.equal(samples.attention,1);
+ console.log(JSON.stringify({studioInput:true,createdNeutralVariable:true,actorInput:true,saveReopen:true,compiledExport:true,physicsExcluded:true,heldInput:true,directory}));
+}finally{await browser.close();if(server)await new Promise(resolve=>server.close(resolve));}

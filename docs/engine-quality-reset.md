@@ -2,6 +2,8 @@
 
 Quality contract established September 18, 2026; documentation reorganized September 23, 2026. Product standards, architecture requirements and acceptance criteria below remain guidance for the affected work. The historical findings at the end explain their origin; they are not a current defect inventory.
 
+Scope clarification, September 26, 2026: the [current product direction](product-direction.md) prioritizes a 2D animation studio and polished living website illustrations. The product standard and applicable visual/performance checks below remain in force. Native 3D architecture, GLB production and the bench target are contracts for the existing 3D branch only; they do not prescribe the next milestone or a migration of 2D artwork. Apply 2D contacts, draw order and authored views on their own terms. The historical pilot's corrective proposals are not universal requirements.
+
 ## Product standard
 
 The user's priority is the quality of the finished scene, the experience of authoring it, and its cost on a real website. Feature breadth is secondary. The target includes professional animators who can bring their existing assets and expect predictable editing, motion and delivery.
@@ -14,7 +16,7 @@ Evaluate those priorities separately:
 
 Competitive superiority is an outcome to establish with fair comparisons and creator feedback, not a status inferred from architecture, a single CPU timing or an ambition statement. Keep the software and scene data inspectable and portable so professional users can evaluate the workflow without losing their source work.
 
-## Architecture contract
+## Native 3D architecture contract
 
 Retain the scene/document transactions, event and behavior systems, seeded replay, worker scheduling, ownership/attachment concepts, authoring UI and selective export infrastructure. Their 3D bindings require explicit work and tests; compatibility is not automatic.
 
@@ -114,3 +116,7 @@ The GPU experiment established a rendering option and a lower measured CPU submi
 | Movement and physical support are separate approximations | Gym pose formulas set many joints and transitions directly. Existing contact solves are projected. `PhysicalCharacter` uses per-character 2D worlds. | Layer approved motion with world-space goals, reach/support constraints and collision proxies. Treat active ragdoll as a later controlled system, not a substitute for animation or an attribute automatically supplied by 3D rendering. |
 | Tests preserve defects as well as correct behavior | GPU parity uses the same adapter as its reference. Shared frame labels come from one host function. Screenshot tests check existence/finite bounds and collect images. | Add independent geometric constraints and a blocking review of complete motion. Label correctness, visual approval and performance as separate outcomes. |
 | Reuse has not been demonstrated | The pilot depends on Atlas names, dimensions, a projected gym and code-defined face features. | Repeat the same pipeline on a separately authored character and changed equipment geometry without character-specific renderer branches. |
+
+## Living illustration findings, September 27, 2026
+
+The [Wwwzard review lessons](living-illustration-lessons.md) record the 2D contour, partial-depth, interruption, contact, lighting and delivery failures found on jelizarovas.com, with implementation and regression links. They apply to the current 2D milestone and do not establish completion of the older 3D acceptance plan.

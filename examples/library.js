@@ -1,10 +1,16 @@
 import {addSpatialRig,addOnaArmJoints} from '../src/character-rigs.js';
+import {createWwzardIllustration} from './wwzard-illustration.js';
 import ona from './characters/ona.json';
 import wwwzard from './characters/wwwzard.json';
 import rusty from './characters/rusty.json';
 import dummy from './characters/dummy.json';
 const legacyLibrary={ona,wwwzard,rusty,dummy};
-export const library = structuredClone(legacyLibrary);
+const illustration=createWwzardIllustration();
+const wwzard={schemaVersion:1,kind:'scene',id:'wwzard-character',name:'Wwwzard',revision:0,
+ bounds:structuredClone(illustration.bounds),requiredFeatures:structuredClone(illustration.requiredFeatures),
+ packs:{wwzard:structuredClone(illustration.packs.wwzard)},
+ actors:[structuredClone(illustration.actors.find(actor=>actor.id==='wwzard'))]};
+export const library = structuredClone({wwzard,...legacyLibrary});
 for(const id of ['ona','dummy']){addSpatialRig(library[id].packs[id],id,{studies:false});if(id==='ona')addOnaArmJoints(library[id].packs[id]);library[id].requiredFeatures=[...new Set([...library[id].requiredFeatures,'spatial-rig','hair-shell'])];}
 export const starter = structuredClone(library.ona);
 export function upgradeLibraryDocument(document){

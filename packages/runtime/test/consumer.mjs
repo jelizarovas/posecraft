@@ -1,0 +1,125 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import http from 'node:http';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+import {execFileSync} from 'node:child_process';
+import {gzipSync} from 'node:zlib';
+import {chromium} from '@playwright/test';
+import {createElement} from 'react';
+import {renderToString} from 'react-dom/server';
+import {buildRuntimePackage} from '../../../tools/build-runtime-package.mjs';
+import {createWwzardIllustration} from '../../../examples/wwzard-illustration.js';
+
+const root=fileURLToPath(new URL('../../../',import.meta.url));
+const release=path.join(root,'releases'),consumer=path.join(root,'test-results/runtime-consumer');
+const npm=path.join(path.dirname(process.execPath),'node_modules/npm/bin/npm-cli.js');
+const runNpm=(args,cwd=root)=>execFileSync(process.execPath,[npm,...args],{cwd,encoding:'utf8',stdio:['ignore','pipe','pipe']});
+const manifest=await buildRuntimePackage();
+await fs.mkdir(release,{recursive:true});
+await fs.mkdir(consumer,{recursive:true});
+const [packed]=JSON.parse(runNpm(['pack','./packages/runtime','--pack-destination',release,'--json']));
+const archive=path.join(release,packed.filename);
+assert.equal(packed.name,'@posecraft/runtime');
+assert(packed.size<160*1024,`Package archive exceeds 160 KiB: ${packed.size}`);
+assert(!packed.files.some(({path:p})=>/^(src|examples|public|studio|tools)\//.test(p)));
+assert(!packed.files.some(({path:p})=>/(?:physics|3d|map|three|planck).*\.js$/.test(p)));
+await fs.writeFile(path.join(consumer,'package.json'),JSON.stringify({name:'posecraft-isolated-consumer',private:true,type:'module'}));
+runNpm(['install','--offline','--ignore-scripts','--no-audit','--no-fund','--package-lock=false',archive],consumer);
+const installed=path.join(consumer,'node_modules/@posecraft/runtime');
+const installedPackage=JSON.parse(await fs.readFile(path.join(installed,'package.json'),'utf8'));
+assert.equal(Object.keys(installedPackage.dependencies||{}).length,0);
+
+const runtime=await import(pathToFileURL(path.join(installed,'dist/index.js')));
+const animation=await import(pathToFileURL(path.join(installed,'dist/animation.js')));
+const reactAdapter=await import(pathToFileURL(path.join(installed,'dist/react.js')));
+const {illustrationFeatures}=await import(pathToFileURL(path.join(installed,'dist/features.js')));
+assert.equal(typeof animation.AnimationController,'function');
+const scene=createWwzardIllustration();
+assert(renderToString(createElement(reactAdapter.PosecraftIllustration,{scene})).includes('data-posecraft'));
+assert.equal(runtime.supportsIllustration(scene),true);
+assert.equal(runtime.validateDocument(scene).valid,true);
+const controller=runtime.createIllustrationController(scene);
+assert(runtime.renderSVG(scene,controller.frame()).includes('<svg'));
+controller.dispatch('close-laptop');assert.equal(controller.frame().behavior.state,'closingLaptop');
+controller.step(.1);controller.dispatch('open-laptop');
+assert.equal(controller.frame().behavior.state,'openingLaptop');
+assert.throws(()=>runtime.createIllustrationController({...scene,game:{}}),/game bindings/);
+assert.equal(runtime.supportsIllustration({...scene,ensemble:{}}),false);
+const motionScene=structuredClone(scene),motionActor=motionScene.actors.find(actor=>actor.id==='wwzard');
+motionScene.requiredFeatures=[...(motionScene.requiredFeatures||[]),'motion-layers'];
+motionScene.motionLayers=[{id:'test-drift',actor:motionActor.id,joint:motionScene.packs[motionActor.pack].joints[0].id,channel:'x',type:'sine',amplitude:1,frequency:1,phase:.5,seed:1}];
+assert.equal(runtime.supportsIllustration(motionScene),false);
+assert.equal(runtime.supportsIllustration(motionScene,illustrationFeatures),true);
+assert.throws(()=>runtime.createIllustrationController(motionScene),/Missing illustration provider: motion layers/);
+const moving=runtime.createIllustrationController(motionScene,illustrationFeatures);
+assert.equal(moving.frame().actors.length,scene.actors.length);moving.step(.1);moving.dispose();
+assert.throws(()=>runtime.createIllustrationController({...scene,ensemble:{}}));
+controller.dispose();
+
+await fs.writeFile(path.join(consumer,'types.ts'),`import {mountIllustration,createIllustrationController,assertDocument,renderSVG,type SceneDocument,type ActivityRecipe,type Frame} from '@posecraft/runtime';
+import {AnimationController,sampleClip} from '@posecraft/runtime/animation';
+import {PosecraftIllustration,type PosecraftIllustrationHandle} from '@posecraft/runtime/react';
+import {illustrationFeatures} from '@posecraft/runtime/features';
+const scene:SceneDocument=assertDocument(JSON.parse('{}'));
+const player=mountIllustration(document.createElement('div'),scene,{reducedMotion:'system',onEvent:event=>console.log(event.type)});
+player.dispatch('open-laptop');player.setVariable('mood',2);player.dispose();
+const frame:Frame=createIllustrationController(scene).frame();renderSVG(scene,frame);
+const transition:ActivityRecipe['transition']={duration:.25,interrupt:true,match:{actor:'screen',channel:'hinge.bend'}};
+const reactHandle:PosecraftIllustrationHandle|null=null;
+void [transition,AnimationController,sampleClip,PosecraftIllustration,reactHandle,illustrationFeatures];
+`);
+execFileSync(process.execPath,[path.join(root,'node_modules/typescript/bin/tsc'),'--noEmit','--strict','--module','nodenext','--target','es2022',path.join(consumer,'types.ts')],{cwd:consumer,encoding:'utf8'});
+
+await fs.writeFile(path.join(consumer,'scene.json'),JSON.stringify(scene));
+await fs.writeFile(path.join(consumer,'index.html'),`<!doctype html><html><head><style>body{margin:0}.stage{width:340px;height:340px}svg{width:100%;height:100%}</style></head><body><div id="host" class="stage"></div><div id="second" class="stage"></div><script type="module">
+import {mountIllustration} from './node_modules/@posecraft/runtime/dist/index.js';
+const scene=await (await fetch('./scene.json')).json();
+window.player=mountIllustration(document.querySelector('#host'),scene,{reducedMotion:false});
+window.second=mountIllustration(document.querySelector('#second'),scene,{reducedMotion:true});
+window.ready=true;
+</script></body></html>`);
+const server=http.createServer(async(req,res)=>{
+  try{const requested=decodeURIComponent(new URL(req.url,'http://localhost').pathname),file=path.resolve(consumer,'.'+(requested==='/'?'/index.html':requested));
+    if(!file.startsWith(consumer+path.sep))throw Error('Invalid path');
+    res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.json')?'application/json':'text/html');res.end(await fs.readFile(file));
+  }catch{res.statusCode=404;res.end('Not found');}
+});
+await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+const browser=await chromium.launch({channel:'msedge',headless:true});
+try{
+  const page=await browser.newPage({viewport:{width:800,height:850}}),errors=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(`http://127.0.0.1:${server.address().port}`);await page.waitForFunction(()=>window.ready);
+  assert.equal(await page.locator('#host svg').count(),1);
+  const result=await page.evaluate(async()=>{
+    const next=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    player.dispatch('close-laptop');const closing=player.controller.frame().behavior.state;
+    await next();player.dispatch('open-laptop');const opening=player.controller.frame().behavior.state;
+    player.pause();const paused=player.controller.time;await next();const stayedPaused=player.controller.time===paused;
+    const reducedStart=second.controller.time;await next();const reducedStill=second.controller.time===reducedStart;
+    second.dispatch('close-laptop');const reducedResponds=second.controller.frame().behavior.state==='closingLaptop';
+    player.play();await next();const resumed=player.controller.time>=paused;
+    document.querySelector('#host').style.marginTop='2000px';
+    await new Promise(resolve=>setTimeout(resolve,100));
+    const offscreenTime=player.controller.time;
+    await new Promise(resolve=>setTimeout(resolve,100));
+    const offscreenPaused=player.controller.time===offscreenTime;
+    document.querySelector('#host').style.marginTop='0';
+    await new Promise(resolve=>setTimeout(resolve,100));
+    const offscreenResumed=player.controller.time>offscreenTime;
+    player.dispose();second.dispose();await next();
+    return {closing,opening,stayedPaused,reducedStill,reducedResponds,resumed,offscreenPaused,offscreenResumed,remaining:document.querySelectorAll('svg,canvas').length};
+  });
+  assert.deepEqual(result,{closing:'closingLaptop',opening:'openingLaptop',stayedPaused:true,reducedStill:true,reducedResponds:true,resumed:true,offscreenPaused:true,offscreenResumed:true,remaining:0});
+  assert.deepEqual(errors,[]);
+}finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
+let runtimeGzip=0;const selected=new Set();
+function select(file){if(selected.has(file))return;selected.add(file);for(const imported of manifest.files.find(item=>item.file===file)?.imports||[])select(imported);}
+select('index.js');
+for(const file of selected)runtimeGzip+=gzipSync(await fs.readFile(path.join(root,'packages/runtime/dist',file))).length;
+const sceneGzip=gzipSync(JSON.stringify(scene)).length;
+assert(runtimeGzip+sceneGzip<=100*1024,`Wwwzard website transfer exceeds 100 KiB: ${runtimeGzip+sceneGzip}`);
+const report={archive,archiveBytes:packed.size,unpackedBytes:packed.unpackedSize,files:packed.files.length,runtimeGzipBytes:runtimeGzip,sceneGzipBytes:sceneGzip,websiteGzipBytes:runtimeGzip+sceneGzip,checks:['archive boundaries','zero runtime dependencies','installed package imports','shared scene playback','immediate interruption','unsupported feature rejection','opt-in motion provider playback','strict TypeScript consumer including React','React server rendering','browser SVG mount','two embeds','pause/resume','offscreen suspension and resume','reduced motion response','disposal','100 KiB website transfer budget']};
+await fs.writeFile(path.join(root,'test-results/runtime-consumer-report.json'),JSON.stringify(report,null,2)+'\n');
+console.log(JSON.stringify(report,null,2));

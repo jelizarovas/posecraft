@@ -6,6 +6,7 @@ Open [Posecraft demos](https://jelizarovas.github.io/posecraft/demos.html), or c
 
 | Demo | What to try | Editable project |
 | --- | --- | --- |
+| Wwzard at work (`wwzard.html`, gallery `#wwzard-desk`) | Typing, visitor attention, familiar responses, frustration and rest; normal/quarter-speed motion study | [Editable 2D scene, reusable character and website export](wwzard.md) |
 | [Littlelands map](https://jelizarovas.github.io/posecraft/demos.html#littlelands-map) | Click to move, drag/pinch camera, approach the chest and inn, save/restore | Map SDK JSON; map editing is not yet supported in Studio |
 | [Ship in a bottle](https://jelizarovas.github.io/posecraft/demos.html#ship-in-a-bottle) | Calm, breeze and gust; rocking hull, articulated canvas, waves and layered glass | Studio scene |
 | [One more flight](https://jelizarovas.github.io/posecraft/demos.html#loveseat-stairs) | Two dummies carrying a loveseat up endless stairs; alternating arm rests and partner compensation | Studio scene |

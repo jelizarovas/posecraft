@@ -1,0 +1,50 @@
+import {chromium} from '@playwright/test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+const base=process.env.PORTFOLIO_URL||'http://192.168.0.17:5256';
+const browser=await chromium.launch({headless:true,channel:'msedge'});
+const output='test-results/contact-completion';await fs.mkdir(output,{recursive:true});
+const draft={'Your name':'Preview Visitor','Email or phone':'preview@example.invalid','Company name':'Sample Studio','A role, a project, or a quick hello':'An illustration','Write your message':'Please keep these exact submitted words.'};
+try{
+ for(const [label,width,height,reducedMotion]of [['desktop',1280,900,'no-preference'],['phone',390,844,'no-preference'],['landscape-reduced',844,390,'reduce']]){
+  const page=await browser.newPage({viewport:{width,height},reducedMotion}),errors=[],requests=[];
+  let fail=true;page.on('pageerror',error=>errors.push(error.message));
+  await page.route('**/*submitPortfolioContact*',route=>{requests.push(route.request().postDataJSON().data);return route.fulfill({status:fail?500:200,contentType:'application/json',body:JSON.stringify(fail?{error:{status:'INTERNAL',message:'Mocked failure'}}:{data:{ok:true}})});});
+  await page.goto(base+'/contact');await page.locator('[data-posecraft-ready="true"]').waitFor();
+  for(const [placeholder,value]of Object.entries(draft))await page.getByPlaceholder(placeholder).fill(value);
+  await page.evaluate(()=>window.completionTestSvg=document.querySelector('.portfolio-character-runtime svg'));
+  await page.getByRole('button',{name:'Send message',exact:true}).click();
+  await page.getByRole('alert').filter({hasText:'Mocked failure'}).waitFor();
+  assert(!await page.locator('.contact-speech').isVisible(),'failure keeps form on screen');
+  for(const [placeholder,value]of Object.entries(draft))assert.equal(await page.getByPlaceholder(placeholder).inputValue(),value);
+  fail=false;await page.getByRole('button',{name:'Send message',exact:true}).click();
+  await page.locator('.contact-studio.is-complete').waitFor();
+  await page.waitForTimeout(200);await page.screenshot({path:`${output}/${label}-moving.png`});
+  await page.waitForTimeout(550);
+  assert(await page.getByText("Thanks, I'll review and reach out.",{exact:true}).isVisible());
+  assert.equal(await page.locator('.contact-desk').getAttribute('inert'),'');
+  assert.equal(await page.locator('.contact-desk').isVisible(),false);
+  assert(await page.evaluate(()=>window.completionTestSvg===document.querySelector('.portfolio-character-runtime svg')),'success preserves renderer');
+  const art=await page.locator('.contact-scene').boundingBox();assert(Math.abs(art.x+art.width/2-width/2)<3,'Wwwzard is centered');
+  const actions=await page.locator('.contact-completion-actions').boundingBox();assert(actions.y>=art.y+art.height-2,'buttons appear below him');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),width);
+  assert(await page.locator('.contact-speech').evaluate(node=>node===document.activeElement),'success receives accessible focus');
+  await page.screenshot({path:`${output}/${label}-complete.png`});
+  await page.getByRole('button',{name:'Review and edit sent one'}).click();await page.waitForTimeout(700);
+  for(const [placeholder,value]of Object.entries(draft))assert.equal(await page.getByPlaceholder(placeholder).inputValue(),value);
+  assert.equal(requests.length,2,'reviewing does not send a message');
+  assert(await page.getByPlaceholder('Your name').evaluate(node=>node===document.activeElement));
+  await page.getByPlaceholder('Write your message').fill('A revised message.');
+  await page.getByRole('button',{name:'Send updated message'}).click();await page.locator('.contact-studio.is-complete').waitFor();
+  await page.waitForTimeout(700);assert.equal(requests[2].message,'A revised message.');
+  await page.getByRole('button',{name:'Review and edit sent one'}).click();
+  assert.equal(await page.getByPlaceholder('Write your message').inputValue(),'A revised message.','review uses the latest successful submission');
+  await page.getByRole('button',{name:'Send updated message'}).click();await page.locator('.contact-studio.is-complete').waitFor();
+  await page.waitForTimeout(700);await page.getByRole('button',{name:'Send another one'}).click();await page.waitForTimeout(700);
+  for(const placeholder of Object.keys(draft))assert.equal(await page.getByPlaceholder(placeholder).inputValue(),'','new message starts blank');
+  await page.getByPlaceholder('Your name').press('a');await page.waitForTimeout(200);
+  assert(await page.locator('[data-posecraft-ready="true"]').count());
+  assert.deepEqual(errors,[]);console.log(JSON.stringify({label,centered:true,draftRestored:true,latestSubmission:true,newMessageBlank:true,rendererPreserved:true,failurePreservesForm:true,realMessagesSent:0}));
+  await page.close();
+ }
+}finally{await browser.close();}

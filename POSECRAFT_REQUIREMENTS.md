@@ -2,6 +2,8 @@
 
 Version 0.1 product brief | September 17, 2026. Guidance clarified September 23, 2026.
 
+Current direction, September 26, 2026: [polished 2D living illustrations](docs/product-direction.md) are the active product goal. Posecraft is an animation studio serving Little Lands Adventures, ukis.app and jelizarovas.com. The next gate is a complete authored, reusable website illustration with measured performance. Earlier native 3D, film-production and general game-engine plans do not set the active milestone. The broader requirements below remain a backlog subject to this priority.
+
 This document records product requirements and initial proposals, not an implementation inventory. Use the [roadmap](docs/studio-roadmap.md) and task-specific API guides for reported implementation status; verify the affected code when changing behavior. Later explicit decisions supersede initial defaults.
 
 ## 1 Purpose and instructions for Codex
@@ -34,7 +36,7 @@ Do not describe unimplemented behavior as working. Proposed API examples and pac
 
 These are starting decisions, not previously confirmed user constraints. Use them unless existing project decisions or new user instructions supersede them. The detailed requirements below are a proposed engineering contract derived from the confirmed scope. Explicitly optional extensions are not release gates for the baseline feature.
 
-- Historical starting scope: 2D scenes and articulated 2D characters. The later [native 3D direction](docs/engine-quality-reset.md#architecture-contract) adds world-space rigs and contacts while preserving the separate 2D format. The original starting scope is not a restriction on current native 3D or map work.
+- Active scope: 2D scenes and articulated 2D characters, following the [September 26 direction](docs/product-direction.md). Existing native 3D and map implementations remain available, but expanding them is not a prerequisite for the studio or its website illustrations.
 - Prefer TypeScript for the public SDK and React integration. Select the simulation and rendering implementations after inspecting existing work and testing a small representative scene.
 - Make essential editing, local saving, exporting, and embedded playback work without a required hosted service or paid API.
 - Use a versioned, inspectable document format with assets stored alongside it. A compact compiled runtime format can be added later.

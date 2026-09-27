@@ -7,3 +7,4 @@ playwright-report/
 *.log
 .tmp/
 .codex-remote-attachments/
+releases/

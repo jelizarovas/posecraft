@@ -6,6 +6,10 @@ import {createBottle} from './bottle.js';
 import {createLoveseat} from './loveseat.js';
 import {createGym} from './gym.js';
 import {createCampfire} from './campfire.js';
+import {createWwwzardHomeScene as createWwzardIllustration} from './wwwzard-home.js';
+import {createWwwzardStoriesScene} from './wwwzard-stories.js';
+import {createWwwzardProjectsScene} from './wwwzard-projects.js';
+import {createWwwzardContactScene} from './wwwzard-contact.js';
 import {addSpatialRig,addOnaArmJoints} from '../src/character-rigs.js';
 import {standingTarget} from '../src/recovery.js';
 import ona from './characters/ona.json' with {type:'json'};
@@ -15,6 +19,10 @@ import dummy from './characters/dummy.json' with {type:'json'};
 const library=structuredClone({ona,wwwzard,rusty,dummy});
 for(const id of ['ona','dummy']){addSpatialRig(library[id].packs[id],id,{studies:false});if(id==='ona')addOnaArmJoints(library[id].packs[id]);}
 export const demoCatalog=[
+ {id:'wwwzard-stories',title:'Wwwzard reads',category:'Portfolio stories',description:'A quiet reader follows the page, thinks, then turns to the next one.',features:['Page deformation','Reading and thought','Visitor response'],instruction:'Say hello, or watch him read. Open Studio to edit the book, poses, timing and behavior.',color:'#eee8f5',kind:'scene'},
+ {id:'wwwzard-projects',title:'Wwwzard at the workbench',category:'Portfolio projects',description:'Wwwzard drafts a plan and checks it against a small model.',features:['Pencil contact','Inspection','Quiet intervals'],instruction:'Say hello, or let him work. Open Studio to edit the model, drawing and character motion.',color:'#eee8f5',kind:'scene'},
+ {id:'wwwzard-contact',title:'A message for Wwwzard',category:'Portfolio contact',description:'Wwwzard waits, types with you and responds to the result of a message.',features:['Form activity','Immediate transitions','Submission reactions'],instruction:'Try the form activity buttons. They simulate signals without sending a message. Open Studio to edit each response.',color:'#eee8f5',kind:'scene'},
+ {id:'wwzard-desk',title:'Wwwzard at work',category:'Living website illustration',description:'A quiet wizard works at his computer, notices a visitor, responds and returns to the desk. His hat, posture and hands carry the acting.',features:['Authored acting clips','Editable behavior','Website export'],instruction:'Watch the quiet work and return. Use the visitor control to interrupt him, then return later to see how his response changes. Open in Studio to edit the rig, clips and behavior.',color:'#ddd1e5',kind:'scene'},
  {id:'littlelands-map',title:'Littlelands map',category:'Explore an isometric world',description:'Explore a generated woodland with painted terrain, varied trees and rocks. Walk to the chest and inn while only visible scenery is drawn.',features:['Viewport culling','Click to move','Painted assets'],instruction:'Tap a destination or object to walk; double-tap or Shift-click to run. Tap nearby for a short step or turn. Hold or Alt-click to face a point. Drag to explore; Recenter resumes following. Scroll or pinch to zoom. Save preserves the map and your progress. Open the standalone demo for the full-window town, or use Map editor to paint terrain and place props.',color:'#9baa74',kind:'map'},
  {id:'corner-shop',title:'The corner shop',category:'Play a little scene',description:'Help Ona open the shop, greet Rusty, explore the yard and switch the light. Your choices interrupt and change the characters’ next actions.',features:['Playable quest','Character reactions','Cancellable sequences'],instruction:'Click the broken sign to fix it, the lamp to change the light, or Rusty to play. Continue Ona’s dialogue to finish opening the shop.',color:'#f1d9ac',kind:'scene'},
  {id:'a-little-handoff',title:'A little handoff',category:'Reach, hold and pass',description:'Clover offers a small gift. Moss reaches for it, takes a closer look, then passes it back.',features:['Moving grip targets','Attached prop artwork','Contact fades'],instruction:'Watch the shared parcel change hands, or pause at an acting beat. Edit the gift attachments, grip windows and hand poses in Studio.',color:'#eee8dc',kind:'scene'},
@@ -43,6 +51,10 @@ const shot=(id,name,set,actors,duration=4,view=camera())=>({id,name,scene:set,du
 const episode=(id,name,scenes,shots)=>({schemaVersion:1,kind:'episode',id,name,revision:0,fps:24,size:{width:1280,height:720},scenes,shots});
 const parkProps=()=>[rect('sky',400,200,800,500,'#d8e9e5'),rect('grass',400,425,800,110,'#a8c38c'),rect('path',400,415,800,32,'#ded1ac'),rect('tree-trunk',110,230,26,280,'#9b795f'),rect('tree-crown',100,104,165,155,'#89ae83',false,8),rect('tree-leaves',137,114,112,108,'#a1be90',false,30),rect('bench-seat',605,331,225,15,'#ac8c68'),rect('bench-back',605,287,225,60,'#bf9e76'),rect('bench-leg-a',520,368,14,60,'#897662'),rect('bench-leg-b',690,368,14,60,'#897662')];
 export function createDemo(id){
+ if(id==='wwwzard-stories')return createWwwzardStoriesScene();
+ if(id==='wwwzard-projects')return createWwwzardProjectsScene();
+ if(id==='wwwzard-contact')return createWwwzardContactScene();
+ if(id==='wwzard-desk')return createWwzardIllustration();
  if(id==='littlelands-map')return createWoodlandMap({width:128,height:128,seed:2026});
  if(id==='corner-shop')return createGameExample();
  if(id==='a-little-handoff')return createHandoff();

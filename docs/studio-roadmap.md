@@ -1,10 +1,18 @@
 # From demos to a production studio
 
+## Active priority, September 26, 2026
+
+The [product direction](product-direction.md) now governs milestone selection. Finish one polished 2D living illustration through artwork, motion, authored behavior, Studio editing, save/reopen and website export. Set numerical website budgets and verify the host page on desktop and a physical phone. Then prove reuse in another scene or character. Visual acceptance, authoring/reuse, correctness and cost are separate gates.
+
+Retain the implemented work below, but treat the native 3D direction, 30-second film milestone and its priority table as earlier plans, not the next required work. Broader game-engine development is driven by a specific accepted scene need or an explicit user request. See [the next acceptance scene](product-direction.md#next-acceptance-scene) for the current completion check.
+
+## Earlier roadmap and implementation record
+
 Status: implementation started, September 17, 2026. The first coordinated milestone is tracked below. The broader roadmap remains planned work, not a claim of completed features or delivery estimates. Existing behavior is documented in the linked guides.
 
 The [September architecture review](architecture-review-2026-09-17.md) checks the supplied recommendations against the current code and proposes the next shared-engine and demo work. Its proposed order is not an implementation-complete checklist.
 
-The September 18 [engine quality reset](engine-quality-reset.md) established the character and motion acceptance contract after the user rejected the Atlas 3D pilot's visual quality. It requires a native spatial/rig contract, deliberately authored assets, real contact/support constraints and a blocking motion-quality review for affected character work. The user's current task determines the active milestone. The renderer pilot is not an accepted production character pipeline. A separate [native bench Studio](native-studio.md) now implements the first end-to-end path with authored GLBs, native contacts, worker playback and portable website export; the [review record](native-3d-review.md) distinguishes verified behavior from remaining quality work.
+The September 18 [engine quality reset](engine-quality-reset.md) established character and motion acceptance criteria after the user rejected the Atlas 3D pilot's visual quality. Its native spatial/rig architecture applies to that separate 3D workstream; it does not require migrating 2D illustrations. Deliberately authored assets, correct contacts and review of full motion remain relevant. A separate [native bench Studio](native-studio.md) implements a focused path with authored GLBs, native contacts, worker playback and portable website export; the [review record](native-3d-review.md) distinguishes verified behavior from remaining quality work.
 
 ## What is already usable
 

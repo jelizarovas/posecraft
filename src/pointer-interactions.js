@@ -16,6 +16,9 @@ export function validateInteractions(document,check){
   if(b.joint!==undefined)check(pack?.joints?.some(j=>j.id===b.joint),path,'Missing interaction joint.');if(b.part!==undefined)check(pack?.parts?.some(p=>p.id===b.part),path,'Missing interaction artwork.');
   if(b.response!=='event')check(b.gesture==='drag'&&typeof b.joint==='string',path,'Carry and resistance need a draggable joint.');
   if(b.threshold!==undefined)check(Number.isFinite(b.threshold)&&b.threshold>=50&&b.threshold<=5000,path,'Pointer speed threshold must be 50..5000 scene units per second.');
+  if(b.cooldown!==undefined)check(Number.isFinite(b.cooldown)&&b.cooldown>=0&&b.cooldown<=10,path,'Cooldown must be 0..10 seconds.');
+  if(b.radius!==undefined)check(b.gesture==='hover-fast'&&typeof b.joint==='string'&&Number.isFinite(b.radius)&&b.radius>0&&b.radius<=1000,path,'Proximity needs a hover joint and radius of 0..1000 scene units.');
+  if(b.direction!==undefined)check(b.gesture==='hover-fast'&&['left','right'].includes(b.direction),path,'Direction applies to fast hover and must be left or right.');
  }
 }
 /** Kinematic pointer resistance, independent of rigid-body physics. */
@@ -25,7 +28,7 @@ export class ScenePointerInteraction{
  input(command){
   const b=this.document.interactions?.find(b=>b.id===command?.binding);if(!b||!phases.includes(command.phase)||![command.x,command.y].every(n=>Number.isFinite(n)&&Math.abs(n)<=10000))throw Error('Invalid pointer interaction.');
   const {phase,x,y}=command;
-  if(phase==='click'||phase==='hover'){if(b.gesture!==(phase==='click'?'click':'hover-fast'))throw Error('Gesture does not match binding.');if(this.time<(this.cooldowns.get(b.id)||0))return;this.cooldowns.set(b.id,this.time+.8);this.dispatch(b.event,{actor:b.actor,x,y});return;}
+  if(phase==='click'||phase==='hover'){if(b.gesture!==(phase==='click'?'click':'hover-fast'))throw Error('Gesture does not match binding.');if(this.time<(this.cooldowns.get(b.id)||0))return;this.cooldowns.set(b.id,this.time+(b.cooldown??.8));this.dispatch(b.event,{actor:b.actor,x,y});return;}
   if(b.gesture!=='drag')throw Error('Binding is not draggable.');
   if(phase==='start'){
    const a=this.document.actors.find(a=>a.id===b.actor),f=this.lastFrame?.actors.find(a=>a.id===b.actor);if(!f||f.physics)return;const p=this.document.packs[a.pack],j=world(p,f.pose)[b.joint||p.joints[0].id],anchor=screen(j,f.placement||a.transform);

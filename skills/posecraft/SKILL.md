@@ -23,3 +23,5 @@ For 2D document edits, use `DocumentStore.transact` or `posecraft edit`. Transac
 The repository CLI exposes `capabilities`, `inspect`, `validate`, `preview` and `simulate` through `node tools/cli.mjs`. Use the commands relevant to the edit; these are not a mandatory sequence or a capability inventory for the native and map APIs. Director has separate episode commands documented in its guide.
 
 Use the selected API's schema and affected runtime code to resolve stale documentation or unsupported fields. Preserve the distinction between authored poses, contact constraints and physical simulation when describing results.
+
+For living website illustrations, read [the recorded Wwwzard lessons](../../docs/living-illustration-lessons.md). Keep reusable deformation, partial depth, interruption and input handling in shared contracts; save character-specific poses in scene data. Verify the whole motion at embed size and the exact consumer build.

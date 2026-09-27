@@ -2,7 +2,7 @@ import type {SceneDocument} from './schema.js';
 import type {Frame} from './scene.js';
 import type {SVGOptions} from './svg.js';
 export type Matrix=[number,number,number,number,number,number];
-export type Material={type:'solid';color:string}|{type:'radial';cx:number;cy:number;rx:number;ry:number;stops:Array<[number,string,number?]>};
+export type Material={type:'solid';color:string}|{type:'radial';cx:number;cy:number;rx:number;ry:number;stops:Array<[number,string,number?]>}|{type:'linear';x1:number;y1:number;x2:number;y2:number;stops:Array<[number,string]>};
 export interface RenderCapability {code:string;message:string}
 export interface CapabilityReport {supported:boolean;unsupported:RenderCapability[];limitations:RenderCapability[]}
 export interface PickResult {actor?:string;part?:string;joint?:string;fragment?:string;prop?:string;object?:string;emitter?:string;command?:string}

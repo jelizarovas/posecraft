@@ -1,0 +1,60 @@
+import {chromium} from '@playwright/test';
+import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+const base=process.env.PORTFOLIO_URL||'http://192.168.0.17:5256',dir='test-results/contact-story';await fs.mkdir(dir,{recursive:true});
+try{
+ const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ const action=()=>page.locator('[data-actor="wwzard"]').getAttribute('data-activity');
+ const waitAction=(name,timeout=15000)=>page.waitForFunction(name=>document.querySelector('[data-actor="wwzard"]')?.getAttribute('data-activity')===name,name,{timeout});
+ await page.goto(base+'/contact');await page.locator('.portfolio-character[data-posecraft-ready="true"]').waitFor();
+ assert.equal(await page.locator('.studio-window,.studio-plant').count(),0,'no separately redrawn room props');
+ assert.equal(await page.locator('[data-actor="room"]').count(),1,'the exported scene includes its shared room');
+ await page.getByRole('button',{name:'Send message'}).click();await waitAction('error');
+ await page.waitForTimeout(850);await page.screenshot({path:dir+'/validation-face.png'});
+ await page.getByPlaceholder('Your name').fill('Preview');await waitAction('typing');
+ await page.waitForTimeout(130);await page.screenshot({path:dir+'/typing.png'});
+ await page.getByPlaceholder('Email or phone').fill('preview@example.invalid');
+ await page.getByPlaceholder('A role, a project, or a quick hello').fill('Local preview');
+ await page.waitForFunction(()=>document.querySelector('.portfolio-character')?.dataset.activity==='almost-done');
+ await waitAction('prepared');assert.equal(await page.locator('[data-actor=window]').getAttribute('data-activity'),'windowOpen');await page.screenshot({path:dir+'/plane-prepared.png'});
+ await page.getByPlaceholder('Write your message').fill('Intercepted test, not sent.');
+ await page.waitForTimeout(550);
+ const pose=()=>page.evaluate(()=>Object.fromEntries(['leftHand','rightHand'].map(id=>{
+  const m=document.querySelector(`[data-actor="wwzard"] [data-joint="${id}"]`).transform.baseVal.consolidate().matrix;return[id,{x:m.e,y:m.f}];
+ })));
+ const held=await pose();
+ for(const key of ['q','a','z','j','Backspace']){
+  await page.keyboard.down(key);await page.waitForTimeout(180);const typed=await pose();
+  assert(Math.hypot(typed.leftHand.x-held.leftHand.x,typed.leftHand.y-held.leftHand.y)>2,'all letters move the free anatomical right hand');
+  assert(Math.abs(typed.rightHand.x-held.rightHand.x)<.1&&Math.abs(typed.rightHand.y-held.rightHand.y)<.1,'plane hand remains planted');
+  await page.keyboard.up(key);await page.waitForTimeout(220);
+ }
+ await page.screenshot({path:dir+'/one-hand-typing.png'});
+ let requests=0;
+ await page.route('**/*submitPortfolioContact*',route=>{requests++;return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{ok:true}})});});
+ await page.getByRole('button',{name:'Send message'}).click();
+ await waitAction('sending');await page.waitForTimeout(400);await page.screenshot({path:dir+'/plane-flight.png'});
+ await waitAction('close');assert.equal(await page.locator('[data-actor=window]').getAttribute('data-activity'),'windowClose');await waitAction('nap');await page.waitForTimeout(600);await page.screenshot({path:dir+'/nap.png'});
+ assert.equal(requests,1,'success request intercepted exactly once');
+ await page.getByRole('button',{name:'Send another one'}).click();await waitAction('open');await waitAction('ready');
+ await page.getByPlaceholder('Your name').fill('Preview');await page.getByPlaceholder('Email or phone').fill('preview@example.invalid');
+ await page.getByPlaceholder('A role, a project, or a quick hello').fill('Local error');await page.getByPlaceholder('Write your message').fill('Keep this draft.');
+ await page.unroute('**/*submitPortfolioContact*');
+ await page.route('**/*submitPortfolioContact*',route=>route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({error:{status:'INTERNAL',message:'Mocked failure'}})}));
+ await page.getByRole('button',{name:'Send message'}).click();await waitAction('sending');await waitAction('prepare');await waitAction('prepared');
+ await page.screenshot({path:dir+'/server-error-new-plane.png'});
+ assert.equal(await page.getByPlaceholder('Write your message').inputValue(),'Keep this draft.');
+ await page.setViewportSize({width:390,height:844});
+ await page.screenshot({path:dir+'/retry-mobile.png'});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390,'open casement stays within mobile layout');
+ await page.setViewportSize({width:1280,height:900});
+ assert.notEqual(await action(),'nap');assert.equal(await page.locator('[data-actor=window]').getAttribute('data-activity'),'windowOpen','failure keeps window open');
+ await page.unroute('**/*submitPortfolioContact*');
+ await page.route('**/*submitPortfolioContact*',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:{ok:true}})}));
+ await page.getByRole('button',{name:'Send message'}).click();await waitAction('sending');await waitAction('close');
+ assert.equal(await page.locator('[data-actor=window]').getAttribute('data-activity'),'windowClose','successful retry closes window');
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({nativeValidationReaction:true,typing:true,nearCompletionPlane:true,fastSuccessFinishesThrow:true,closeNapWake:true,errorPreservesDraft:true,oneHandedAllKeys:true,windowOpenClose:true,failureReplacesPlane:true,retrySuccess:true,realMessagesSent:0}));
+}finally{await browser.close();}

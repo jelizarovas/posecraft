@@ -1,0 +1,21 @@
+{
+  "name": "@posecraft/runtime",
+  "version": "0.1.0-alpha.2",
+  "description": "Playback for authored Posecraft 2D living illustrations",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": ["dist", "README.md", "LICENSE"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {"types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./dist/index.js"},
+    "./react": {"types": "./dist/react.d.ts", "import": "./dist/react.js", "default": "./dist/react.js"},
+    "./animation": {"types": "./dist/animation.d.ts", "import": "./dist/animation.js", "default": "./dist/animation.js"},
+    "./features": {"types": "./dist/features.d.ts", "import": "./dist/features.js", "default": "./dist/features.js"},
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {"react": ">=18"},
+  "peerDependenciesMeta": {"react": {"optional": true}},
+  "publishConfig": {"access": "public", "tag": "alpha"}
+}

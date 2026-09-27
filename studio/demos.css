@@ -53,3 +53,5 @@
 #demo-player.demo-fullscreen button:not(#demo-fullscreen){display:none!important}
 
 .demo-heading{flex-wrap:wrap;gap:10px}.demo-heading-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.demo-heading-actions [hidden]{display:none}
+.wwzard-moods{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.wwzard-moods button[aria-pressed="true"]{outline:2px solid currentColor;outline-offset:2px}

@@ -1,5 +1,7 @@
 # Littlelands NPC and animal asset production brief
 
+Scope clarification, September 26, 2026: the [current product direction](product-direction.md) favors authored 2D artwork and living website illustrations. Distinct identities, appropriate anatomy/motion, clean contacts and measured asset cost remain requirements. The Blender/mesh production route and frame inventories below are an earlier proposal, not a mandatory pipeline or the active studio milestone. Choose a 2D production method against the approved artwork and performance budget; preserve existing source assets.
+
 Status: instructions only. No new images, models, animations or runtime features are delivered by this document. Counts below define a proposed production scope, not assets that already exist. Preserve existing NPC IDs so authored routines can be rebound later.
 
 ## Requirements and planning assumptions

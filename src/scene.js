@@ -76,7 +76,7 @@ export class SceneController {
     return this.frame();
   }
   pointer(command){this.frame();this.applyingPointer=true;try{this.pointers.input(command);}finally{this.applyingPointer=false;}if(!this.replaying)this.record({type:'pointer',command:{...command}});}
-  applyGraphAction(action,payload){this.applyingGraph=true;try{if(action.type==='object')this.objectCommand(action.command);else if(action.type==='input')this.setInput(action.actor,action.input,action.value);else if(action.type==='ensemble')this.triggerEnsemble(action.event,payload);else if(action.type==='emitter')this.ensemble?.setEmitterEnabled?.(action.emitter,action.enabled);}finally{this.applyingGraph=false;}}
+  applyGraphAction(action,payload){this.applyingGraph=true;try{if(action.type==='object')this.objectCommand(action.command);else if(action.type==='input')this.setInput(action.actor,action.input,action.value);else if(action.type==='ensemble')this.triggerEnsemble(action.event,payload);else if(action.type==='emitter')this.ensemble?.setEmitterEnabled?.(action.emitter,action.enabled);else if(action.type==='event')this.emit({type:action.event,...payload});}finally{this.applyingGraph=false;}}
   dispatch(event,payload={}){const safe=validateBehaviorEvent(this.document,event,payload);if(!this.graph&&!this.actorBehaviors)return false;if(!this.replaying)this.record({type:'dispatch',event,payload:safe});const scoped=this.actorBehaviors?.dispatch(event,safe)||false,accepted=this.graph?.dispatch(event,safe)||false;this.graph?.tick(0);return accepted||scoped;}
   setActorVariable(actor,name,value){const spec=this.document.actorBehaviors?.find(s=>s.actor===actor);validateBehaviorVariable(spec?.graph,name,value);if(!this.actorBehaviors)return;this.actorBehaviors.setVariable(actor,name,value);this.record({type:'actor-variable',actor,name,value});}
   dispatchActor(actor,event,payload={}){return this.dispatch(event,{...payload,actor});}
@@ -183,7 +183,7 @@ export class SceneController {
     if(this.fluid&&!this.reducedMotion&&this.animationPlaying)this.fluid.tick(STEP);
     if(this.graph&&this.ensemble){this.ensemble.advance(this.time,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id)));if(this.ensemble.drainEvents)for(const {event,...payload} of this.ensemble.drainEvents())this.graph.dispatch(event,payload);}
     this.graph?.tick(this.reducedMotion||!this.animationPlaying?0:STEP);
-    tickActorBehaviors(this,this.reducedMotion||!this.animationPlaying?0:STEP,new Set(this.actors.filter(a=>a.sleeping||a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated').map(a=>a.actor.id)));
+    tickActorBehaviors(this,this.reducedMotion||!this.animationPlaying?0:STEP,new Set(this.actors.filter(a=>a.sleeping||a.preview||a.behavior.mode!=='animated').map(a=>a.actor.id)));
     this.pointers?.step(STEP);
     for (const a of this.actors) {
       if(a.sleeping)continue;
@@ -236,7 +236,7 @@ export class SceneController {
       let world=forwardKinematics(runtime.joints,pose);
       if(physics&&behavior.mode!=='animated')({pose,world}=physics.apply(pose));
       const clip=preview?.clip||action?.clip||pack.states[runtime.layers[0].state]?.clip,definition=pack.clips[clip],elapsed=preview?.time??action?.clipTime??runtime.layers[0].time,clipTime=preview||action?elapsed:definition?.loop?elapsed%definition.duration:Math.min(elapsed,definition?.duration??elapsed);
-      return { id: actor.id, clip, clipTime, ...(action?{activity:action.activity}:{}), pose, inputs, world, response:response.state, physics:behavior.mode==='animated'?null:physics?.diagnostics||null, recovery:recovery?{phase:recovery.phase,blocked:recovery.blocked,target:{x:recovery.to.x,y:recovery.to.y}}:null,state: recovery?.phase==='walking'||recovery?.phase==='returning'?'walk':preview?.clip || action?.activity || runtime.layers[0].state, spring: { ...spring } };
+      return { id: actor.id, clip, clipTime, ...(action?{activity:action.activity,...(action.shapeBlend?{shapeBlend:action.shapeBlend}:{})}:{}), pose, inputs, world, response:response.state, physics:behavior.mode==='animated'?null:physics?.diagnostics||null, recovery:recovery?{phase:recovery.phase,blocked:recovery.blocked,target:{x:recovery.to.x,y:recovery.to.y}}:null,state: recovery?.phase==='walking'||recovery?.phase==='returning'?'walk':preview?.clip || action?.activity || runtime.layers[0].state, spring: { ...spring } };
     }) };
     let evaluated=this.ensemble?this.ensemble.apply(frame,new Set(this.actors.filter(a=>a.preview||this.graph?.hasActivity(a.actor.id)||a.behavior.mode!=='animated'||a.runtime.inputs.action&&a.runtime.inputs.action!=='campfire').map(a=>a.actor.id))):frame;
     if(this.fluid)evaluated=this.fluid.apply(evaluated,{disabledActors:new Set(this.actors.filter(a=>a.preview).map(a=>a.actor.id))});

@@ -1,0 +1,52 @@
+import {chromium} from '@playwright/test';
+import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import {assertDocument} from '@posecraft/runtime';
+const base=process.env.POSECRAFT_URL||'http://127.0.0.1:5247';
+const browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'msedge'}:{})});
+const errors=[],results=[];
+try{
+ for(const scene of ['stories','projects','contact']){
+  const id='wwwzard-'+scene,key='posecraft.studio.v2.demo.'+id;
+  const page=await browser.newPage({viewport:{width:1280,height:850},acceptDownloads:true,reducedMotion:'reduce'});
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(base+'/demos.html#'+id);await page.locator('#portfolio-visitor').waitFor();
+  if(scene==='contact')assert.equal(await page.locator('#portfolio-typing').count(),1);
+  await page.locator('#edit-demo').click();await page.locator('#clip').waitFor();
+  await page.locator('#actors').selectOption('wwzard');
+  const selectedClip=await page.locator('#clip').inputValue();
+  await page.locator('[data-select-joint="hat"]').click();
+  await page.locator('#pose-channel').selectOption('rotation');
+  await page.locator('#key-time').fill('0.7');await page.locator('#key-time').press('Tab');
+  await page.locator('#rotation-number').fill('0.5');await page.locator('#rotation-number').dispatchEvent('input');
+  await page.locator('#add-key').click();
+  const doc=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),key);
+  assertDocument(doc);
+  assert(doc.packs.wwzard.clips[selectedClip].tracks['hat.rotation'].some(([time,value])=>time===.7&&value===.5));
+  const downloading=page.waitForEvent('download');await page.locator('#export').click();
+  const file=await(await downloading).path(),saved=JSON.parse(await fs.readFile(file,'utf8'));
+  assertDocument(saved);
+  const fresh=await browser.newPage({viewport:{width:1280,height:850},acceptDownloads:true,reducedMotion:'reduce'});
+  fresh.on('pageerror',e=>errors.push(e.message));
+  await fresh.goto(base+'/');await fresh.locator('#clip').waitFor();
+  await fresh.locator('#file').setInputFiles({name:id+'.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(saved))});
+  await fresh.locator('#actors').selectOption('wwzard');
+  const reopened=await fresh.evaluate(()=>JSON.parse(localStorage.getItem('posecraft.studio.v2')));
+  assert.deepEqual(reopened.packs,saved.packs,'rig, props and edited animation survive reopening');
+  assert.deepEqual(reopened.behaviorGraph,saved.behaviorGraph,'behavior survives reopening');
+  assert.deepEqual(reopened.hostTransition,saved.hostTransition,'page motion survives reopening');
+  assert.deepEqual(reopened.motionLayers,saved.motionLayers,'keyboard and gaze input layers survive reopening');
+  assert.deepEqual(reopened.actorBehaviors,saved.actorBehaviors,'independent attention timing survives reopening');
+  assert.deepEqual(reopened.materialLighting,saved.materialLighting,'night lighting survives reopening');
+  assert.deepEqual(reopened.interactions,saved.interactions,'window repeat delay survives reopening');
+  await fresh.locator('#scene-workspace').click();
+  await fresh.locator('#scene-behaviors').click();
+  await fresh.locator('[data-behavior-page="export"]').click();
+  const website=fresh.waitForEvent('download');await fresh.locator('#behavior-export').click();
+  const html=await fs.readFile(await(await website).path(),'utf8');
+  assert(html.includes(id));assert(html.includes('runtime/illustration.js'));
+  results.push({scene,editSaveReopen:true,websiteExport:true});
+  await page.close();await fresh.close();
+ }
+ assert.deepEqual(errors,[]);console.log(JSON.stringify(results));
+}finally{await browser.close();}

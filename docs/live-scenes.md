@@ -10,6 +10,8 @@ Open **Scene → Behaviors**. The inspector has five pages:
 - **Branches:** connect states through a named event or a delay. Set the earliest and latest delay, a condition on a variable, and a choice weight.
 - **Events:** edit initial variables and handlers that can run in any state. Use **Try an event** to test a named event with an optional actor.
 - **Pointer:** bind a character, body part, gesture and response. Set resistance, the release event, and the speed threshold for fast hover.
+
+Fast hover also supports a saved `radius` around a selected joint and an optional `direction` of `left` or `right`. Radius is measured in scene units, scales with the actor, and lets blank space near a plant respond to a passing pointer. Leaving radius at zero in Studio removes the proximity setting and keeps artwork-only hit testing. Both directions share the existing hover cooldown; off-target movement does not dispatch an event. These controls are available in Studio's Pointer page and survive project and website export.
 - **Export:** download website HTML for the current project. The export panel describes its runtime requirements.
 
 Changes use Studio's normal undo, redo and saved draft flow. Downloaded project JSON contains `behaviorGraph`, `interactions`, and the `presentation` choice. **Live illustration** enables the graph; **Sequenced scene** disables graph execution for directed playback. Opening a saved scene starts its rules from the configured initial state. The current transient reaction, cursor position and running timer are not saved as a new animation clip.
@@ -97,3 +99,13 @@ Once loaded, `window.posecraft` exposes the illustration player: `play()`, `paus
 Illustrations pause rendering while hidden or offscreen and honor reduced motion. Click responses still update a paused image. The lightweight player runs bounded animation and scene rules on the main thread; it does not load a physics worker merely for kinematic pointer resistance. Audio and movie export are separate features and are not included in this website compiler.
 
 Physical HTML that imports its runtime from another origin uses the full main-thread player because browsers prohibit that remote worker URL. Compile a self-contained website folder to keep the physical simulation in its worker.
+
+### Host-driven page travel
+
+Saved `hostTransition.actors` bindings select directional arrival/departure clips. Supply `player.setHostTransition({phase: 'arrive', direction: -1, progress: 0.5})` and finish with `player.clearHostTransition()`. Playing illustrations coalesce samples into the next scheduled frame; paused illustrations repaint immediately. Reduced motion suppresses the overlay. When the host already supplies progress and does not need automatic acceleration reactions, mount with `{hostMotion:false}` to skip per-frame host position reads. The default remains `true`. These clips and bindings survive Studio save/reopen and website export.
+
+### Host events and repeatable controls
+
+Explicit behavior actions of type `event` retain internal graph routing and also reach the mounted player’s `onEvent` callback. The callback receives `{type: action.event, ...payload}`; an authored `actor` replaces the payload actor when present. Replay suppresses host callbacks. Ordinary dispatched inputs do not become host events automatically.
+
+Pointer bindings accept an optional `cooldown` from 0 to 10 seconds, defaulting to 0.8. Set it to zero for immediate reversible controls such as the window theme toggle. Studio exposes this as Repeat delay. Zero also permits repeated clicks while the animation clock is paused or reduced motion is active.

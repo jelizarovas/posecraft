@@ -1,3 +1,5 @@
+import {validateMaterialLighting} from './material-lighting.js';
+import {validateHostTransition} from './host-transition.js';
 import {validateGameBindings} from './game-bindings.js';
 import {validateAttachments} from './scene-attachments.js';
 import {validateActorBehaviors} from './actor-behaviors.js';
@@ -10,12 +12,27 @@ import {validateInteractions} from './pointer-interactions.js';
 import {validateBehaviorGraph} from './behaviors.js';
 import {lightRanges} from './lighting.js';
 import {spatialChannels} from './spatial.js';
-export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', renderers: ['svg','canvas'], features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings','scene-depth','surface-decals','skinned-mesh','scene-objects','prop-games','motion-layers','scroll-bindings','actor-behaviors','navigation','prop-attachments','contact-targets','game-bindings'], unavailable: ['general-fluid-dynamics', 'svg-import','inter-character-collisions'] });
+export const capabilities = Object.freeze({ schemaVersion: 1, renderer: 'svg', renderers: ['svg','canvas'], features: ['rigs', 'paths', 'instances', 'timelines', 'input-states', 'part-gradients', 'transactions', 'translation-inertia', 'appearance-variants', 'expressions','rigid-body-physics','response-states','synth-audio','prop-colliders','assisted-recovery','assisted-walking','spatial-rig','scene-lighting','scenery-layers','campfire-ensemble','soft-limbs','hair-shell','scene-groups','procedural-emitters','contacts','behavior-graphs','pointer-interactions','bottle-fluid','action-variations','directional-artwork','pose-bindings','scene-depth','surface-decals','skinned-mesh','scene-objects','prop-games','motion-layers','scroll-bindings','actor-behaviors','navigation','prop-attachments','contact-targets','game-bindings','host-transition','material-lighting'], unavailable: ['general-fluid-dynamics', 'svg-import','inter-character-collisions'] });
 const safeId = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 const colors = /^(#[0-9a-fA-F]{3,8}|none)$/;
+const opaqueColor = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const record = v => v && typeof v === 'object' && !Array.isArray(v);
 const finite = (v, min = -10000, max = 10000) => Number.isFinite(v) && v >= min && v <= max;
 const fields=(value,allowed)=>record(value)&&Object.keys(value).every(key=>allowed.includes(key));
+function validatePartGradient(gradient,path,check){
+ check(fields(gradient,['type','x1','y1','x2','y2','stops'])&&gradient.type==='linear',path,'Expected a linear part gradient with no extra fields.');
+ if(!record(gradient))return;
+ for(const key of ['x1','y1','x2','y2'])check(finite(gradient[key],0,1),path+'.'+key,'Expected a finite normalized coordinate from 0 to 1.');
+ if(['x1','y1','x2','y2'].every(key=>finite(gradient[key],0,1)))check(gradient.x1!==gradient.x2||gradient.y1!==gradient.y2,path,'Gradient endpoints must differ.');
+ const stops=Array.isArray(gradient.stops)?gradient.stops:[];
+ check(Array.isArray(gradient.stops)&&stops.length>=2&&stops.length<=8,path+'.stops','Expected 2..8 ordered color stops.');
+ let previous=-1;
+ for(const [index,stop] of stops.entries()){
+  const valid=Array.isArray(stop)&&stop.length===2&&finite(stop[0],0,1)&&typeof stop[1]==='string'&&opaqueColor.test(stop[1])&&stop[0]>=previous;
+  check(valid,path+'.stops.'+index,'Expected an ordered offset from 0 to 1 and an opaque hex color.');
+  if(valid)previous=stop[0];
+ }
+}
 
 function validateSpatialMesh(mesh,joints,path,check){
  check(fields(mesh,['vertices','triangles','correctives','creaseAngle']),path,'Expected mesh vertices, triangles and optional correctives or crease angle.');if(!record(mesh))return;
@@ -98,6 +115,7 @@ function validateStructure(doc) {
       check(joints.has(part.joint), `${p}.parts.${part.id}.joint`, 'Missing joint.');
       check(typeof part.d === 'string' && part.d.length <= 200000 && /^[MmZzLlHhVvCcSsQqTtAaEe0-9.,+\s-]+$/.test(part.d), `${p}.parts.${part.id}.d`, 'Expected SVG path geometry only.');
       check(colors.test(part.fill), `${p}.parts.${part.id}.fill`, 'Expected hex color or none.');
+      if(part.gradient!==undefined){validatePartGradient(part.gradient,`${p}.parts.${part.id}.gradient`,check);check(doc.requiredFeatures?.includes('part-gradients'),'requiredFeatures','Scenes with authored part gradients must declare part-gradients.');}
       if (part.stroke !== undefined) check(colors.test(part.stroke), `${p}.parts.${part.id}.stroke`, 'Expected hex color or none.');
       if (part.strokeWidth !== undefined) check(finite(part.strokeWidth, 0, 30), `${p}.parts.${part.id}.strokeWidth`, 'Invalid stroke width.');
       if (part.transform !== undefined) check(typeof part.transform === 'string' && part.transform.length < 300 && /^(\s*(translate|scale|rotate|matrix)\(\s*[-+0-9.eE,\s]+\)\s*)*$/.test(part.transform), `${p}.parts.${part.id}.transform`, 'Only numeric SVG transforms are supported.');
@@ -124,7 +142,13 @@ function validateStructure(doc) {
         if(v.facing!==undefined)check(['front','back'].includes(v.facing),q,'Invalid facing.');
         if(v.surface!==undefined)check(record(v.surface)&&finite(v.surface.x,-500,500)&&finite(v.surface.width,1,500)&&finite(v.surface.depth,1,500)&&Math.abs(v.surface.x)<v.surface.width,q,'Invalid curved surface.');
         if(v.sceneDepth!==undefined){depthField(v.sceneDepth,q+'.sceneDepth',pack.joints);check(v.surfaceOf===undefined,q+'.sceneDepth','Surface decorations inherit scene depth from their host.');}
+        if(v.depthSplit!==undefined){
+          const split=v.depthSplit;check(record(split)&&Object.keys(split).every(k=>['axis','at','low','high'].includes(k))&&['x','y'].includes(split.axis)&&finite(split.at,-1000,1000)&&record(split.low)&&record(split.high),q+'.depthSplit','Expected a local x/y split at -1000..1000 with low and high scene-depth anchors.');
+          check(!['sceneDepth','surfaceOf','mesh','softLimb','hairShell','turnaround','surface'].some(k=>v[k]!==undefined),q+'.depthSplit','A contour depth split cannot combine with another depth owner or generated volume.');
+          if(record(split)){depthField(split.low,q+'.depthSplit.low',pack.joints);depthField(split.high,q+'.depthSplit.high',pack.joints);}
+        }
         if(v.surfaceOf!==undefined){const host=pack.parts.find(candidate=>candidate?.id===v.surfaceOf);check(typeof v.surfaceOf==='string'&&!!host&&host.id!==part.id&&host.spatial?.surfaceOf===undefined,q+'.surfaceOf','Expected a different host part without its own surface attachment.');}
+        if(v.surfaceOf!==undefined&&pack.parts.find(candidate=>candidate?.id===v.surfaceOf)?.spatial?.depthSplit){const host=pack.parts.find(candidate=>candidate.id===v.surfaceOf);check(part.joint===host.joint&&!['mesh','softLimb','hairShell','turnaround','surface'].some(k=>v[k]!==undefined),q+'.surfaceOf','Details on a split contour must share its attachment joint and use ordinary path geometry.');}
         if(v.mask!==undefined)check(pack.parts.some(p=>p.id===v.mask)&&v.mask!==part.id,q,'Missing mask part.');
         if(v.mesh!==undefined){check(!['softLimb','hairShell','turnaround','morph','surface'].some(key=>v[key]!==undefined),q+'.mesh','Mesh cannot combine with another geometry deformation.');check(doc.requiredFeatures?.includes('skinned-mesh'),'requiredFeatures','Mesh scenes must declare skinned-mesh.');validateSpatialMesh(v.mesh,meshJoints,q+'.mesh',check);}
         if(v.turnaround!==undefined){const views=v.turnaround?.views,number=/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g,signature=typeof part.d==='string'?part.d.replace(number,'#'):null;
@@ -133,8 +157,14 @@ function validateStructure(doc) {
             check(views[0]?.angle===0&&views.at(-1)?.angle===360&&views[0]?.d===views.at(-1)?.d,q,'Turnaround must close from 0 to 360 with matching artwork.');}
         }
         if(v.softLimb){const e=pack.joints.find(j=>j.id===v.softLimb.elbow),h=pack.joints.find(j=>j.id===v.softLimb.hand);check(record(v.softLimb)&&e?.parent===part.joint&&h?.parent===e?.id&&finite(v.softLimb.radius,1,30)&&!v.morph,q,'Soft limbs require a connected elbow and hand, radius 1..30, and no morph.');}
-        if(v.morph){const number=/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g,target=v.morph.target;
-          check(typeof target==='string'&&target.length<=200000&&/^[MmZzLlHhVvCcSsQqTtEe0-9.,+\s-]+$/.test(target)&&target.replace(number,'#')===part.d.replace(number,'#')&&(target.match(number)||[]).length>0&&[...(target.match(number)||[]),...(part.d.match(number)||[])].every(n=>Number.isFinite(Number(n)))&&joints.has(v.morph.channel?.split('.')[0])&&v.morph.channel===v.morph.channel?.split('.')[0]+'.bend',q,'Morph paths must have matching commands and coordinates; use a joint bend channel.');
+        if(v.morph){const number=/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g,target=v.morph.target,signature=typeof part.d==='string'?part.d.replace(number,'#'):null;
+          const compatiblePath=path=>typeof path==='string'&&path.length<=200000&&/^[MmZzLlHhVvCcSsQqTtEe0-9.,+\s-]+$/.test(path)&&path.replace(number,'#')===signature&&(path.match(number)||[]).length>0&&(path.match(number)||[]).every(n=>Number.isFinite(Number(n)));
+          const bendChannel=channel=>typeof channel==='string'&&joints.has(channel.split('.')[0])&&channel===channel.split('.')[0]+'.bend';
+          const validateFrames=(frames,path)=>{check(Array.isArray(frames)&&frames.length<=16,path,'Expected at most 16 intermediate morph frames.');if(Array.isArray(frames)){let previous=0;for(const [i,frame] of frames.entries()){check(record(frame)&&Object.keys(frame).every(key=>['value','target'].includes(key))&&finite(frame.value)&&frame.value>previous&&frame.value<1&&compatiblePath(frame.target),path+'.'+i,'Morph frames need increasing bend values between 0 and 1 and paths matching the source and target.');previous=frame?.value;}}};
+          check(record(v.morph)&&Object.keys(v.morph).every(key=>['channel','target','frames','layers'].includes(key)),q+'.morph','Unknown morph field.');
+          check(compatiblePath(target)&&(part.d.match(number)||[]).every(n=>Number.isFinite(Number(n)))&&bendChannel(v.morph.channel),q,'Morph paths must have matching commands and coordinates; use a joint bend channel.');
+          if(v.morph.frames!==undefined)validateFrames(v.morph.frames,q+'.morph.frames');
+          if(v.morph.layers!==undefined){check(Array.isArray(v.morph.layers)&&v.morph.layers.length<=8,q+'.morph.layers','Expected at most eight additive morph layers.');if(Array.isArray(v.morph.layers))for(const [i,layer] of v.morph.layers.entries()){const path=q+'.morph.layers.'+i;check(record(layer)&&Object.keys(layer).every(key=>['channel','target','frames'].includes(key))&&bendChannel(layer.channel)&&compatiblePath(layer.target),path,'Layer needs a bend channel and compatible target path, with no unknown fields.');if(layer?.frames!==undefined)validateFrames(layer.frames,path+'.frames');}}
         }
       }
       if (part.showWhen) check(Object.hasOwn(pack.inputs, part.showWhen.input) && typeof part.showWhen.equals === pack.inputs[part.showWhen.input].type, `${p}.parts.${part.id}.showWhen`, 'Invalid visibility condition.');
@@ -205,7 +235,7 @@ function validateStructure(doc) {
     const c = prop.collider;
     check(record(c) && typeof c.enabled === 'boolean' && finite(c.width, 4, 4096) && finite(c.height, 4, 4096) && finite(c.x, -4096, 4096) && finite(c.y, -4096, 4096) && finite(c.friction, 0, 2) && finite(c.bounce, 0, 1), p+'.collider', 'Invalid collision box.');
   }
-  function depthField(value,path,joints){if(value===undefined)return;const fixed=record(value)&&Object.hasOwn(value,'value');check(record(value)&&(fixed?Object.keys(value).every(k=>k==='value')&&finite(value.value,-10000,10000):Array.isArray(joints)&&Object.keys(value).every(k=>['joint','offset'].includes(k))&&typeof value.joint==='string'&&joints.some(j=>j.id===value.joint)&&(value.offset===undefined||finite(value.offset,-4096,4096))),path,'Expected fixed scene depth -10000..10000, or an actor joint with optional offset -4096..4096.');}
+  function depthField(value,path,joints){if(value===undefined)return;const fixed=record(value)&&Object.hasOwn(value,'value');check(record(value)&&(fixed?Object.keys(value).every(k=>['value','channel'].includes(k))&&finite(value.value,-10000,10000)&&(value.channel===undefined||typeof value.channel==='string'&&Array.isArray(joints)&&joints.some(j=>value.channel===j.id+'.z')):Array.isArray(joints)&&Object.keys(value).every(k=>['joint','offset'].includes(k))&&typeof value.joint==='string'&&joints.some(j=>j.id===value.joint)&&(value.offset===undefined||finite(value.offset,-4096,4096))),path,'Expected fixed scene depth -10000..10000 with an optional existing joint .z channel, or an actor joint with optional offset -4096..4096.');}
   for(const prop of (Array.isArray(doc.props)?doc.props:[]).filter(record))depthField(prop.depth,'props.'+prop.id+'.depth');
   const meshBudget=doc.actors.reduce((total,actor)=>{for(const part of doc.packs[actor?.pack]?.parts||[]){const m=part?.spatial?.mesh;if(Array.isArray(m?.vertices))total.vertices+=m.vertices.length;if(Array.isArray(m?.triangles))total.triangles+=m.triangles.length;}return total;},{vertices:0,triangles:0});
   check(meshBudget.vertices<=8192&&meshBudget.triangles<=16384,'actors','Instantiated meshes exceed 8192 vertices or 16384 triangles.');
@@ -280,6 +310,8 @@ function validateStructure(doc) {
     const sky=doc.actors.find(a=>a.id===e.sky),p=doc.packs[sky?.pack];check(!!p&&[0,1].every(i=>p.joints.some(j=>j.id==='meteor-'+i)&&Array.from({length:16},(_,n)=>'meteor-'+i+'-tail-'+n).every(id=>p.joints.some(j=>j.id===id))),'ensemble.sky','Missing meteor scenery rig.');
    }
   }
+  validateMaterialLighting(doc,check);
+  validateHostTransition(doc,check);
   validateGameBindings(doc,check);
   validateBehaviorGraph(doc,check);
   validateActorBehaviors(doc,check);

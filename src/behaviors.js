@@ -60,7 +60,7 @@ export class BehaviorRuntime {
    if(action.type==='set')this.setVariable(action.variable,action.value);
    else if(action.type==='add')this.variables[action.variable]=this.boundedVariable(action.variable,this.variables[action.variable]+action.value);
    else if(action.type==='perform')this.activities.start(action.activity,this.time,payload);
-   else if(action.type==='event'){const next={...payload};if(action.actor)next.actor=action.actor;this.dispatch(action.event,next);}
+   else if(action.type==='event'){const next={...payload};if(action.actor)next.actor=action.actor;if(this.dispatch(action.event,next))this.apply(action,next);}
    else if(action.type==='emitter'){this.emitterOverrides[action.emitter]={enabled:action.enabled};this.apply(action,payload);}
    else if(action.type==='input'){if(action.actor&&validBehaviorInput(this.document,action.actor,action.input,action.value))this.apply(action,payload);}
    else if(action.type==='object')this.apply(action,payload);

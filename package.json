@@ -6,9 +6,18 @@
   "license": "MIT",
   "type": "module",
   "exports": {
-    "./map": {"types":"./src/map.d.ts","default":"./src/map.js"},
-    "./map-runtime": {"types":"./src/map-runtime.d.ts","default":"./src/map-runtime.js"},
-    "./map-browser": {"types":"./src/map-browser.d.ts","default":"./src/map-browser.js"},
+    "./map": {
+      "types": "./src/map.d.ts",
+      "default": "./src/map.js"
+    },
+    "./map-runtime": {
+      "types": "./src/map-runtime.d.ts",
+      "default": "./src/map-runtime.js"
+    },
+    "./map-browser": {
+      "types": "./src/map-browser.d.ts",
+      "default": "./src/map-browser.js"
+    },
     ".": {
       "types": "./src/index.d.ts",
       "default": "./src/index.js"
@@ -392,7 +401,20 @@
     "test:game-demo": "node test/game-demo-browser.mjs",
     "test:workout": "node --test test/workout*.test.js test/native-mechanical-actions.test.js",
     "test:workout-browser": "node test/workout-browser.mjs",
-    "test:workout-lazy": "node test/native-workout-lazy-browser.mjs"
+    "test:workout-lazy": "node test/native-workout-lazy-browser.mjs",
+    "build:runtime": "node tools/build-runtime-package.mjs",
+    "pack:runtime": "npm run build:runtime && npm run export:wwwzard && npm pack --workspace @posecraft/runtime --pack-destination releases",
+    "export:wwwzard": "node tools/export-wwwzard.mjs",
+    "export:portfolio": "node tools/export-portfolio-scenes.mjs",
+    "predev": "npm run build:runtime",
+    "pretest": "npm run build:runtime",
+    "prebuild": "npm run build:runtime",
+    "build:studio": "npm run build:runtime && vite build --mode studio && node tools/build-studio-runtimes.mjs",
+    "build:demos": "npm run build:runtime && vite build --mode demos",
+    "test:runtime-consumer": "node packages/runtime/test/consumer.mjs",
+    "test:studio-files": "node --test test/project-files.test.js && node test/project-files-browser.mjs",
+    "test:studio-pwa": "node test/studio-pwa-browser.mjs",
+    "release:prealpha": "npm run build:runtime && npm run export:wwwzard && npm run test:runtime-consumer"
   },
   "peerDependencies": {
     "react": ">=18"
@@ -410,7 +432,8 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "typescript": "5.9.3",
-    "vite": "8.2.2"
+    "vite": "8.2.2",
+    "@posecraft/runtime": "file:packages/runtime"
   },
   "engines": {
     "node": ">=20"
@@ -419,5 +442,8 @@
     "@types/three": "0.186.0",
     "planck": "1.4.2",
     "three": "0.186.0"
-  }
+  },
+  "workspaces": [
+    "packages/runtime"
+  ]
 }

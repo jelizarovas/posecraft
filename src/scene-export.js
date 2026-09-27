@@ -13,10 +13,13 @@ export function inspectSceneFeatures(document) {
   if(scene.actorBehaviors?.length)features.push('actor-behaviors');
   if(scene.motionLayers?.length)features.push('motion-layers');
   if(scene.scroll)features.push('scroll-bindings');
+  if(scene.hostTransition)features.push('host-transition');
+  if(scene.materialLighting)features.push('material-lighting');
   if(scene.objects?.length)features.push('scene-objects');
   if(scene.objectGames?.length)features.push('prop-games');
   if(packs.some(pack=>pack.spatial))features.push('spatial');
-  if(scene.actors.some(actor=>actor.depth)||(scene.props||[]).some(prop=>prop.depth)||packs.some(pack=>pack.parts.some(part=>part.spatial?.sceneDepth)))features.push('scene-depth');
+  if(packs.some(pack=>pack.parts.some(part=>part.gradient)))features.push('part-gradients');
+  if(scene.actors.some(actor=>actor.depth)||(scene.props||[]).some(prop=>prop.depth)||packs.some(pack=>pack.parts.some(part=>part.spatial?.sceneDepth||part.spatial?.depthSplit)))features.push('scene-depth');
   if(packs.some(pack=>pack.parts.some(part=>part.spatial?.surfaceOf)))features.push('surface-decals');
   if(packs.some(pack=>pack.parts.some(part=>part.spatial?.mesh)))features.push('skinned-mesh');
   if(packs.some(pack=>pack.reaction))features.push('spring-reactions');

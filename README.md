@@ -62,19 +62,28 @@ Drafts use `posecraft.studio.v2`. The previous draft is preserved and can be ope
 
 ## Embed a scene
 
-Install from a pinned Git commit or from a local archive made with `npm pack`. The package is not published to the npm registry; `private: true` prevents accidental registry publication. For example, after cloning this repository next to your app, use `npm install ../posecraft`. React is an optional peer dependency. The original skeletal entry has no runtime dependencies; the portable scene runtime uses Planck for physical modes.
+The website pre-alpha is `@posecraft/runtime`, built separately from Studio and demos. Install its versioned archive into your website:
 
-```jsx
-import { Posecraft } from 'posecraft/react';
-import scene from './my-scene.posecraft.json';
-
-<div style={{ width: 400, height: 250 }}>
-  <Posecraft scene={scene} inputs={{ ona: { action: 'wave', emotion: 'happy' } }}
-    label="Ona waves hello" onEvent={console.log} />
-</div>
+```sh
+npm run release:prealpha
+# In your website project, using the archive copied there:
+npm install ./posecraft-runtime-0.1.0-alpha.0.tgz
 ```
 
-For a moving modal, supply its ref as `hostRef`. The [API](docs/api.md) describes explicit motion signals, supported translation range, and runtime ownership.
+```js
+import {mountIllustration} from '@posecraft/runtime';
+import scene from './wwwzard.scene.json';
+const player = mountIllustration(document.querySelector('#wizard'), scene);
+player.dispatch('open-laptop');
+// On page/component removal:
+player.dispose();
+```
+
+Your host element needs dimensions. React consumers can use `@posecraft/runtime/react`. Scene artwork is exported separately and belongs with the consuming website. The npm archive excludes demos, Studio, map assets and native 3D assets. It is not yet published to the registry.
+
+Build the installable editor with `npm run build:studio`, and demos with `npm run build:demos`. Studio supports direct local-file saving, remembered file access and offline recovery. See [the pre-alpha release guide](docs/pre-alpha-release.md), [package API](packages/runtime/README.md) and [Studio local files](docs/studio-local-files.md).
+
+The private root project retains older SDK exports for compatibility and development. It is not the release package.
 
 ## Agent authoring
 
@@ -121,7 +130,7 @@ An IK chain contains `id`, `upper`, `lower`, and `bend`, either -1 or 1. Its opt
 
 Run `npm test` for the core, scene, and wwwzard regression suite. With the dev server at port 5178, run `npm run test:browser` for the Studio and React browser checks. Windows uses installed Edge; on Linux install Playwright Chromium first. Set `POSECRAFT_URL` to test another base URL, including a Pages project subpath. Run `npm run check:package` to inspect package contents without publishing.
 
-The Career OS portfolio consumes this folder as a sibling file dependency. Keep the `resume` and `posecraft` folders under the same parent when working on both. The package itself has no dependency on that arrangement.
+The Career OS portfolio installs the runtime archive and owns its exported scene. Its production build does not require a sibling Posecraft checkout.
 
 ## License and attribution
 

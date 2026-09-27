@@ -1,6 +1,7 @@
 import {evaluateSkinnedMesh} from './skinned-mesh.js';
 import {hairShellPath} from './hair-shell.js';
 import {clamp} from './index.js';
+import {partDepthSplit} from './scene-depth.js';
 export const spatialChannels={opacity:{min:0,max:1},yaw:{min:-180,max:180},pitch:{min:-90,max:90},z:{min:-500,max:500},bend:{min:0,max:1}};
 export function poseDefaults(pack){return Object.fromEntries(pack.joints.flatMap(j=>[[j.id+'.rotation',j.rotation],[j.id+'.x',0],[j.id+'.y',0],...(pack.spatial?Object.keys(spatialChannels).map(k=>[j.id+'.'+k,k==='opacity'?1:0]):[])]));}
 const I=[1,0,0,0,1,0,0,0,1],rad=Math.PI/180;
@@ -28,6 +29,12 @@ export function spatialKinematics(pack,pose){
  return world;
 }
 const numbers=/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g;
+/** Blend evaluated contours without visiting unrelated intermediate morph poses. */
+export function blendMorphPaths(from,to,weight){
+ if(weight<=0)return from;if(weight>=1)return to;
+ const a=from.match(numbers).map(Number);let i=0;
+ return to.replace(numbers,n=>String(+(a[i]+(Number(n)-a[i++])*weight).toFixed(4)));
+}
 const turnaroundCache=new WeakMap();
 export function turnaroundPath(part,angle){
  let compiled=turnaroundCache.get(part);if(!compiled){compiled=part.spatial.turnaround.views.map(view=>({angle:view.angle,values:view.d.match(numbers).map(Number),d:view.d}));turnaroundCache.set(part,compiled);}
@@ -35,10 +42,47 @@ export function turnaroundPath(part,angle){
  return a.d.replace(numbers,()=>String(+(a.values[n]+(b.values[n]-a.values[n++])*t).toFixed(4)));
 }
 const morphCache=new WeakMap();
-export function morphPath(part,value){
- if(!part.spatial?.morph)return part.d;let compiled=morphCache.get(part);
- if(!compiled){compiled={a:part.d.match(numbers).map(Number),b:part.spatial.morph.target.match(numbers).map(Number)};morphCache.set(part,compiled);}
- let i=0;const t=clamp(value||0,0,1);return part.d.replace(numbers,()=>String(+(compiled.a[i]+(compiled.b[i]-compiled.a[i++])*t).toFixed(4)));
+function primaryMorphPath(part,value){
+ if(!part.spatial?.morph)return part.d;
+ const morph=part.spatial.morph,target=morph.target,frames=morph.frames||[],t=clamp(value||0,0,1);
+ // Rest poses and fully bent poses use the authored strings directly. Holds
+ // reuse one interpolated string per part instead of rebuilding it each frame.
+ if(t===0)return part.d;if(t===1)return target;
+ let compiled=morphCache.get(part);
+ if(!compiled||compiled.source!==part.d||compiled.target!==target||compiled.frames.length!==frames.length||frames.some((frame,i)=>frame.value!==compiled.frames[i].value||frame.target!==compiled.frames[i].target)){
+  const stops=[{value:0,target:part.d},...frames,{value:1,target}];
+  compiled={source:part.d,target,frames:frames.map(frame=>({value:frame.value,target:frame.target})),stops:stops.map(stop=>({...stop,values:stop.target.match(numbers).map(Number)}))};morphCache.set(part,compiled);
+ }
+ if(compiled.value===t)return compiled.d;
+ const next=compiled.stops.findIndex(stop=>stop.value>=t),a=compiled.stops[next-1],b=compiled.stops[next];
+ if(t===b.value){compiled.value=t;compiled.d=b.target;return compiled.d;}
+ const fraction=(t-a.value)/(b.value-a.value);let i=0;
+ compiled.value=t;compiled.d=a.target.replace(numbers,()=>String(+(a.values[i]+(b.values[i]-a.values[i++])*fraction).toFixed(4)));return compiled.d;
+}
+const morphLayerCache=new WeakMap();
+function layerValues(part,layer,value){
+ const frames=layer.frames||[],source=part.d;
+ let compiled=morphLayerCache.get(layer);
+ if(!compiled||compiled.source!==source||compiled.target!==layer.target||compiled.frames.length!==frames.length||frames.some((frame,i)=>frame.value!==compiled.frames[i].value||frame.target!==compiled.frames[i].target)){
+  compiled={source,target:layer.target,frames:frames.map(frame=>({value:frame.value,target:frame.target})),base:source.match(numbers).map(Number),stops:[{value:0,target:source},...frames,{value:1,target:layer.target}].map(stop=>({...stop,values:stop.target.match(numbers).map(Number)}))};
+  morphLayerCache.set(layer,compiled);
+ }
+ if(value===0)return compiled.base;
+ if(value===1)return compiled.stops.at(-1).values;
+ const next=compiled.stops.findIndex(stop=>stop.value>=value),a=compiled.stops[next-1],b=compiled.stops[next];
+ if(value===b.value)return b.values;
+ const fraction=(value-a.value)/(b.value-a.value);
+ return a.values.map((n,i)=>n+(b.values[i]-n)*fraction);
+}
+/** Add each secondary shape's displacement from the common rest contour. */
+export function morphPath(part,value,pose){
+ const primary=primaryMorphPath(part,value),layers=part.spatial?.morph?.layers;
+ if(!layers?.length||!pose)return primary;
+ const active=layers.map(layer=>({layer,value:clamp(pose[layer.channel]||0,0,1)})).filter(entry=>entry.value!==0);
+ if(!active.length)return primary;
+ const base=part.d.match(numbers).map(Number),offsets=base.map(()=>0);
+ for(const {layer,value:amount} of active){const values=layerValues(part,layer,amount);for(let i=0;i<offsets.length;i++)offsets[i]+=values[i]-base[i];}
+ let i=0;return primary.replace(numbers,n=>String(+(Number(n)+offsets[i++]).toFixed(4)));
 }
 // The outline of overlapping round volumes has no ribbon normals to reverse at
 // a folded elbow or wrist. Only the external silhouette is stroked: no internal bones.
@@ -97,10 +141,10 @@ function attachSurfaces(pack,parts,fragments){
   if(!hostId||!parts.has(hostId)||hostId===part.id)continue;
   const host=pack.parts[parts.get(hostId).index],skin=host.spatial?.softLimb;
   if(host.spatial?.mesh){parts.get(part.id).visible&&=parts.get(hostId).visible;continue;}
-  const kind=skin?(part.joint===skin.hand?'palm':part.joint===skin.elbow?'forearm':'upper'):null,hostFragment=kind?hostId+'--'+kind:hostId;
+  const split=host.spatial?.depthSplit,kind=skin?(part.joint===skin.hand?'palm':part.joint===skin.elbow?'forearm':'upper'):split?'depth-low':null,hostFragment=kind?hostId+'--'+kind:hostId;
   if(!fragments.has(hostFragment))continue;
   const view=parts.get(part.id),hostView=parts.get(hostId);view.depth=hostView.depth;view.visible&&=hostView.visible;
-  for(const id of byPart.get(part.id)||[]){const fragment=fragments.get(id),target=skin&&fragment.kind!=='part'?hostId+'--'+fragment.kind:hostFragment;fragment.depth=fragments.get(target).depth;fragment.visible&&=fragments.get(target).visible;(children.get(target)||children.set(target,[]).get(target)).push(id);attached.add(id);}
+  for(const id of byPart.get(part.id)||[]){const fragment=fragments.get(id),target=(skin||split)&&fragment.kind!=='part'?hostId+'--'+fragment.kind:hostFragment;fragment.depth=fragments.get(target).depth;fragment.visible&&=fragments.get(target).visible;(children.get(target)||children.set(target,[]).get(target)).push(id);attached.add(id);}
  }
  const compare=(a,b)=>fragments.get(a).depth-fragments.get(b).depth||fragments.get(a).index-fragments.get(b).index;
  const order=[],visited=new Set(),emit=id=>{if(visited.has(id))return;visited.add(id);order.push(id);const decals=children.get(id)||[];decals.sort((a,b)=>{const pa=pack.parts[fragments.get(a).index],pb=pack.parts[fragments.get(b).index];return (pa.spatial?.order||0)-(pb.spatial?.order||0)||fragments.get(a).index-fragments.get(b).index;});for(const decal of decals)emit(decal);};
@@ -141,10 +185,19 @@ export function spatialParts(pack,frame){
   const frontCoverage=s.facingFade?clamp(facing/s.facingFade,0,1):1,opacity=s.facingFade?(s.facing==='back'?1-frontCoverage:frontCoverage):1;
   // Depth is sampled at an authored part center, not just its attachment pivot.
   const center=apply(m,s.center?.[0]||0,s.center?.[1]||0,s.depth||0);
-  result.set(part.id,{matrix:v,transform:`matrix(${v.map(n=>+n.toFixed(5)).join(' ')})`,depth:j.z+j.layerDepth+center.z+(s.order||0)*.001,index,opacity,visible:turnPath&&(turnPath.match(numbers)||[]).every(n=>Number(n)===0)?false:s.facingFade?opacity>0:s.facing==='front'?facing>.035:s.facing==='back'?facing<-.035:true,d:turnPath??(s.hairShell?hairShellPath(s.hairShell,m,frame.inputs?.[part.variantInput]):s.softLimb?softLimbPath(pack,part,pose,world):s.morph?morphPath(part,frame.pose[s.morph.channel]):null)});
+  result.set(part.id,{matrix:v,transform:`matrix(${v.map(n=>+n.toFixed(5)).join(' ')})`,depth:j.z+j.layerDepth+center.z+(s.order||0)*.001,index,opacity,visible:turnPath&&(turnPath.match(numbers)||[]).every(n=>Number(n)===0)?false:s.facingFade?opacity>0:s.facing==='front'?facing>.035:s.facing==='back'?facing<-.035:true,d:turnPath??(s.hairShell?hairShellPath(s.hairShell,m,frame.inputs?.[part.variantInput]):s.softLimb?softLimbPath(pack,part,pose,world):s.morph?morphPath(part,frame.pose[s.morph.channel],pose):null)});
  });
+ if(frame.shapeBlend)for(const part of pack.parts){
+  const morph=part.spatial?.morph,blend=frame.shapeBlend,from=blend.fromPaths[part.id];
+  if(morph&&from)result.get(part.id).d=blendMorphPaths(from,morphPath(part,blend.to[morph.channel],blend.to),blend.weight);
+ }
  for(const part of pack.parts)if(part.spatial?.mesh){const view=result.get(part.id),mesh=evaluateSkinnedMesh(part.spatial.mesh,world,pose);Object.assign(view,{mesh,matrix:[1,0,0,1,0,0],transform:'matrix(1 0 0 1 0 0)',d:mesh.faces.filter(f=>f.visible).map(f=>'M'+(f.frontFacing?f.indices:[...f.indices].reverse()).map(i=>{const v=mesh.vertices[i];return +v.x.toFixed(4)+' '+ +v.y.toFixed(4);}).join('L')+'Z').join(''),depth:mesh.vertices.reduce((n,v)=>n+v.depth,0)/mesh.vertices.length});}
- const fragments=new Map();for(const part of pack.parts){const view=result.get(part.id);if(view.mesh){for(const [id,fragment]of meshDrawFragments(part,view,result))fragments.set(id,fragment);}else if(part.spatial?.softLimb){for(const fragment of limbFragments(pack,part,pose,world,view))fragments.set(part.id+'--'+fragment.kind,fragment);}else fragments.set(part.id,{...view,partId:part.id,kind:'part'});}
+ const fragments=new Map();for(const part of pack.parts){const view=result.get(part.id),split=partDepthSplit(pack,part);if(split){
+   // Clip two views of one complete contour, keeping its morph and gradient
+   // continuous. The seam is attached to the joint, not to screen coordinates.
+   for(const region of ['low','high']){const low=region==='low',edge=split.at+(low?.15:-.15),min=low?-100000:edge,max=low?edge:100000,clipD=split.axis==='x'?`M${min} -100000H${max}V100000H${min}Z`:`M-100000 ${min}H100000V${max}H-100000Z`,kind='depth-'+region;
+    fragments.set(part.id+'--'+kind,{...view,partId:part.id,kind,primary:low,clipD});}
+  }else if(view.mesh){for(const [id,fragment]of meshDrawFragments(part,view,result))fragments.set(id,fragment);}else if(part.spatial?.softLimb){for(const fragment of limbFragments(pack,part,pose,world,view))fragments.set(part.id+'--'+fragment.kind,fragment);}else fragments.set(part.id,{...view,partId:part.id,kind:'part'});}
  const fragmentOrder=attachSurfaces(pack,result,fragments),order=[],seen=new Set();for(const id of fragmentOrder){const partId=fragments.get(id).partId;if(!seen.has(partId)){order.push(partId);seen.add(partId);}}
  return {world,parts:result,order,fragments,fragmentOrder};
 }

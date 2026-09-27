@@ -4,7 +4,8 @@ import {nodeVisible} from './scene-graph.js';
 export const fragmentList=(pack,spatial)=>spatial?.fragmentOrder?spatial.fragmentOrder.map(id=>({id,view:spatial.fragments.get(id),part:pack.parts[spatial.fragments.get(id).index]})):(spatial?.order||pack.parts.map(p=>p.id)).map(id=>({id,view:spatial?.parts.get(id),part:pack.parts.find(p=>p.id===id)}));
 export function appearance(part,actor,evaluated,pack,spatial){
  const variant=part.variants?.[evaluated.inputs?.[part.variantInput]]||{},host=part.spatial?.surfaceOf&&pack?.parts.find(p=>p.id===part.spatial.surfaceOf),hostPaint=host?appearance(host,actor,evaluated):null,hostView=host&&spatial?.parts.get(host.id);
- return {d:variant.d||part.d,fill:actor.appearance?.[part.channel]||part.fill,transform:`${variant.transform||''} ${part.transform||''}`.trim(),visible:variant.visible!==false&&(!part.showWhen||evaluated.inputs?.[part.showWhen.input]===part.showWhen.equals)&&(!host||hostPaint.visible&&hostView?.visible!==false),opacity:host?(host.opacityChannel&&host.opacityChannel!==part.opacityChannel?(evaluated.pose[host.opacityChannel]??1):1)*(hostView?.opacity??1):1};
+ const override=part.channel&&actor.appearance?.[part.channel];
+ return {d:variant.d||part.d,fill:override||part.fill,gradient:override?undefined:part.gradient,transform:`${variant.transform||''} ${part.transform||''}`.trim(),visible:variant.visible!==false&&(!part.showWhen||evaluated.inputs?.[part.showWhen.input]===part.showWhen.equals)&&(!host||hostPaint.visible&&hostView?.visible!==false),opacity:host?(host.opacityChannel&&host.opacityChannel!==part.opacityChannel?(evaluated.pose[host.opacityChannel]??1):1)*(hostView?.opacity??1):1};
 }
 /** The same evaluated geometry/material stage feeds SVG and Canvas. */
 export function evaluateActorDrawing(pack,actor,evaluated){if(!evaluated)throw Error('Missing evaluated actor '+actor.id);const spatial=spatialParts(pack,evaluated);return {spatial,fragments:fragmentList(pack,spatial)};}
