@@ -34,6 +34,14 @@ Frames include `contacts` diagnostics with `active`, `reason`, `target`, `actual
 
 `solveContact(pack, pose, chain, target, options)` accepts a target in actor coordinates and returns a new pose. `applyContacts(scene, frame)` evaluates all constraints without mutating the input frame. Both upper and lower bones retain their authored yaw, pitch, translation and length. Targets on other actors are sampled from the unconstrained frame, so mutual contacts do not create an order-dependent feedback loop.
 
+## Limb dragging acceptance
+
+Recorded September 28, 2026 for the proposed Little Lands reuse. This is an acceptance requirement, not a claim that arbitrary limb grabbing is implemented.
+
+A user can grab the visible arm at the hand, forearm or upper arm. Preserve the grabbed point on the artwork as the drag target, without snapping it to a wrist or shoulder handle. Within the rig's reachable range, that point follows the pointer while the shoulder stays attached to the torso, bone lengths remain unchanged and the elbow respects its authored bend direction and joint limits. Beyond that range, preserve the rig constraints and expose the remaining target error instead of stretching the arm.
+
+Review the full grab, drag, release and cancellation at the intended display size, including shoulder/torso occlusion and recovery from the displayed pose. Endpoint IK and a clickable arm shape alone do not establish this behavior. Authored interaction bindings must survive Studio save/reopen and website export, with the same drag behavior in exported playback, before reusable support is claimed complete.
+
 ## Motion review
 
 The gym and staircase gallery demos have a **Review** action selector, quarter/half speed, **Loop action**, and a one-frame step button. Selecting an action pauses at its start. Enable the loop and press Play to review a transition repeatedly. These controls do not change the exported animation speed.

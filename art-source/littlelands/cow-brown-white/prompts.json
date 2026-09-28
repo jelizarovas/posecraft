@@ -2,5 +2,29 @@
   "asset_id": "cow-brown-white",
   "name": "Brown-and-white cow",
   "concept_prompt_base": "Create one original Brown-and-white cow design for the Littlelands village art style. Broad barrel, large white patches, brown head, short horns and visible udder. 1.40m shoulder.",
-  "approved_candidate": "01.png"
+  "selected_candidate": "01.png",
+  "approval_provenance": {
+    "selection": {
+      "status": "selected",
+      "actor": null,
+      "date": null,
+      "scope": "concept reference",
+      "evidence": null,
+      "note": "Inherited from the legacy approved_candidate field; selector and date were not recorded."
+    },
+    "agent_review": {
+      "status": "not_recorded",
+      "actor": null,
+      "date": null,
+      "scope": null,
+      "evidence": null
+    },
+    "user_approval": {
+      "status": "not_recorded",
+      "actor": null,
+      "date": null,
+      "scope": null,
+      "evidence": null
+    }
+  }
 }

@@ -2,5 +2,29 @@
   "asset_id": "ewe-cream",
   "name": "Cream ewe",
   "concept_prompt_base": "Create one original Cream ewe design for the Littlelands village art style. Rounded wool mass, narrow legs, relaxed ears; no horns. 0.85m shoulder.",
-  "approved_candidate": "02.png"
+  "selected_candidate": "02.png",
+  "approval_provenance": {
+    "selection": {
+      "status": "selected",
+      "actor": null,
+      "date": null,
+      "scope": "concept reference",
+      "evidence": null,
+      "note": "Inherited from the legacy approved_candidate field; selector and date were not recorded."
+    },
+    "agent_review": {
+      "status": "not_recorded",
+      "actor": null,
+      "date": null,
+      "scope": null,
+      "evidence": null
+    },
+    "user_approval": {
+      "status": "not_recorded",
+      "actor": null,
+      "date": null,
+      "scope": null,
+      "evidence": null
+    }
+  }
 }

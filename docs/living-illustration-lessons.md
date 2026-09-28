@@ -18,6 +18,8 @@ For a book grip, the palm belongs behind the cover while only curled fingers ove
 
 ## Responsive behavior
 
+For limb interaction, reuse must preserve what the user grabbed. A wrist solver and a visible arm hit area do not by themselves support dragging an arbitrary point along the arm. The proposed Little Lands behavior is specified in the [limb dragging acceptance contract](contacts.md#limb-dragging-acceptance); it remains a requirement until verified.
+
 A click should interrupt from the current displayed pose, including the current contour, rather than wait for an idle cycle or travel through an unrelated neutral pose. The shared action system captures interruption shapes and blends toward the requested action. Close and open are distinct commands; a visitor moving the laptop lid gets a different authored reaction from the character closing it himself. Repeated events must not restart a gesture endlessly.
 
 Head attention and hand activity need independent channels. Physical keys select anatomical hands, not screen-left versus screen-right. Key repeat holds a contact until release. A held prop reserves its hand; the remaining hand handles every key. Blur, hidden tabs, submission and disposal release held input. The host supplies bounded offsets and semantic events, never field text.

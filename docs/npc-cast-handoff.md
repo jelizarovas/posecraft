@@ -2,6 +2,12 @@
 
 Branch: `codex/npc-cast-handoff`. This is a recoverable work-in-progress snapshot, not a release or visual acceptance. Main retains the documentation commit `4fa11c9`; pushing this branch does not trigger the main-only Pages deployment.
 
+## Preservation and release
+
+Added September 28, 2026. Saving a WIP snapshot preserves useful work and lets another computer resume it; it does not certify artwork, authoring completeness or performance. Include required runtime changes, source assets and a handoff with known gaps. Keep snapshots distinguishable from release commits and check whether the destination branch triggers deployment. Verification results describe the saved revision only. Browser-local drafts and settings require a separate export.
+
+This September 23 snapshot is historical. Its suggested follow-up work does not override the [current product direction](product-direction.md). Resuming the repository does not automatically resume the NPC or 3D workstream.
+
 ## Resume on another computer
 
 Fetch origin and switch to `codex/npc-cast-handoff`, then run `npm ci` and `npm run dev:map`. The script serves `play.html` at port 5246 on all host interfaces. Use the new computer's LAN address from a phone on the same network, with its firewall allowing the dev server. The previous computer's LAN address is not portable.
@@ -29,7 +35,7 @@ The local image inspection tool failed with a sandbox helper error during this s
 ## Known limitations and next review
 
 - This is six prototype designs with five action clips each, not the full roster/action coverage in the production brief. The models use simple procedural shapes; their quality against the painted village style remains unaccepted.
-- Existing comments call the cast authentic and prompt metadata includes approved_candidate. Those labels are inherited prototype metadata, not evidence that the user approved the finished designs.
+- Existing comments call the cast authentic. Prompt records originally used approved_candidate; the September 28 metadata clarification preserves those choices as selected_candidate and records review/approval evidence separately. No user approval is inferred from the old label.
 - The renderer can select catalog artwork by stock actor ID even without an explicit authentic flag. Check custom maps, saved drafts, gallery/editor parity and fallback bounds before release.
 - Action aliases reuse clips, including walking for running and grazing for drinking. They do not establish distinct requested behavior or correct interaction contacts. Review child play, tools, turning, foot contacts and interruptions in motion.
 - The image cache has no byte budget or LOD/eviction policy beyond disposal. It loads outside the shared asset-ready path, so early fallback changes and loading transitions need review. The current atlas format can exceed the production brief's proposed 2048-pixel page size.

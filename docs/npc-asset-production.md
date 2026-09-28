@@ -52,6 +52,17 @@ public/assets/map/equipment/<tool-id>/<state>-page-00.webp
 
 Large working renders belong in the source-art store or Git LFS, not the deployed website. Deploy only approved runtime derivatives. Record provenance, source files and reuse rights alongside each asset before putting it in the public repository.
 
+## Asset selection and approval provenance
+
+A selected candidate, an agent-reviewed result and a user-approved design are different facts. Record them separately in the asset's source metadata. Selection alone says which reference is being used; it does not approve the resulting rig, animation or export.
+
+- Use `selected_candidate` for the chosen reference filename. Preserve the original selection when clarifying an older record.
+- Keep `approval_provenance.selection`, `agent_review` and `user_approval` separate. Each records status, actor, date, scope and evidence when known. Evidence should identify a review record or user message and the exact asset revision or file reviewed.
+- Use `not_recorded` and null values when evidence is missing. That means the record is incomplete, not that the user rejected the asset or never reviewed it. Never infer approval from a filename, a passing test, a commit or an inherited label.
+- Existing Littlelands records inherited `approved_candidate` without approval evidence. Their selected filenames are retained; unknown reviewer, date and approval remain explicitly unrecorded. Later reviews should add evidence, not retroactively invent it.
+
+This is provenance tracking, not a new approval gate. Continue authorized production and technical review. Ask for a user decision only when the task calls for one or an unresolved artistic choice needs their judgment.
+
 ## Art direction to paste into every brief
 
 Original painted, pre-rendered isometric fantasy village artwork, matching the existing Littlelands timber-and-plaster houses, thatched roofs, worn stone and textured vegetation. Late-1990s/early-2000s detailed strategy/RPG readability, with realistic stylization rather than photoreal photography. Muted ochre, moss green, dusty blue, plum, warm brown leather and undyed linen. Weathered materials and broad readable folds. Natural skin and deliberate facial features. Clean silhouettes with soft antialiased edges; no thick black outline, cel bands, glossy plastic, low-poly faceting, chibi proportions or flat vector shapes. Detail must survive downsampling. Warm daylight from the fixed upper-left of the scene, restrained cool fill, no dramatic rim light. Original designs, not replicas of a named game's characters.
