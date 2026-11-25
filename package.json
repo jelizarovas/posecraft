@@ -58,6 +58,10 @@
       "types": "./src/episode.d.ts",
       "default": "./src/episode.js"
     },
+    "./sprite-puppet": {
+      "types": "./src/sprite-puppet.d.ts",
+      "default": "./src/sprite-puppet.js"
+    },
     "./performance": {
       "types": "./src/performance.d.ts",
       "default": "./src/performance.js"

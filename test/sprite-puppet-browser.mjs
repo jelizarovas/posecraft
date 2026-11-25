@@ -1,0 +1,59 @@
+import assert from 'node:assert/strict';
+import {mkdir,readFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {chromium} from '@playwright/test';
+
+const output=resolve('test-results/sprite-puppet');
+await mkdir(output,{recursive:true});
+const browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL||(process.platform==='win32'?'msedge':undefined)});
+try{
+  const page=await browser.newPage({viewport:{width:900,height:660},reducedMotion:'reduce'});
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(process.env.POSECRAFT_PUPPET_URL||'http://127.0.0.1:5261/puppet.html');
+  await page.locator('#track option').first().waitFor({state:'attached'});
+  const canvas=page.locator('canvas');
+  const scrub=t=>page.locator('#time').evaluate((input,value)=>{input.value=value;input.dispatchEvent(new Event('input'));},String(t));
+  for(const t of [0,.65,1.3,1.85,2.7,3.2,4,4.35,5.15,6.7]){
+    await scrub(t);await canvas.screenshot({path:resolve(output,'pose-'+t+'.png')});
+  }
+  await page.locator('#track').selectOption('grip');await page.locator('#key').selectOption('2');
+  await page.locator('#at').fill('3.11');await page.locator('#set').click();
+  await page.getByText('Keyframes updated.').waitFor();
+  const save=page.waitForEvent('download');await page.locator('#save').click();
+  const file=resolve(output,'edited.puppet.json');await (await save).saveAs(file);
+  assert.equal(JSON.parse(await readFile(file,'utf8')).clip.tracks.grip[2][0],3.11);
+  await page.reload();await page.locator('#open').setInputFiles(file);
+  await page.getByText('Opened edited.puppet.json').waitFor();await page.locator('#track').selectOption('grip');
+  assert.match(await page.locator('#key').innerText(),/3.11 s · Four/);
+  const exported=page.waitForEvent('download');await page.locator('#website').click();
+  const html=resolve(output,'export.html');await (await exported).saveAs(html);
+  await page.context().setOffline(true);
+  await page.goto(pathToFileURL(html).href);
+  await page.waitForFunction(()=>document.querySelector('canvas').width>300);
+  const pixels=()=>page.locator('canvas').evaluate(c=>c.toDataURL());
+  const still=await pixels();await page.waitForTimeout(250);assert.equal(await pixels(),still);
+  await page.emulateMedia({reducedMotion:'no-preference'});await page.waitForTimeout(600);
+  assert.notEqual(await pixels(),still);
+  const embed=await readFile(html,'utf8');
+  await page.goto('about:blank');
+  await page.evaluate(markup=>{
+    document.body.style.height='300vh';
+    const input=document.createElement('input');input.setAttribute('aria-label','Host input');document.body.append(input);
+    for(let i=0;i<2;i++){
+      const frame=document.createElement('iframe');frame.style.cssText='display:block;width:220px;height:180px';
+      frame.srcdoc=markup;document.body.append(frame);
+    }
+  },embed);
+  await page.waitForFunction(()=>[...document.querySelectorAll('iframe')].every(f=>f.contentDocument?.querySelector('canvas')?.width===220));
+  const embeddedPixels=()=>page.evaluate(()=>[...document.querySelectorAll('iframe')].map(f=>f.contentDocument.querySelector('canvas').toDataURL()));
+  await page.getByRole('textbox').fill('still responsive');
+  await page.evaluate(()=>scrollTo(0,1400));await page.waitForTimeout(180);
+  const sleeping=await embeddedPixels();await page.waitForTimeout(220);assert.deepEqual(await embeddedPixels(),sleeping);
+  await page.evaluate(()=>scrollTo(0,0));await page.waitForTimeout(650);
+  const resumed=await embeddedPixels();assert.ok(resumed.every((p,i)=>p!==sleeping[i]));
+  await page.evaluate(()=>document.querySelectorAll('iframe').forEach(f=>f.remove()));
+  assert.equal(await page.getByRole('textbox').inputValue(),'still responsive');
+  assert.deepEqual(errors,[]);
+  console.log('PASS key editing, saved file, reopen, offline animated export and reduced motion.');
+}finally{await browser.close();}

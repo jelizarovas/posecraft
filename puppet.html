@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sprite puppets · Posecraft</title><link rel="stylesheet" href="./studio/puppet.css"></head>
+<body><header><a href="./">Posecraft Studio</a><strong>Sprite puppets</strong></header><main>
+<section class="stage"><canvas aria-label="Animated puppet preview"></canvas>
+<div class="transport"><button id="play">Pause</button><input aria-label="Scrub performance" id="time" type="range" min="0" step=".01"><output id="clock"></output></div></section>
+<section class="controls"><h1 id="name"></h1>
+<label>Animation track<select id="track"></select></label>
+<label>Keyframe<select id="key"></select></label>
+<label>Time in seconds<input id="at" type="number" min="0" step=".01"></label>
+<label>Key value<span id="value"></span></label>
+<div><button id="set">Update key</button> <button id="add">Add at playhead</button> <button id="remove">Delete key</button></div>
+<div class="files"><button id="save">Save puppet file</button> <label class="file">Open puppet file<input id="open" type="file" accept=".json,application/json"></label> <button id="website">Export website</button></div>
+<output id="status" role="status"></output></section></main><script type="module" src="./studio/puppet.js"></script></body></html>
