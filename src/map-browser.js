@@ -27,6 +27,7 @@ function validatePreferences(options){
     if(typeof options.reducedMotion!=='boolean'&&options.reducedMotion!=='system')throw TypeError('Reduced motion must be boolean or system.');
 }
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const shortCrop=prop=>prop.occlusion?.mode==='low-foliage'&&prop.occlusion.lowerBodyFraction<.3;
 const shade=(x,y)=>((Math.imul(x+17,73856093)^Math.imul(y+31,19349663))>>>0)%5;
 function polygon(ctx,points,fill,stroke){ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.stroke();}}
 function ellipse(ctx,x,y,rx,ry,fill){ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();}
@@ -119,33 +120,61 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   const drawList=scenery.drawList,cachedOcclusion=new MapOcclusionIndex(map,[...map.props,...cliffs],scenery.worldBounds);
   let cachedView=null,cachedViewRect=null,latestRect=null,viewQueries=0,pickActors=[];
   const scratch=Array.from({length:4},()=>{const canvas=doc.createElement('canvas');canvas.width=canvas.height=1;return{canvas,ctx:canvas.getContext('2d')};});
+  const [body,mask,silhouette,reveal]=scratch;
+  const bodyOnly=[body,mask],withSilhouette=[body,mask,silhouette];
+  const bodyMask=[mask],bothMasks=[mask,reveal];
   function drawMaskedActor(actor,foreground,bounds,dpr,objects){
     const left=Math.max(0,Math.floor(((bounds.x-camera.x)*zoom+width/2)*dpr)),top=Math.max(0,Math.floor(((bounds.y-camera.y)*zoom+height/2)*dpr));
     const right=Math.min(canvas.width,Math.ceil(((bounds.x+bounds.width-camera.x)*zoom+width/2)*dpr)),bottom=Math.min(canvas.height,Math.ceil(((bounds.y+bounds.height-camera.y)*zoom+height/2)*dpr));
     if(right<=left||bottom<=top)return 0;
-    for(const buffer of scratch){if(buffer.canvas.width!==right-left)buffer.canvas.width=right-left;if(buffer.canvas.height!==bottom-top)buffer.canvas.height=bottom-top;buffer.ctx.setTransform(1,0,0,1,0,0);buffer.ctx.globalCompositeOperation='source-over';buffer.ctx.clearRect(0,0,right-left,bottom-top);buffer.ctx.setTransform(dpr*zoom,0,0,dpr*zoom,dpr*(width/2-camera.x*zoom)-left,dpr*(height/2-camera.y*zoom)-top);}
-    const [body,mask,silhouette,reveal]=scratch;
+    // Short plants cover the body without revealing the silhouette. A separate
+    // reveal mask is only needed when they overlap cover that does reveal it.
+    const hasCrops=foreground.props.length>foreground.silhouetteProps.length;
+    const hasShortPlants=hasCrops&&foreground.props.some(shortCrop);
+    const showSilhouette=!hasShortPlants||foreground.silhouetteProps.length>0||!foreground.props.every(shortCrop);
+    const splitMask=hasShortPlants&&showSilhouette;
+    const buffers=splitMask?scratch:showSilhouette?withSilhouette:bodyOnly;
+    const w=right-left,h=bottom-top;
+    const scale=dpr*zoom,offsetX=dpr*(width/2-camera.x*zoom)-left,offsetY=dpr*(height/2-camera.y*zoom)-top;
+    for(const buffer of buffers){
+      if(buffer.canvas.width!==w)buffer.canvas.width=w;
+      if(buffer.canvas.height!==h)buffer.canvas.height=h;
+      buffer.ctx.setTransform(1,0,0,1,0,0);
+      buffer.ctx.globalCompositeOperation='source-over';
+      buffer.ctx.clearRect(0,0,w,h);
+      buffer.ctx.setTransform(scale,0,0,scale,offsetX,offsetY);
+    }
     drawActor(body.ctx,actor);
-    drawActor(silhouette.ctx,actor,{shadow:false});
+    if(showSilhouette)drawActor(silhouette.ctx,actor,{shadow:false});
     for(const prop of foreground.silhouetteProps)drawProp(mask.ctx,map,prop,objects?.[prop.id],{shadow:false,art});
-    for(const buffer of scratch)buffer.ctx.setTransform(1,0,0,1,0,0);
-    reveal.ctx.drawImage(mask.canvas,0,0);
-    for(const prop of foreground.props)if(prop.occlusion?.mode==='low-foliage'){
-      // Cover follows irregular stalk tips and the artwork's alpha. Tall
-      // crops retain a locator silhouette; ankle-high plants do not need it.
-      const fraction=prop.occlusion.lowerBodyFraction??.5,base=projectMap(map,actor).y-(actor.lift||0)*map.tileSize.height;
-      const standingHeight=art.standingHeight(actor.id)*(definitions.get(actor.id)?.appearance?.scale??1);
-      const cut=base-standingHeight*fraction*map.tileSize.width/64;
-      for(const buffer of fraction>=.3?[mask,reveal]:[mask]){
-        buffer.ctx.save();buffer.ctx.setTransform(dpr*zoom,0,0,dpr*zoom,dpr*(width/2-camera.x*zoom)-left,dpr*(height/2-camera.y*zoom)-top);
-        traceMapCropCover(buffer.ctx,bounds,cut,map.tileSize.width/64);buffer.ctx.clip();drawProp(buffer.ctx,map,prop,objects?.[prop.id],{shadow:false,art});buffer.ctx.restore();
+    for(const buffer of buffers)buffer.ctx.setTransform(1,0,0,1,0,0);
+    if(splitMask)reveal.ctx.drawImage(mask.canvas,0,0);
+    if(hasCrops){
+      const definition=definitions.get(actor.id);
+      const base=projectMap(map,actor).y-(actor.lift||0)*map.tileSize.height;
+      const standingHeight=art.standingHeight(actor.id,definition)*(definition?.appearance?.scale??1);
+      for(const prop of foreground.props){
+        if(prop.occlusion?.mode!=='low-foliage')continue;
+        const cut=base-standingHeight*(prop.occlusion.lowerBodyFraction??.5)*map.tileSize.width/64;
+        for(const buffer of splitMask&&!shortCrop(prop)?bothMasks:bodyMask){
+          buffer.ctx.save();
+          buffer.ctx.setTransform(scale,0,0,scale,offsetX,offsetY);
+          traceMapCropCover(buffer.ctx,bounds,cut,map.tileSize.width/64);
+          buffer.ctx.clip();
+          drawProp(buffer.ctx,map,prop,objects?.[prop.id],{shadow:false,art});
+          buffer.ctx.restore();
+        }
       }
     }
-    silhouette.ctx.globalCompositeOperation='source-in';silhouette.ctx.fillStyle='#e7f4c5';silhouette.ctx.fillRect(0,0,right-left,bottom-top);
-    silhouette.ctx.globalCompositeOperation='destination-in';silhouette.ctx.drawImage(reveal.canvas,0,0);
     body.ctx.globalCompositeOperation='destination-out';body.ctx.drawImage(mask.canvas,0,0);
-    ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(body.canvas,left,top);ctx.globalAlpha=.66;ctx.drawImage(silhouette.canvas,left,top);ctx.restore();
-    return (right-left)*(bottom-top)*scratch.length;
+    ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(body.canvas,left,top);
+    if(showSilhouette){
+      silhouette.ctx.globalCompositeOperation='source-in';silhouette.ctx.fillStyle='#e7f4c5';silhouette.ctx.fillRect(0,0,w,h);
+      silhouette.ctx.globalCompositeOperation='destination-in';silhouette.ctx.drawImage(splitMask?reveal.canvas:mask.canvas,0,0);
+      ctx.globalAlpha=.66;ctx.drawImage(silhouette.canvas,left,top);
+    }
+    ctx.restore();
+    return scratch.reduce((pixels,buffer)=>pixels+buffer.canvas.width*buffer.canvas.height,0);
   }
   function toWorld(x,y){return{x:(x-width/2)/zoom+camera.x,y:(y-height/2)/zoom+camera.y};}
   function screenToMap(x,y){return unprojectMap(map,toWorld(x,y));}

@@ -40,8 +40,8 @@ export function loadMapArt(map,{document,onUpdate=()=>{},onError=()=>{}}){
   return{
     ready,
     image(id){const resource=handles.get(id)?.resource;return !disposed&&resource?.loaded?resource.image:null;},
-    standingHeight(actorId){
-      const appearance=map.actors.find(actor=>actor.id===actorId)?.appearance;
+    standingHeight(actorId,definition=map.actors.find(actor=>actor.id===actorId)){
+      const appearance=definition?.appearance;
       if(appearance?.kind==='livestock'){const image=map.art.images[appearance.image];return image.height*image.anchorY;}
       const clip=map.art?.actors?.[actorId]?.idle,spec=clip&&map.art.images[clip.image];
       if(!spec)return 36;
