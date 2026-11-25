@@ -1,0 +1,9 @@
+# Sprite puppets
+
+Open **More options → Sprite puppets** in Studio. Scrub the clip, choose a joint or drawing track, and edit its keys. Joint rotations use degrees. Joint X and Y tracks use the rig's local units. Drawing tracks hold each choice until the next key. **Save puppet file** writes a portable JSON document with the rig, its artwork and the clip. **Open puppet file** reopens it. **Export website** embeds the document and its player in one offline HTML file.
+
+**Four on the Porch** uses a 512 × 512 WebP atlas with 16 registered tiles. The profile, three-quarter, blink, whistle, turning shirt and gesturing hand artwork was generated against the existing Little Lands zombie toy. The front shirt, arm, trouser leg and shoe use Little Lands Adventures' existing zombie prop artwork. The whistle is a mouth pose. The file carries no audio.
+
+The runtime is exported from `posecraft/sprite-puppet`. Validate an imported document with `validateSpritePuppet`, call `compileSpritePuppet` once per bind pose, then use `sampleSpritePuppet` for joint centers, rotations and tile indices, or `drawSpritePuppet` for canvas playback. Parts are stored in parent-first order with rest centers in a common coordinate system. Each pivot is a signed distance along its local Y axis. The first matching drawing variant wins, so the blink-with-whistle drawing can use both channels.
+
+Adventures' Porch binds this performance to assembled zombie decorations. It uses the shared runtime to compile the saved joints into browser animation keyframes. The performance document in `src/game/porch-zombie.puppet.json` is the same file that opens in Studio. To update the performance, replace that file with the reviewed Studio export and rebuild the game. The game's bind pose, placement and purchases remain in its own save.

@@ -5,11 +5,11 @@
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {createReadStream} from 'node:fs';
-import {stat} from 'node:fs/promises';
+import {stat,readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {chromium} from '@playwright/test';
-import {createRequire} from 'node:module';
+
 
 const game=process.env.ADVENTURES_REPO||fileURLToPath(new URL('../../play.littlelands.co/',import.meta.url));
 const dist=path.join(game,'dist');
@@ -17,10 +17,9 @@ const {newSave,parseSave,SAVE_KEY}=await import(pathToFileURL(path.join(game,'sr
 const {DECORATION_FEATURES}=await import(pathToFileURL(path.join(game,'src/game/decorationFeatures.ts')));
 const width=Number(process.argv[2]||960),phone=width<768;
 // Optional mixed lot: 36 loose props plus up to eight 14-part zombies.
-// The Porch does not yet play joint clips. BENCH_DANCERS=0 measures the
-// same assembled lot with its normal, stationary production behavior.
+// Measures the production Porch animation; the benchmark never supplies a rig or clip.
 const zombies=Number(process.env.BENCH_ZOMBIES||0);
-const dance=zombies>0 && process.env.BENCH_DANCERS!=='0';
+const dance=zombies>0;
 assert.ok(Number.isInteger(zombies)&&zombies>=0&&zombies<=8);
 const looseCount=Number(process.env.BENCH_PROPS||(zombies?36:120));
 assert.ok(Number.isInteger(looseCount)&&looseCount>=12&&looseCount+14*zombies<=150);
@@ -60,6 +59,7 @@ if(zombies){
   }
 }
 const seed=JSON.stringify(parseSave(JSON.stringify(save)));
+const preview=process.argv.includes('--serve');
 const types={'.js':'text/javascript','.css':'text/css','.html':'text/html','.webp':'image/webp','.svg':'image/svg+xml','.json':'application/json','.woff2':'font/woff2','.png':'image/png'};
 await stat(path.join(dist,'index.html'));
 const server=createServer(async(req,res)=>{
@@ -69,10 +69,18 @@ const server=createServer(async(req,res)=>{
     if(!file.startsWith(path.resolve(dist)+path.sep)||!(await stat(file)).isFile())throw Error();
     res.writeHead(200,{'Content-Type':types[path.extname(file)]||'application/octet-stream',
       'Content-Security-Policy':"connect-src 'self'; frame-src 'none'",'Cache-Control':'public, max-age=3600'});
-    createReadStream(file).pipe(res);
+    if(preview&&path.basename(file)==='index.html'){
+      const html=await readFile(file,'utf8');
+      const init='if(!localStorage.getItem('+JSON.stringify(SAVE_KEY)+'))localStorage.setItem('+JSON.stringify(SAVE_KEY)+','+JSON.stringify(seed)+');';
+      res.end(html.replace('<head>','<head><script>'+init+'</script>'));
+    }else createReadStream(file).pipe(res);
   } catch {res.writeHead(404).end();}
 });
-await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+await new Promise(resolve=>server.listen(preview?Number(process.env.PORT||5262):0,preview?'0.0.0.0':'127.0.0.1',resolve));
+if(preview){
+  console.log('Crowded-lot preview on port '+server.address().port);
+  await new Promise(()=>{});
+}
 let browser;
 try {
   const channel=process.env.BROWSER_CHANNEL||(process.platform==='win32'?'msedge':undefined);
@@ -108,51 +116,21 @@ try {
       && Math.abs(paint-arm.closest('.customized-art').offsetWidth)<1.5;
   });
   const cdp=await page.context().newCDPSession(page);
+  const performers=()=>page.evaluate(()=>Object.fromEntries(
+    [...document.querySelectorAll('[data-puppet="performing"]')].map(root=>{
+      const animation=root.getAnimations().find(a=>a.id==='posecraft-joint');
+      return [root.dataset.decorationId,{time:Number(animation?.currentTime),playing:animation?.playState==='running'}];
+    })));
   if(dance){
-    const require=createRequire(path.join(game,'package.json'));
-    const {outputFiles}=await require('esbuild').build({stdin:{
-      contents:"export * from './animatronic.ts'; export * from './animationClock.ts';",
-      resolveDir:path.join(game,'src/game')},bundle:true,format:'iife',globalName:'crowdBench',write:false});
-    await page.addScriptTag({content:outputFiles[0].text});
-    await page.evaluate(({roots,parts})=>{
-      const {compileAnimatronic,sampleAnimatronic,animateCreature}=window.crowdBench;
-      window.dancerTicks=Object.fromEntries(roots.map(id=>[id,0]));
-      for(const [index,rootId] of roots.entries()){
-        const root=parts.find(p=>p.id===rootId);
-        const rig=compileAnimatronic(parts,rootId);
-        const pieces=rig.joints.map(j=>{
-          const part=parts.find(p=>p.id===j.id);
-          const button=document.querySelector('[data-decoration-id="'+j.id+'"]');
-          const rest=part.assembly||{x:0,y:0,rotation:0};
-          // An alternating two-step exercises both branches of the leg and arm chains.
-          const swing=part.kind.includes('Torso')?3:part.kind.includes('Arm')?22:14;
-          const sign=rest.x<0?-1:1;
-          rig.clip.tracks[j.id+'.rotation']=[[0,j.rotation],[.7,j.rotation+sign*swing],
-            [1.4,j.rotation],[2.1,j.rotation-sign*swing],[2.8,j.rotation]];
-          return {id:j.id,button,rest};
-        });
-        const stage=pieces[0].button.offsetParent;
-        let dx,dy;
-        const resize=()=>{dx=stage.clientWidth*root.size/100;dy=stage.clientHeight*root.size/100;};
-        resize();
-        new ResizeObserver(resize).observe(stage);
-        animateCreature(pieces[0].button,t=>{
-          const frame=sampleAnimatronic(rig,t+index*.31);
-          for(const {id,button,rest} of pieces){
-            const p=frame[id];
-            button.style.transform='translate(-50%,-50%) translate('+((p.x-rest.x)*dx)+'px,'+
-              ((p.y-rest.y)*dy)+'px) rotate('+p.rotation+'deg)';
-          }
-          window.dancerTicks[rootId]++;
-        });
-      }
-    },{roots,parts:save.decorations});
-    await page.waitForFunction(()=>Object.values(window.dancerTicks).every(n=>n>=3));
+    await page.waitForFunction(n=>document.querySelectorAll('[data-puppet="performing"]').length===n,zombies);
+    assert.equal(await page.locator('.puppet-drawing[data-slot="head"]').count(),zombies);
+    assert.equal(await page.locator('.puppet-drawing[data-slot="rightHand"]').count(),zombies);
+    await page.waitForFunction(()=>[...document.querySelectorAll('[data-puppet]')].every(b=>b.getAnimations().some(a=>a.id==='posecraft-joint'&&a.playState==='running')));
   }
   const read=()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)).decorations[0],SAVE_KEY);
   const rows=[];
   async function measure(mode,work){
-    const ticks=dance?await page.evaluate(()=>({...window.dancerTicks})):null;
+    const ticks=dance?await performers():null;
     await page.evaluate(()=>new Promise(resolve=>{
       window.intervals=[];
       requestAnimationFrame(first=>{
@@ -166,22 +144,15 @@ try {
     const timing=await page.evaluate(()=>{
       cancelAnimationFrame(window.lotRaf);
       const a=window.intervals.sort((a,b)=>a-b);
-      return {fps:+(1000*a.length/a.reduce((v,x)=>v+x,0)).toFixed(1),p95ms:+a[Math.floor(a.length*.95)].toFixed(1),frames:a.length};
+      const elapsed=a.reduce((v,x)=>v+x,0);
+      return {fps:+(1000*a.length/elapsed).toFixed(1),p95ms:+a[Math.floor(a.length*.95)].toFixed(1),
+        frames:a.length,elapsedMs:Math.round(elapsed),framesOver25ms:a.filter(ms=>ms>25).length};
     });
     if(ticks){
-      const counts=await page.evaluate(()=>window.dancerTicks);
-      const updates=roots.map(id=>counts[id]-ticks[id]);
-      timing.activeDancers=updates.filter(n=>n>0).length;
-      timing.minDancerUpdates=Math.min(...updates);
-      if(timing.activeDancers<roots.length){
-        // The compact editor can make the Porch inert and pause its shared clock.
-        const sleeping=await page.evaluate(ids=>ids.filter(id=>{
-          const node=document.querySelector('[data-decoration-id="'+id+'"]');
-          const r=node.getBoundingClientRect();
-          return node.closest('[inert]')||!r.width||!r.height||r.right<=0||r.bottom<=0||r.left>=innerWidth||r.top>=innerHeight;
-        }),roots);
-        assert.ok(roots.every((id,i)=>updates[i]>0||sleeping.includes(id)),'A visible dancer stopped during '+mode);
-      }
+      const after=await performers();
+      timing.activeDancers=roots.filter(id=>after[id]?.playing&&after[id].time>ticks[id]?.time).length;
+      if(mode==='drag'||mode==='idle')assert.equal(timing.activeDancers,zombies,'Every zombie must play throughout '+mode);
+      if(mode==='drag')for(const id of roots)assert.ok(after[id].time-ticks[id].time>=timing.elapsedMs*.97,'Puppet paused during drag: '+id);
     }
     rows.push({mode,...timing});
   }
@@ -206,8 +177,9 @@ try {
   else {await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+12,y+8);}
   await page.locator('.lot-drag-ghost').waitFor();
   await measure('drag',async()=>{
-    for(let i=0;i<90;i++){
-      const px=x+16+i*.4,py=y+10+10*Math.sin(i/8);
+    const until=Date.now()+(dance?14500:0);
+    for(let i=0;i<90||Date.now()<until;i++){
+      const px=x+38+20*Math.sin(i/17),py=y+10+10*Math.sin(i/8);
       if(phone)await finger('touchMove',px,py);else await page.mouse.move(px,py);
     }
   });
@@ -236,8 +208,37 @@ try {
   assert.notEqual(edited.rotation,before.rotation);
   await page.reload();await target.waitFor();
   assert.deepEqual(await read(),edited);
+  if(dance){
+    const root=page.locator('[data-decoration-id="dancer-0"]');
+    await page.waitForFunction(n=>document.querySelectorAll('[data-puppet]').length===n,zombies);
+    const drawings=await page.evaluate(async()=>{
+      const parts=[...document.querySelectorAll('[data-scene-prop-id="dancer-0"]')];
+      const animations=parts.flatMap(p=>p.getAnimations({subtree:true})).filter(a=>a.id.startsWith('posecraft-'));
+      const layer=slot=>parts.map(p=>p.querySelector('[data-slot="'+slot+'"]')).find(Boolean);
+      const head=layer('head'),hand=layer('rightHand'),tiles=[];
+      // Inspect the production animations after the timed interaction has ended.
+      for(const ms of [100,600,1300,2690,3200,4000,4400]){
+        for(const a of animations){a.pause();a.currentTime=ms;}
+        await new Promise(requestAnimationFrame);
+        tiles.push([getComputedStyle(head).backgroundPosition,getComputedStyle(hand).backgroundPosition]);
+      }
+      for(const a of animations)a.play();
+      return tiles;
+    });
+    assert.ok(new Set(drawings.map(d=>d[0])).size>=5);
+    assert.equal(new Set(drawings.map(d=>d[1])).size,3);
+    await root.evaluate(b=>b.click());
+    await page.waitForFunction(n=>document.querySelectorAll('[data-puppet]').length===n,zombies-1);
+    await target.evaluate(b=>b.click());
+    await page.waitForFunction(n=>document.querySelectorAll('[data-puppet]').length===n,zombies);
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.waitForFunction(()=>!document.querySelector('[data-puppet]'));
+  }
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({width,dpr:phone?2:1,channel,headed,browser:browser.version(),looseCount,zombies,dance,rows},null,2));
+  const system=await browser.newBrowserCDPSession();
+  const {gpu}=await system.send('SystemInfo.getInfo');
+  console.log(JSON.stringify({width,dpr:phone?2:1,channel,headed,browser:browser.version(),
+    renderer:gpu.auxAttributes?.glRenderer||gpu.devices[0]?.deviceString,looseCount,zombies,dance,rows},null,2));
 } finally {
   await browser?.close();
   await new Promise(resolve=>server.close(resolve));
