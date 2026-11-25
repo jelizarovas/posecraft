@@ -6,6 +6,12 @@ const smooth=t=>t*t*(3-2*t);
 const unit=angle=>({x:(Math.cos(angle)-Math.sin(angle))/Math.SQRT2,y:(Math.cos(angle)+Math.sin(angle))/(2*Math.SQRT2)});
 const finite=value=>Number.isFinite(value)?value:0;
 
+export function mapActorGait(actor,reduced){
+  if(!actor.walking||reduced||actor.jumping===true||actor.rolling===true||typeof actor.traversalAction==='string')return 'idle';
+  if(Number.isFinite(actor.gaitWeight)&&actor.gaitWeight<=0)return 'idle';
+  return actor.running===true||actor.gait==='run'?'run':'walk';
+}
+
 /** A planted foot moves opposite travel while its counterpart swings forward. */
 function footCycle(phase,moving,running=false){
   if(!moving)return{forward:0,lift:0,stance:true};
@@ -20,8 +26,9 @@ export function sampleMapActor(actor,reduced=false){
   const facing=finite(actor.facing),travel=Number.isFinite(actor.travelFacing)?actor.travelFacing:facing;
   const forward=unit(facing),right=unit(facing+Math.PI/2),stride=unit(travel);
   const jumping=actor.jumping===true,rolling=actor.rolling===true,traversing=typeof actor.traversalAction==='string';
-  const phase=finite(actor.phase),weight=Number.isFinite(actor.gaitWeight)?Math.max(0,Math.min(1,actor.gaitWeight)):1,moving=!!actor.walking&&!reduced&&weight>0&&!jumping&&!rolling&&!traversing;
-  const running=moving&&(actor.running===true||actor.gait==='run'),bob=moving?(running?1.4+Math.sin(phase*2)*1.3:Math.sin(phase*2)*.65)*weight:0;
+  const gait=mapActorGait(actor,reduced),moving=gait!=='idle',running=gait==='run';
+  const phase=finite(actor.phase),weight=Number.isFinite(actor.gaitWeight)?Math.max(0,Math.min(1,actor.gaitWeight)):1;
+  const bob=moving?(running?1.4+Math.sin(phase*2)*1.3:Math.sin(phase*2)*.65)*weight:0;
   const point=(lateral,depth,height)=>{depth+=(running?3.2*weight:0)*Math.max(0,Math.min(1,(height-12)/22));return{x:right.x*lateral+forward.x*depth,y:right.y*lateral+forward.y*depth-height,depth:right.y*lateral+forward.y*depth};};
   const limbs=[-1,1].map((side,i)=>{
     const gait=footCycle(phase+i*Math.PI,moving,running),hip=point(side*2.7,0,14+bob);gait.forward*=weight;gait.lift*=weight;
@@ -114,18 +121,17 @@ function drawRollingFallback(ctx,sample){
 
 /** Lightweight directional map adventurer; all joints share a projected body basis. */
 export function drawMapActor(ctx,map,actor,definition,reduced=false,{shadow=true,art}={}){
-  const sample=sampleMapActor(actor,reduced),position=projectMap(map,actor),scale=map.tileSize.width/64;
-  sample.rollProgress=actor.rollProgress;
-  sample.color=definition?.color||'#68734b';ctx.save();ctx.translate(position.x,position.y);ctx.scale(scale,scale);
+  const position=projectMap(map,actor),scale=map.tileSize.width/64;
+  ctx.save();ctx.translate(position.x,position.y);ctx.scale(scale,scale);
   if(shadow){ctx.save();ctx.translate(13,6);ctx.rotate(.35);ellipse(ctx,0,0,20,5,'#19271c3d');ctx.restore();ellipse(ctx,0,1,7,2.5,'#13221b66');}
   ctx.translate(0,-(actor.lift||0)*map.tileSize.height/scale);
   const traversalClip={'vault':'vault','climb-up':'climbUp','climb-down':'climbDown'}[actor.traversalAction];
-  const clips=map.art?.actors?.[actor.id],action=traversalClip||(actor.rolling===true?'roll':actor.jumping===true?'jump':sample.moving?(sample.running?'run':'walk'):'idle'),clip=clips?.[action],image=clip&&art?.image(clip.image);
+  const clips=map.art?.actors?.[actor.id],action=traversalClip||(actor.rolling===true?'roll':actor.jumping===true?'jump':mapActorGait(actor,reduced)),clip=clips?.[action],image=clip&&art?.image(clip.image);
   if(image){
-    const spec=map.art.images[clip.image],direction=((Math.round(sample.facing/TAU*clip.directions)%clip.directions)+clip.directions)%clip.directions;
+    const spec=map.art.images[clip.image],direction=((Math.round(finite(actor.facing)/TAU*clip.directions)%clip.directions)+clip.directions)%clip.directions;
     let progress=traversalClip?actor.traversalProgress:action==='jump'?actor.jumpProgress:action==='roll'?actor.rollProgress:null;
     if(action==='climbDown')progress=1-finite(progress);
-    const normalized=progress===null?null:Math.max(0,Math.min(1,finite(progress))),frame=normalized===null?Math.floor(((sample.phase/TAU)%1+1)%1*clip.frames):Math.min(clip.frames-1,Math.floor(normalized*clip.frames));
+    const normalized=progress===null?null:Math.max(0,Math.min(1,finite(progress))),frame=normalized===null?Math.floor(((finite(actor.phase)/TAU)%1+1)%1*clip.frames):Math.min(clip.frames-1,Math.floor(normalized*clip.frames));
     let x=-spec.anchorX*spec.width,y=-spec.anchorY*spec.height;
     if(action==='vault'&&actor.supportContact&&clip.supportAnchors?.[direction]&&Array.isArray(clip.supportWindow)){
       const contact=projectMap(map,actor.supportContact),directionAnchors=clip.supportAnchors[direction],anchor=Array.isArray(directionAnchors)?directionAnchors[frame]:directionAnchors,[start,end]=clip.supportWindow,ramp=.08;
@@ -137,6 +143,9 @@ export function drawMapActor(ctx,map,actor,definition,reduced=false,{shadow=true
     }
     ctx.drawImage(image,frame*clip.frameWidth,direction*clip.frameHeight,clip.frameWidth,clip.frameHeight,x,y,spec.width,spec.height);ctx.restore();return;
   }
+  const sample=sampleMapActor(actor,reduced);
+  sample.rollProgress=actor.rollProgress;
+  sample.color=definition?.color||'#68734b';
   if(actor.rolling===true){drawRollingFallback(ctx,sample);ctx.restore();return;}
   if(traversalClip){
     const p=Math.max(0,Math.min(1,finite(actor.traversalProgress))),effort=Math.sin(p*Math.PI),support=sample.limbs[0];

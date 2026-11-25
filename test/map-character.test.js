@@ -1,6 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {sampleMapActor} from '../src/map-character.js';
+import {drawMapActor,sampleMapActor} from '../src/map-character.js';
+import {drawMapNpc} from '../src/map-npc-renderer.js';
+
+test('baked character frames use the saved gait and facing without solving procedural joints',()=>{
+  const sheet={complete:true,naturalWidth:512},spec={width:60,height:82,anchorX:.5,anchorY:.8};
+  const actions=['idle','walk','run','jump','roll','vault','climbDown'];
+  const clips=Object.fromEntries(actions.map(image=>[image,{image,directions:4,frames:8,frameWidth:64,frameHeight:88}]));
+  const map={tileSize:{width:64,height:32},art:{actors:{sprite:clips},images:Object.fromEntries(actions.map(name=>[name,spec]))}};
+  const actor={id:'sprite',x:4,y:4,z:0,facing:-Math.PI/2,phase:Math.PI,walking:true,
+    get travelFacing(){throw Error('Sprite rendering sampled the procedural stride');}};
+  const requests=[],draws=[];
+  const art={image:id=>{requests.push(id);return sheet;}};
+  const ctx={save(){},restore(){},scale(){},translate(){},drawImage(image,x,y){assert.equal(image,sheet);draws.push([x,y]);}};
+  for(const [state,reduced,expected,frame] of [
+    [{},false,'walk',4],[{gait:'run'},false,'run',4],[{gaitWeight:0},false,'idle',4],
+    [{gait:'run'},true,'idle',4],[{jumping:true,jumpProgress:.25},false,'jump',2],
+    [{rolling:true,rollProgress:1},false,'roll',7],[{traversalAction:'vault',traversalProgress:.125},false,'vault',1],
+    [{traversalAction:'climb-down',traversalProgress:.125},false,'climbDown',7]
+  ]){
+    const current=Object.assign(Object.create(actor),state);
+    drawMapActor(ctx,map,current,{},reduced,{art,shadow:false});
+    assert.equal(requests.at(-1),expected);
+    assert.deepEqual(draws.at(-1),[64*frame,88*3]);
+  }
+  drawMapNpc(ctx,map,actor,{appearance:{kind:'villager',hat:'none'}},false,{art,shadow:false});
+  assert.equal(requests.at(-1),'walk');
+  assert.deepEqual(draws.at(-1),[64*4,88*3]);
+  drawMapNpc(ctx,map,actor,{appearance:{authenticId:'npc-farmer'}},false,{art,shadow:false});
+  assert.equal(requests.at(-1),'npcs/npc-farmer/walk');
+  assert.deepEqual(draws.at(-1),[128*6,176*12]);
+});
 
 test('map feet advance along world travel, including vertical and diagonal screen directions',()=>{
   for(let facing=0;facing<Math.PI*2;facing+=Math.PI/4){

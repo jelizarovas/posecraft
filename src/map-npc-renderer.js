@@ -1,5 +1,5 @@
 import {projectMap} from './map.js';
-import {sampleMapActor} from './map-character.js';
+import {mapActorGait,sampleMapActor} from './map-character.js';
 import {getAuthenticCast, resolveAuthenticAction} from './map-cast.js';
 
 const TAU=Math.PI*2;
@@ -75,7 +75,7 @@ function drawAnimal(ctx,map,actor,appearance,reduced,options){
 }
 
 function drawHat(ctx,sample,hat,style,kid){
-  if(!hat||hat==='none')return;const head=sample.point(0,0,32+sample.bob),s=kid?.86:1,contact=head.y-1.1*s;
+  const head=sample.point(0,0,32+sample.bob),s=kid?.86:1,contact=head.y-1.1*s;
   if(hat==='straw'){
     ellipse(ctx,head.x,contact,4.8*s,1.05*s,'#d3ad57');
     polygon(ctx,[{x:head.x-3*s,y:contact-.4*s},{x:head.x-2.1*s,y:contact-3.6*s},{x:head.x+2.1*s,y:contact-3.6*s},{x:head.x+3*s,y:contact-.4*s}],'#c4973e','#7d6632');
@@ -87,8 +87,8 @@ function drawHat(ctx,sample,hat,style,kid){
   }
 }
 function drawVillagerSprite(ctx,map,actor,reduced,art,style,shadow){
-  const sample=sampleMapActor(actor,reduced),clips=map.art?.actors?.[actor.id],action=actor.rolling?'roll':actor.jumping?'jump':sample.moving?(sample.running?'run':'walk'):'idle',clip=clips?.[action],image=clip&&art?.image(clip.image),spec=clip&&map.art.images[clip.image];if(!image||!spec)return false;
-  const position=projectMap(map,actor),scale=map.tileSize.width/64,direction=((Math.round(sample.facing/TAU*clip.directions)%clip.directions)+clip.directions)%clip.directions,progress=action==='jump'?actor.jumpProgress:action==='roll'?actor.rollProgress:null,frame=progress==null?Math.floor((((sample.phase/TAU)%1)+1)%1*clip.frames):Math.min(clip.frames-1,Math.floor(clamp(finite(progress),0,1)*clip.frames)),variant=spriteVariant(image,clip,frame,direction,style);
+  const clips=map.art?.actors?.[actor.id],action=actor.rolling?'roll':actor.jumping?'jump':mapActorGait(actor,reduced),clip=clips?.[action],image=clip&&art?.image(clip.image),spec=clip&&map.art.images[clip.image];if(!image||!spec)return false;
+  const position=projectMap(map,actor),scale=map.tileSize.width/64,direction=((Math.round(finite(actor.facing)/TAU*clip.directions)%clip.directions)+clip.directions)%clip.directions,progress=action==='jump'?actor.jumpProgress:action==='roll'?actor.rollProgress:null,frame=progress==null?Math.floor((((finite(actor.phase)/TAU)%1)+1)%1*clip.frames):Math.min(clip.frames-1,Math.floor(clamp(finite(progress),0,1)*clip.frames)),variant=spriteVariant(image,clip,frame,direction,style);
   ctx.save();ctx.translate(position.x,position.y);ctx.scale(scale,scale);if(shadow!==false)drawShadow(ctx,18);ctx.translate(0,-finite(actor.lift)*map.tileSize.height/scale);ctx.drawImage(variant||image,...(variant?[0,0,clip.frameWidth,clip.frameHeight]:[frame*clip.frameWidth,direction*clip.frameHeight,clip.frameWidth,clip.frameHeight]),-spec.anchorX*spec.width,-spec.anchorY*spec.height,spec.width,spec.height);ctx.restore();return true;
 }
 function drawWheelbarrow(ctx,sample,style){
@@ -114,15 +114,20 @@ function drawVillager(ctx,map,actor,definition,reduced,options){
   const appearance=definition.appearance,style=styleFor(appearance),position=projectMap(map,actor),mapScale=map.tileSize.width/64,bodyScale=finite(appearance.scale,1);
   ctx.save();ctx.translate(position.x,position.y);ctx.scale(bodyScale,bodyScale);ctx.translate(-position.x,-position.y);
   const custom=drawVillagerSprite(ctx,map,actor,reduced,options.art,style,options.shadow);if(!custom&&typeof options.drawBase==='function')options.drawBase(ctx,map,actor,definition,reduced,{shadow:options.shadow,art:options.art});ctx.restore();if(!custom&&typeof options.drawBase!=='function')return false;
-  const sample=rasterSample(sampleMapActor(actor,reduced)),presentation=options.presentation||actor.presentation||{},carrying=presentation.carrying||presentation.tool;
-  ctx.save();ctx.translate(position.x,position.y-finite(actor.lift)*map.tileSize.height);ctx.scale(mapScale*bodyScale,mapScale*bodyScale);
-  drawHat(ctx,sample,appearance.hat,style,bodyScale<.9);
-  if(carrying==='wheelbarrow'||actionOf(actor,presentation)==='harvest')drawWheelbarrow(ctx,sample,style);
+  const presentation=options.presentation||actor.presentation||{},carrying=presentation.carrying||presentation.tool;
   const action=actionOf(actor,presentation),time=finite(presentation.time);
-  if(carrying==='farmhoe'||carrying==='hoe'||action==='hoe'||action==='till')drawHoe(ctx,sample,time);
-  if(carrying==='ball'&&!presentation.ball)drawBall(ctx,sample,presentation);
-  if(carrying==='basket'||carrying==='produce')drawBasket(ctx,sample,style);
-  if(action==='social'||action==='wave')drawSocial(ctx,sample,time);
+  let sample;
+  function joints(){
+    if(!sample)sample=rasterSample(sampleMapActor(actor,reduced));
+    return sample;
+  }
+  ctx.save();ctx.translate(position.x,position.y-finite(actor.lift)*map.tileSize.height);ctx.scale(mapScale*bodyScale,mapScale*bodyScale);
+  if(appearance.hat&&appearance.hat!=='none')drawHat(ctx,joints(),appearance.hat,style,bodyScale<.9);
+  if(carrying==='wheelbarrow'||action==='harvest')drawWheelbarrow(ctx,joints(),style);
+  if(carrying==='farmhoe'||carrying==='hoe'||action==='hoe'||action==='till')drawHoe(ctx,joints(),time);
+  if(carrying==='ball'&&!presentation.ball)drawBall(ctx,joints(),presentation);
+  if(carrying==='basket'||carrying==='produce')drawBasket(ctx,joints(),style);
+  if(action==='social'||action==='wave')drawSocial(ctx,joints(),time);
   ctx.restore();drawSharedBall(ctx,map,actor,presentation);return true;
 }
 
@@ -161,19 +166,19 @@ function drawAuthenticActor(ctx, map, actor, definition, authentic, reduced, opt
     return false;
   }
 
-  const sample = sampleMapActor(actor, reduced);
+  const phase = finite(actor.phase);
   const position = projectMap(map, actor);
   const mapScale = map.tileSize.width / 64;
   // Pip and other cast members are modeled and baked at genuine metric scale (no runtime downscale)
   const scale = mapScale;
   const spec = authentic.spec;
 
-  const direction = ((Math.round(sample.facing / TAU * actionClip.directions) % actionClip.directions) + actionClip.directions) % actionClip.directions;
+  const direction = ((Math.round(finite(actor.facing) / TAU * actionClip.directions) % actionClip.directions) + actionClip.directions) % actionClip.directions;
   let frame = 0;
   if (moving) {
-    frame = Math.floor((((sample.phase / TAU) % 1) + 1) % 1 * actionClip.frames);
+    frame = Math.floor((((phase / TAU) % 1) + 1) % 1 * actionClip.frames);
   } else {
-    const time = finite(presentation.time, sample.phase / 2);
+    const time = finite(presentation.time, phase / 2);
     const duration = actionClip.duration || 1.6;
     const progress = (time % duration) / duration;
     frame = Math.floor(progress * actionClip.frames) % actionClip.frames;
