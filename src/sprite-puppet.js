@@ -1,4 +1,5 @@
 import {forwardKinematics,sampleClip} from './index.js';
+import {skinnedTile} from './sprite-skin.js';
 
 const radians=Math.PI/180;
 const turn=(x,y,degrees)=>({
@@ -42,6 +43,17 @@ export function validateSpritePuppet(doc){
       require(atlas.images.includes(image)&&when&&Object.entries(when).every(([name,value])=>Number.isInteger(value)&&channels[name]?.[value]!==undefined),'variant '+image);
     }
   }
+  for(const part of parts){
+    const skin=part.skin;
+    if(!skin)continue;
+    require(atlas.tile<=256&&Number.isInteger(skin.intervals)&&skin.intervals>=1&&skin.intervals<=32,'skin grid');
+    require(Array.isArray(skin.joints)&&skin.joints.length>0&&skin.joints.length<=4&&skin.joints.every(id=>parts.some(p=>p.id===id&&p.parent===part.id)),'skin joints');
+    require(channels[skin.viewChannel]&&Array.isArray(skin.views)&&skin.views.length===channels[skin.viewChannel].length,'skin views');
+    for(const v of skin.views){
+      require(Array.isArray(v.pivots)&&v.pivots.length===skin.joints.length&&v.pivots.every(p=>p.length===2&&p.every(n=>Number.isFinite(n)&&n>=0&&n<=atlas.tile)),'skin pivots');
+      require(typeof v.weights==='string'&&/^[A-Za-z0-9+/]+={0,2}$/.test(v.weights)&&atob(v.weights).length===(skin.intervals+1)**2*skin.joints.length,'skin weights');
+    }
+  }
   for(const [name,keys] of Object.entries(clip.tracks)){
     const options=channels[name];
     const [joint,property]=name.split('.');
@@ -82,7 +94,8 @@ export function compileSpritePuppet(doc,bindings){
     pivots.set(part.id,pivot);
     joints.push({id:part.id,parent:parent||null,...turn(pivot.x-base.x,pivot.y-base.y,-base.rotation),
       rotation:part.rotation-base.rotation,length:0});
-    pieces.push({...part,defaultTile:doc.atlas.images.indexOf(part.image),
+    const skinRest=part.skin?.joints.map(id=>doc.parts.find(p=>p.id===id).rotation-doc.parts.find(p=>p.id===part.id).rotation);
+    pieces.push({...part,skinRest,defaultTile:doc.atlas.images.indexOf(part.image),
       switches:part.variants.map(v=>({conditions:Object.entries(v.when),tile:doc.atlas.images.indexOf(v.image)}))});
   }
   return {doc,joints,pieces};
@@ -127,7 +140,12 @@ export function sampleSpritePuppet(rig,seconds,overrides){
       return {channel:l.channel,x:view.x+l.width*pose[l.channel],y:view.y,
         left:view.left,top:view.top,width:l.width,height:l.height,empty:l.emptyValue===pose[l.channel]};
     });
-    return {id:part.id,x:joint.x+offset.x,y:joint.y+offset.y,rotation:joint.rotation,layers,
+    let deformation;
+    if(part.skin){
+      const angles=part.skin.joints.map((id,i)=>world[id]?Math.round(world[id].rotation-joint.rotation-part.skinRest[i]):0);
+      if(angles.some(Boolean))deformation={skin:part.skin,view:pose[part.skin.viewChannel],angles};
+    }
+    return {id:part.id,x:joint.x+offset.x,y:joint.y+offset.y,rotation:joint.rotation,layers,deformation,
       tile:drawing?.tile??part.defaultTile,size:part.size,depth:pose[part.id+'.depth']??part.depth};
   });
 }
@@ -147,7 +165,10 @@ export function drawSpriteFrame(ctx,atlas,doc,pose){
   for(const p of pose){
     const size=9*p.size;
     ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rotation*radians);
-    ctx.drawImage(atlas,p.tile%columns*tile,Math.floor(p.tile/columns)*tile,tile,tile,-size/2,-size/2,size,size);
+    if(p.deformation){
+      const {canvas,left,top}=skinnedTile(atlas,doc,p),scale=size/tile;
+      ctx.drawImage(canvas,left*scale-size/2,top*scale-size/2,canvas.width*scale,canvas.height*scale);
+    }else ctx.drawImage(atlas,p.tile%columns*tile,Math.floor(p.tile/columns)*tile,tile,tile,-size/2,-size/2,size,size);
     for(const r of p.layers??[]){
       if(r.empty)continue;
       const scale=size/tile;

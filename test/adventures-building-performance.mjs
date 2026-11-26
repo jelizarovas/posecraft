@@ -294,6 +294,9 @@ try {
   if(dance){
     const root=page.locator('[data-decoration-id="dancer-0"]');
     await page.waitForFunction(n=>document.querySelectorAll('[data-puppet]').length===n,zombies);
+    const shirt=root.locator('canvas[data-slot="body"]');
+    const firstShirt=await shirt.evaluate(c=>c.toDataURL());
+    await page.waitForFunction(previous=>document.querySelector('[data-decoration-id="dancer-0"] canvas[data-slot="body"]').toDataURL()!==previous,firstShirt);
     const drawings=await page.evaluate(async()=>{
       const parts=[...document.querySelectorAll('[data-scene-prop-id="dancer-0"]')];
       const animations=parts.flatMap(p=>p.getAnimations({subtree:true})).filter(a=>a.id.startsWith('posecraft-'));
