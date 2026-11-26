@@ -28,6 +28,9 @@ export function createMapTerrainPainter(map,doc,art,{materialLimit=256}={}){
 
   // Fast-path resources for direct chunk painting: 4 wrapped GPU terrain sheets
   // (pure tiles) + a batched software-to-GPU transition atlas (border/painted tiles).
+  // This path re-implements `material()` blending in software. Any change to
+  // terrain blending, paint or shading must keep both paths in agreement;
+  // `npm run test:map-terrain-parity` compares them on woodland art.
   let fastSize=0,sheets=[null,null,null,null],swPixels=[null,null,null,null];
   const paintPixels=new Map();
   let swAtlas=null,swAtlasCtx=null,swAtlasImg=null,gpuAtlas=null,gpuAtlasCtx=null;
