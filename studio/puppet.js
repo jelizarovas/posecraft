@@ -1,11 +1,53 @@
 import initial from '../examples/characters/porch-zombie.puppet.json';
 import {validateSpritePuppet} from '../src/sprite-puppet.js';
 import {spritePlayer} from './sprite-player.js';
+import {sampleClip} from '../src/index.js';
 import runtime from 'virtual:posecraft-sprite-embed';
 
 const $=id=>document.getElementById(id);
 const canvas=document.querySelector('canvas');
 let doc=structuredClone(initial),player,generation=0;
+let overrides={},facePart,sliders=[];
+function previewFace(){
+  player?.preview(overrides,$('closeup').checked?facePart?.id:null);
+  $('key-face').disabled=$('release-face').disabled=!Object.keys(overrides).length;
+}
+function faceControls(){
+  facePart=doc.parts.find(p=>p.layers?.length);overrides={};sliders=[];
+  $('face').hidden=!facePart;$('facial-sliders').replaceChildren();
+  const layers=facePart?.layers??[];
+  const controls=layers.length?[{channel:layers[0].viewChannel,label:'Head turn'},...layers]:[];
+  for(const {channel,label} of controls){
+    const row=document.createElement('label'),input=document.createElement('input'),value=document.createElement('output');
+    input.type='range';input.min=0;input.max=doc.channels[channel].length-1;input.step=1;
+    row.append(label,input,value);$('facial-sliders').append(row);
+    input.setAttribute('aria-label',label);sliders.push({channel,input,value});
+    input.oninput=()=>{overrides[channel]=Number(input.value);previewFace();};
+  }
+  previewFace();
+}
+function showFace(time){
+  if(!sliders.length)return;
+  const pose=sampleClip(doc.clip,time);
+  for(const {channel,input,value} of sliders){
+    const amount=overrides[channel]??Math.round(pose[channel]??0);
+    if(input.value!==String(amount))input.value=amount;
+    const text=doc.channels[channel][amount];if(value.textContent!==text)value.textContent=text;
+  }
+}
+$('closeup').onchange=previewFace;
+$('release-face').onclick=()=>{overrides={};previewFace();};
+$('key-face').onclick=async()=>{
+  try{
+    const at=Number($('time').value),next=structuredClone(doc);
+    for(const [channel,value] of Object.entries(overrides)){
+      const track=(next.clip.tracks[channel]??[]).filter(([time])=>Math.abs(time-at)>.00001);
+      track.push([at,value,next.interpolated?.includes(channel)?'smooth':'step']);
+      next.clip.tracks[channel]=track.sort((a,b)=>a[0]-b[0]);
+    }
+    await load(next,at);$('status').textContent='Face keys saved at '+at.toFixed(2)+' s.';
+  }catch(e){report(e);}
+};
 function options(select,items){
   select.replaceChildren(...items.map(([value,label])=>new Option(label,value)));
 }
@@ -17,7 +59,7 @@ function showKey(seek){
   const input=document.createElement(choices?'select':'input');
   if(choices)options(input,choices.map((label,j)=>[j,label]));
   else {input.type='number';input.step='any';}
-  input.value=value;input.setAttribute('aria-label',choices?'Drawing':track.endsWith('.rotation')?'Rotation in degrees':'Joint offset');
+  input.value=value;input.setAttribute('aria-label',choices?'Drawing':track.endsWith('.rotation')?'Rotation in degrees':track.endsWith('.depth')?'Draw order':'Joint offset');
   $('value').replaceChildren(input);
   $('remove').disabled=keys.length<2;
   if(seek)player?.seek(time);
@@ -32,6 +74,7 @@ async function load(next,position){
   const request=++generation;
   const view=await spritePlayer(canvas,next,(time,playing)=>{
     $('time').value=time;$('clock').textContent=time.toFixed(2)+' s';$('play').textContent=playing?'Pause':'Play';
+    showFace(time);
   });
   if(request!==generation){view.dispose();return;}
   player?.dispose();player=view;doc=next;
@@ -39,7 +82,7 @@ async function load(next,position){
   const previous=$('track').value;
   options($('track'),Object.keys(doc.clip.tracks).map(t=>[t,t.replace('.rotation',' · rotation')]));
   if(Object.hasOwn(doc.clip.tracks,previous))$('track').value=previous;
-  keys();
+  keys();faceControls();
   if(position!==undefined)player.seek(position);
 }
 function report(error){$('status').textContent=error.message;}
@@ -51,7 +94,8 @@ async function edit(mode){
   if(mode!=='remove'){
     const value=$('value').firstChild.value;
     if(value===''||$('at').value==='')throw Error('Enter a time and value.');
-    track.push(doc.channels[name]?[time,Number(value),'step']:[time,Number(value),doc.clip.tracks[name][selected][2]||'smooth']);
+    const ease=doc.channels[name]&&!doc.interpolated?.includes(name)?'step':doc.clip.tracks[name][selected][2]||'smooth';
+    track.push([time,Number(value),ease]);
     track.sort((a,b)=>a[0]-b[0]);
   }
   await load(next,time);

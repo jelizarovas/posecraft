@@ -9,6 +9,7 @@ import {stat,readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {chromium} from '@playwright/test';
+import {createRequire} from 'node:module';
 
 
 const game=process.env.ADVENTURES_REPO||fileURLToPath(new URL('../../play.littlelands.co/',import.meta.url));
@@ -28,6 +29,7 @@ save.user.firstName='Performance';
 save.sign=true;
 const cleared=n=>({cleared:Array.from({length:n},(_,i)=>i),theme:'clearing'});
 Object.assign(save.homes.house,{style:'moon',left:1,right:1,roomsLeft:1,roomsRight:1,level:2,plots:{'-1':cleared(8),'1':cleared(7)}});
+if(process.argv.includes('--navigation'))save.homes.library={...save.homes.house,style:'mossy',left:0,right:0,roomsLeft:0,roomsRight:0,level:0,plots:{}};
 const kinds=['bat','ghost','skeleton','pumpkin','lantern','spider','zombieArm','skull','rat','gargoyle','eyeball','frankenstein'];
 for(let i=0;i<looseCount;i++){
   const kind=kinds[i%kinds.length],glow=[2,1,0][i%3];
@@ -59,6 +61,17 @@ if(zombies){
   }
 }
 const seed=JSON.stringify(parseSave(JSON.stringify(save)));
+// BENCH_ZOMBIES=8 node --experimental-strip-types test/adventures-building-performance.mjs 960 --dev
+if(process.argv.includes('--dev')){
+  process.chdir(game);
+  const requireGame=createRequire(path.join(game,'package.json'));
+  const {createServer:createVite}=await import(pathToFileURL(requireGame.resolve('vite')));
+  const dev=await createVite({root:game,configFile:path.join(game,'vite.config.ts'),
+    server:{host:'0.0.0.0',port:Number(process.env.PORT||5272),strictPort:true},
+    plugins:[{name:'local-test-town',transformIndexHtml:()=>[{tag:'script',injectTo:'head-prepend',
+      children:'if(!localStorage.getItem('+JSON.stringify(SAVE_KEY)+'))localStorage.setItem('+JSON.stringify(SAVE_KEY)+','+JSON.stringify(seed)+');'}]}]});
+  await dev.listen();dev.printUrls();await new Promise(()=>{});
+}
 const preview=process.argv.includes('--serve');
 const types={'.js':'text/javascript','.css':'text/css','.html':'text/html','.webp':'image/webp','.svg':'image/svg+xml','.json':'application/json','.woff2':'font/woff2','.png':'image/png'};
 await stat(path.join(dist,'index.html'));
@@ -123,9 +136,22 @@ try {
     })));
   if(dance){
     await page.waitForFunction(n=>document.querySelectorAll('[data-puppet="performing"]').length===n,zombies);
-    assert.equal(await page.locator('.puppet-drawing[data-slot="head"]').count(),zombies);
-    assert.equal(await page.locator('.puppet-drawing[data-slot="rightHand"]').count(),zombies);
+    assert.equal(await page.locator('canvas.puppet-composite').count(),zombies);
+    const canvas=page.locator('canvas.puppet-composite').first();
+    const firstFrame=await canvas.evaluate(c=>c.toDataURL());
+    await page.waitForFunction(previous=>document.querySelector('canvas.puppet-composite').toDataURL()!==previous,firstFrame);
     await page.waitForFunction(()=>[...document.querySelectorAll('[data-puppet]')].every(b=>b.getAnimations().some(a=>a.id==='posecraft-joint'&&a.playState==='running')));
+  }
+  if(dance){
+    // The hidden lot must stop its clocks and resume those same players on return.
+    const animation=await page.locator('[data-puppet=performing]').first().evaluateHandle(root=>root.getAnimations()[0]);
+    for(let i=0;i<3;i++){
+      await page.getByRole('button',{name:'Learning map',exact:true}).click();
+      await page.waitForFunction(a=>a.playState==='paused',animation);
+      await page.getByRole('button',{name:'Back to home',exact:true}).click();
+      await page.waitForFunction(a=>a.playState==='running'&&document.querySelector('[data-puppet=performing]')?.getAnimations().includes(a),animation);
+    }
+    await animation.dispose();
   }
   const read=()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)).decorations[0],SAVE_KEY);
   const rows=[];
@@ -146,15 +172,52 @@ try {
       const a=window.intervals.sort((a,b)=>a-b);
       const elapsed=a.reduce((v,x)=>v+x,0);
       return {fps:+(1000*a.length/elapsed).toFixed(1),p95ms:+a[Math.floor(a.length*.95)].toFixed(1),
-        frames:a.length,elapsedMs:Math.round(elapsed),framesOver25ms:a.filter(ms=>ms>25).length};
+        worstMs:+a.at(-1).toFixed(1),frames:a.length,elapsedMs:Math.round(elapsed),framesOver25ms:a.filter(ms=>ms>25).length};
     });
     if(ticks){
       const after=await performers();
       timing.activeDancers=roots.filter(id=>after[id]?.playing&&after[id].time>ticks[id]?.time).length;
-      if(mode==='drag'||mode==='idle')assert.equal(timing.activeDancers,zombies,'Every zombie must play throughout '+mode);
+      if(['drag','idle','switch selection','switch selection, warm artwork','open editor','change appearance','rotate'].includes(mode))assert.equal(timing.activeDancers,zombies,'Every zombie must play throughout '+mode);
       if(mode==='drag')for(const id of roots)assert.ok(after[id].time-ticks[id].time>=timing.elapsedMs*.97,'Puppet paused during drag: '+id);
     }
     rows.push({mode,...timing});
+    if(process.argv.includes('--navigation'))console.log(mode,JSON.stringify(timing));
+  }
+  if(process.argv.includes('--navigation')){
+    assert.ok(dance&&phone,'Navigation fixture requires dancing zombies and a touch viewport');
+    const camera=await page.locator('.scene-camera').boundingBox();
+    const artwork=await page.locator('.puppet-composite').first().evaluateHandle(c=>c);
+    const clock=await page.locator('[data-puppet=performing]').first().evaluateHandle(el=>el.getAnimations()[0]);
+    async function swipe(distance,expected){
+      const x=camera.x+camera.width*(distance<0?.72:.24),y=camera.y+camera.height*.73;
+      const touch=(type,points)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points});
+      await touch('touchStart',[{x,y}]);
+      for(let i=1;i<=14;i++){await touch('touchMove',[{x:x+distance*i/14,y}]);await page.waitForTimeout(13);}
+      await touch('touchEnd',[]);
+      await page.waitForFunction(title=>document.querySelector('.home-name-switch h1')?.textContent===title,expected);
+      await page.waitForTimeout(350);
+    }
+    await measure('swipe yards',async()=>{
+      for(let i=0;i<2;i++){await swipe(-160,'East yard 1');await swipe(160,'My little home');}
+    });
+    await measure('swipe between owned homes',async()=>{
+      await swipe(-160,'East yard 1');await swipe(-160,'Moon cottage');
+      await page.waitForFunction(a=>a.playState==='paused',clock);
+      await swipe(160,'East yard 1');await swipe(160,'My little home');
+    });
+    for(let i=0;i<3;i++){
+      await page.getByRole('button',{name:'Learning map',exact:true}).click();
+      await page.waitForFunction(a=>a.playState==='paused',clock);
+      await measure('Star Map return '+(i+1),async()=>{
+        await page.getByRole('button',{name:'Back to home',exact:true}).evaluate(b=>b.click());
+        await page.waitForFunction(a=>a.playState==='running',clock);
+        await page.waitForTimeout(1000);
+      });
+    }
+    assert.ok(await artwork.evaluate(c=>c===document.querySelector('.puppet-composite')&&c.isConnected));
+    await target.tap();await page.waitForSelector('[data-decoration-id="stress-0"].selected');
+    await page.getByRole('button',{name:'Little Lands home',exact:true}).click();
+    await clock.dispose();await artwork.dispose();
   }
   const idle=()=>page.waitForTimeout(2500);
   await measure('idle',idle);
@@ -187,9 +250,17 @@ try {
   await page.waitForTimeout(250);
   assert.ok(Math.abs((await read()).x-50)>1);
   const editor=page.getByRole('dialog',{name:'Edit decoration'});
-  if(!await editor.isVisible())await page.getByRole('button',{name:'Edit selected prop'}).click();
+  if(await editor.isVisible()){
+    await page.getByRole('button',{name:'Close decoration editor'}).click();
+    await editor.waitFor({state:'hidden'});
+  }
+  const editButton=await page.getByRole('button',{name:'Edit selected prop'}).elementHandle();
+  await measure('open editor',async()=>{
+    await editButton.click();
+    await page.waitForTimeout(850);
+  });
   await editor.waitFor();
-  await measure('open editor',idle);
+  await editButton.dispose();
   const before=await read();
   await measure('change appearance',()=>page.evaluate(async()=>{
     for(let i=0;i<17;i++){
@@ -206,6 +277,15 @@ try {
   }));
   const edited=await read();
   assert.notEqual(edited.rotation,before.rotation);
+  if(dance){
+    // Exercise a genuinely customized assembly after timing the eight ordinary dancers.
+    const feature=DECORATION_FEATURES.zombieFoot[0];
+    await page.evaluate(({key,id,value})=>{
+      const town=JSON.parse(localStorage.getItem(key));
+      town.decorations.find(d=>d.id==='dancer-0-12').features={[id]:value};
+      localStorage.setItem(key,JSON.stringify(town));
+    },{key:SAVE_KEY,id:feature.id,value:feature.options[1].id});
+  }
   await page.reload();await target.waitFor();
   assert.deepEqual(await read(),edited);
   if(dance){
@@ -216,23 +296,28 @@ try {
       const animations=parts.flatMap(p=>p.getAnimations({subtree:true})).filter(a=>a.id.startsWith('posecraft-'));
       const layer=slot=>parts.map(p=>p.querySelector('[data-slot="'+slot+'"]')).find(Boolean);
       const head=layer('head'),hand=layer('rightHand'),tiles=[];
+      const facial=['leftEyelid','rightEyelid','mouth'].map(channel=>parts.map(p=>p.querySelector('[data-face-channel="'+channel+'"]')).find(Boolean));
       // Inspect the production animations after the timed interaction has ended.
-      for(const ms of [100,600,1300,2690,3200,4000,4400]){
+      const sweep=(a,b,step)=>Array.from({length:Math.ceil((b-a)/step)},(_,i)=>a+i*step);
+      for(const ms of [...sweep(100,1050,16),...sweep(1150,1520,6),2690,3200,...sweep(3520,4000,12),4400]){
         for(const a of animations){a.pause();a.currentTime=ms;}
         await new Promise(requestAnimationFrame);
-        tiles.push([getComputedStyle(head).backgroundPosition,getComputedStyle(hand).backgroundPosition]);
+        tiles.push([head,hand,...facial].map(node=>getComputedStyle(node).backgroundPosition));
       }
       for(const a of animations)a.play();
       return tiles;
     });
-    assert.ok(new Set(drawings.map(d=>d[0])).size>=5);
+    assert.equal(new Set(drawings.map(d=>d[0])).size,49);
     assert.equal(new Set(drawings.map(d=>d[1])).size,3);
+    for(const i of [2,3,4])assert.ok(new Set(drawings.map(d=>d[i].split(' ')[0])).size>=11);
     await root.evaluate(b=>b.click());
     await page.waitForFunction(n=>document.querySelectorAll('[data-puppet]').length===n,zombies-1);
     await target.evaluate(b=>b.click());
     await page.waitForFunction(n=>document.querySelectorAll('[data-puppet]').length===n,zombies);
     await page.emulateMedia({reducedMotion:'reduce'});
     await page.waitForFunction(()=>!document.querySelector('[data-puppet]'));
+    assert.equal(await page.locator('[data-slot=pelvis]').count(),1);
+    assert.equal(await page.locator('canvas.puppet-composite').count(),zombies-1);
   }
   assert.deepEqual(errors,[]);
   const system=await browser.newBrowserCDPSession();

@@ -17,6 +17,9 @@ export function validateSpritePuppet(doc){
     /^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(atlas.src),'atlas');
   require(clip&&Number.isFinite(clip.duration)&&clip.duration>0&&typeof clip.loop==='boolean'&&clip.tracks,'clip');
   require(channels&&Object.values(channels).every(options=>Array.isArray(options)&&options.length&&options.every(s=>typeof s==='string')),'drawing channels');
+  const baseHeight=Math.ceil(atlas.images.length/atlas.columns)*atlas.tile;
+  require(atlas.height===undefined||Number.isInteger(atlas.height)&&atlas.height>=baseHeight,'atlas height');
+  require(doc.interpolated===undefined||Array.isArray(doc.interpolated)&&doc.interpolated.every(name=>Object.hasOwn(channels,name)),'interpolated channels');
   const ids=new Set();
   require(Array.isArray(parts)&&parts.length>0,'parts');
   for(const part of parts){
@@ -24,6 +27,17 @@ export function validateSpritePuppet(doc){
     ids.add(part.id);
     require([part.x,part.y,part.rotation,part.pivot,part.size,part.depth].every(Number.isFinite)&&part.size>0,'registration');
     require(atlas.images.includes(part.image)&&Array.isArray(part.variants),'drawing '+part.id);
+    const layers=part.layers??[];
+    require(Array.isArray(layers)&&new Set(layers.map(l=>l.channel)).size===layers.length,'layers '+part.id);
+    for(const l of layers){
+      require(channels[l.channel]&&channels[l.viewChannel]&&l.views?.length===channels[l.viewChannel].length,'layer channels');
+      require(l.emptyValue===undefined||Number.isInteger(l.emptyValue)&&channels[l.channel][l.emptyValue]!==undefined,'empty layer value');
+      require([l.width,l.height].every(n=>Number.isInteger(n)&&n>0&&n<=atlas.tile),'layer size');
+      for(const v of l.views){
+        require([v.x,v.y,v.left,v.top].every(Number.isInteger)&&v.x>=0&&v.y>=0&&
+          v.x+l.width*channels[l.channel].length<=atlas.columns*atlas.tile&&v.y+l.height<=atlas.height,'layer strip');
+      }
+    }
     for(const {image,when} of part.variants){
       require(atlas.images.includes(image)&&when&&Object.entries(when).every(([name,value])=>Number.isInteger(value)&&channels[name]?.[value]!==undefined),'variant '+image);
     }
@@ -31,12 +45,12 @@ export function validateSpritePuppet(doc){
   for(const [name,keys] of Object.entries(clip.tracks)){
     const options=channels[name];
     const [joint,property]=name.split('.');
-    require(options||ids.has(joint)&&['x','y','rotation'].includes(property)&&name===joint+'.'+property,'track '+name);
+    require(options||ids.has(joint)&&['x','y','rotation','depth'].includes(property)&&name===joint+'.'+property,'track '+name);
     require(Array.isArray(keys)&&keys.length,'keys '+name);
     let last=-1;
     for(const [time,value,ease] of keys){
       require(Number.isFinite(time)&&time>=0&&time<=clip.duration&&time>last&&Number.isFinite(value),'key '+name);
-      require(options?Number.isInteger(value)&&options[value]!==undefined&&ease==='step':
+      require(options?Number.isInteger(value)&&options[value]!==undefined&&(ease==='step'||doc.interpolated?.includes(name)&&['linear','smooth'].includes(ease)):
         ease===undefined||['linear','step','smooth'].includes(ease),'interpolation '+name);
       last=time;
     }
@@ -74,9 +88,32 @@ export function compileSpritePuppet(doc,bindings){
   return {doc,joints,pieces};
 }
 
-export function sampleSpritePuppet(rig,seconds){
+// Times at which a rounded drawing index crosses into its next registered cell.
+// The DOM player can schedule exact holds without quantizing a blink to the joint bake rate.
+export function spriteDrawingTimes(doc){
+  const times=new Set();
+  for(const channel of doc.interpolated??[]){
+    const keys=doc.clip.tracks[channel]??[];
+    for(let i=1;i<keys.length;i++){
+      const [start,from,ease]=keys[i-1],[end,to]=keys[i],count=Math.abs(to-from);
+      if(ease==='step'){times.add(end);continue;}
+      for(let n=0;n<count;n++){
+        const fraction=(n+.5)/count;
+        // Inverse of 3u² - 2u³ on [0,1].
+        const u=ease==='linear'?fraction:.5-Math.sin(Math.asin(1-2*fraction)/3);
+        times.add(Math.min(end,start+(end-start)*u+1e-7));
+      }
+    }
+  }
+  return [...times].sort((a,b)=>a-b);
+}
+
+export function sampleSpritePuppet(rig,seconds,overrides){
   const {doc,joints,pieces}=rig;
   const pose=sampleClip(doc.clip,Math.max(0,seconds));
+  for(const name of Object.keys(doc.channels)){
+    pose[name]=Math.round(Math.max(0,Math.min(doc.channels[name].length-1,overrides?.[name]??pose[name]??0)));
+  }
   for(const joint of joints){
     const key=joint.id+'.rotation';
     pose[key]=(pose[key]||0)+joint.rotation;
@@ -85,17 +122,37 @@ export function sampleSpritePuppet(rig,seconds){
   return pieces.map(part=>{
     const joint=world[part.id],offset=turn(0,-part.pivot*part.size,joint.rotation);
     const drawing=part.switches.find(v=>v.conditions.every(([channel,value])=>(pose[channel]??0)===value));
-    return {id:part.id,x:joint.x+offset.x,y:joint.y+offset.y,rotation:joint.rotation,
-      tile:drawing?.tile??part.defaultTile,size:part.size,depth:part.depth};
+    const layers=part.layers?.map(l=>{
+      const view=l.views[pose[l.viewChannel]];
+      return {channel:l.channel,x:view.x+l.width*pose[l.channel],y:view.y,
+        left:view.left,top:view.top,width:l.width,height:l.height,empty:l.emptyValue===pose[l.channel]};
+    });
+    return {id:part.id,x:joint.x+offset.x,y:joint.y+offset.y,rotation:joint.rotation,layers,
+      tile:drawing?.tile??part.defaultTile,size:part.size,depth:pose[part.id+'.depth']??part.depth};
   });
 }
 
-export function drawSpritePuppet(ctx,atlas,rig,seconds){
-  const {tile,columns}=rig.doc.atlas;
-  for(const p of sampleSpritePuppet(rig,seconds).sort((a,b)=>a.depth-b.depth)){
+export function drawSpritePuppet(ctx,atlas,rig,seconds,overrides,focus){
+  const pose=sampleSpritePuppet(rig,seconds,overrides).sort((a,b)=>a.depth-b.depth);
+  const focused=focus&&pose.find(p=>p.id===focus);
+  ctx.save();
+  if(focused)ctx.translate(-focused.x,-focused.y);
+  drawSpriteFrame(ctx,atlas,rig.doc,pose);
+  ctx.restore();
+}
+
+// The host can share sampled, depth-sorted poses across identical bind poses.
+export function drawSpriteFrame(ctx,atlas,doc,pose){
+  const {tile,columns}=doc.atlas;
+  for(const p of pose){
     const size=9*p.size;
     ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rotation*radians);
     ctx.drawImage(atlas,p.tile%columns*tile,Math.floor(p.tile/columns)*tile,tile,tile,-size/2,-size/2,size,size);
+    for(const r of p.layers??[]){
+      if(r.empty)continue;
+      const scale=size/tile;
+      ctx.drawImage(atlas,r.x,r.y,r.width,r.height,r.left*scale-size/2,r.top*scale-size/2,r.width*scale,r.height*scale);
+    }
     ctx.restore();
   }
 }
