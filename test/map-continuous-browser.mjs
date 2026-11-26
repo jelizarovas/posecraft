@@ -6,7 +6,7 @@ try{
  const page=await browser.newPage({viewport:{width:1100,height:800},hasTouch:true}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base+'/demos.html#littlelands-map');
- await page.waitForFunction(()=>window.mapDemo?.view.stats().art.loaded===15&&!mapDemo.view.stats().terrainCache.pending);
+ await page.waitForFunction(()=>window.mapDemo?.view.stats().art.requested>0&&mapDemo.view.stats().art.loaded===mapDemo.view.stats().art.requested&&!mapDemo.view.stats().terrainCache.pending);
  const canvas=page.locator('#demo-art canvas');
  await page.evaluate(()=>{mapDemo.view.stopFollowing();mapDemo.view.zoomTo(4);});
  await page.waitForFunction(()=>mapDemo.view.stats().camera.zoom===4&&!mapDemo.view.stats().terrainCache.pending);

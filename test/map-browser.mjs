@@ -12,7 +12,7 @@ try {
   await page.goto(base+'/demos.html#littlelands-map');
   await page.waitForFunction(()=>window.mapDemo?.view.stats().visibleTiles>0);
   await page.evaluate(()=>mapDemo.view.ready);
-  await page.waitForFunction(()=>mapDemo.view.stats().art.loaded===15&&!mapDemo.view.stats().terrainCache?.pending);
+  await page.waitForFunction(()=>mapDemo.view.stats().art.requested>0&&mapDemo.view.stats().art.loaded===mapDemo.view.stats().art.requested&&!mapDemo.view.stats().terrainCache?.pending);
   const initial=await page.evaluate(()=>mapDemo.view.stats());
   assert.equal(initial.totalTiles,16384);assert.ok(initial.visibleTiles<initial.totalTiles/4);assert.ok(initial.visibleProps<initial.totalProps/2);assert.equal(await page.locator('#edit-demo').isHidden(),true);
   assert.equal(await page.evaluate(()=>mapWorkers),1);
