@@ -1,5 +1,6 @@
-import {forwardKinematics,sampleClip} from './index.js';
+import {forwardKinematics,sampleClip,interpolate,clamp} from './index.js';
 import {skinnedTile} from './sprite-skin.js';
+import {projectSpriteJoints,viewIndex} from './sprite-projection.js';
 
 const radians=Math.PI/180;
 const turn=(x,y,degrees)=>({
@@ -28,6 +29,20 @@ export function validateSpritePuppet(doc){
     ids.add(part.id);
     require([part.x,part.y,part.rotation,part.pivot,part.size,part.depth].every(Number.isFinite)&&part.size>0,'registration');
     require(atlas.images.includes(part.image)&&Array.isArray(part.variants),'drawing '+part.id);
+    if(part.space){
+      const {aim,view,bearings,z,plant,limits,twist}=part.space;
+      const range=r=>Array.isArray(r)&&r.length===2&&r.every(Number.isFinite)&&r[0]!==r[1];
+      require(z===undefined||Number.isFinite(z),'bind Z');
+      require(!aim||typeof aim==='object'&&(!aim.channel||channels[aim.channel]?.length>1&&range(aim.range)),'facing driver');
+      require(!view||channels[view.channel]&&range(view.range)&&(!view.joint||parts.some(p=>p.id===view.joint)),'directional view');
+      require(!bearings||range(bearings.range)&&Object.entries(bearings.images).every(([base,list])=>atlas.images.includes(base)&&Array.isArray(list)&&list.length>=2&&list.every(n=>atlas.images.includes(n))),'directional drawings');
+      require(!plant||Array.isArray(plant)&&plant.length===3&&plant.every(Number.isFinite),'plant target');
+      require(!twist||parts.some(p=>p.parent===part.id&&p.id===twist.to)&&Number.isFinite(twist.neutral),'twist axis');
+      if(limits)for(const [axis,stops] of Object.entries(limits)){
+        require(['rotation','pitch','yaw','twist'].includes(axis)&&(axis!=='twist'||twist)&&
+          Array.isArray(stops)&&stops.length===2&&stops.every(Number.isFinite)&&stops[0]<=stops[1],'joint limits '+part.id+'.'+axis);
+      }
+    }
     if(part.registration){
       const {channel,offsets}=part.registration;
       require(channels[channel]&&Array.isArray(offsets)&&offsets.length===channels[channel].length&&
@@ -48,6 +63,7 @@ export function validateSpritePuppet(doc){
       require(atlas.images.includes(image)&&when&&Object.entries(when).every(([name,value])=>Number.isInteger(value)&&channels[name]?.[value]!==undefined),'variant '+image);
     }
   }
+  require(parts.filter(p=>p.space?.plant).length<=1,'support foot');
   for(const part of parts){
     const skin=part.skin;
     if(!skin)continue;
@@ -62,11 +78,13 @@ export function validateSpritePuppet(doc){
   for(const [name,keys] of Object.entries(clip.tracks)){
     const options=channels[name];
     const [joint,property]=name.split('.');
-    require(options||ids.has(joint)&&['x','y','rotation','depth'].includes(property)&&name===joint+'.'+property,'track '+name);
+    const spatial=parts.find(p=>p.id===joint)?.space;
+    require(options||ids.has(joint)&&(['x','y','rotation','depth'].includes(property)||spatial&&['yaw','pitch','z','plant'].includes(property)||spatial?.twist&&property==='twist')&&name===joint+'.'+property,'track '+name);
     require(Array.isArray(keys)&&keys.length,'keys '+name);
     let last=-1;
     for(const [time,value,ease] of keys){
       require(Number.isFinite(time)&&time>=0&&time<=clip.duration&&time>last&&Number.isFinite(value),'key '+name);
+      if(property==='plant')require(spatial?.plant&&value>=0&&value<=1,'plant weight');
       require(options?Number.isInteger(value)&&options[value]!==undefined&&(ease==='step'||doc.interpolated?.includes(name)&&['linear','smooth'].includes(ease)):
         ease===undefined||['linear','step','smooth'].includes(ease),'interpolation '+name);
       last=time;
@@ -97,13 +115,36 @@ export function compileSpritePuppet(doc,bindings){
     const parent=part.parent;
     const base=pivots.get(parent)||{x:0,y:0,rotation:0};
     pivots.set(part.id,pivot);
-    joints.push({id:part.id,parent:parent||null,registration:part.registration,...turn(pivot.x-base.x,pivot.y-base.y,-base.rotation),
+    joints.push({id:part.id,parent:parent||null,registration:part.registration,space:part.space,...turn(pivot.x-base.x,pivot.y-base.y,-base.rotation),
       rotation:part.rotation-base.rotation,length:0});
     const skinRest=part.skin?.joints.map(id=>doc.parts.find(p=>p.id===id).rotation-doc.parts.find(p=>p.id===part.id).rotation);
-    pieces.push({...part,skinRest,defaultTile:doc.atlas.images.indexOf(part.image),
+    const directional=new Map(Object.entries(part.space?.bearings?.images??{}).map(([base,list])=>[doc.atlas.images.indexOf(base),list.map(image=>doc.atlas.images.indexOf(image))]));
+    pieces.push({...part,skinRest,directional,defaultTile:doc.atlas.images.indexOf(part.image),
       switches:part.variants.map(v=>({conditions:Object.entries(v.when),tile:doc.atlas.images.indexOf(v.image)}))});
   }
-  return {doc,joints,pieces};
+  const stops=[],tracks={...doc.clip.tracks};
+  for(const joint of joints){
+    if(joint.space?.twist){
+      const child=joints.find(j=>j.id===joint.space.twist.to&&j.parent===joint.id);
+      if(child){
+        const axis=[child.x,child.y,child.space?.z??0],length=Math.hypot(...axis);
+        if(length>1e-8)joint.twistAxis=axis.map(n=>n/length);
+      }
+    }
+    const authored=doc.parts.find(p=>p.id===joint.id);
+    const parent=doc.parts.find(p=>p.id===joint.parent);
+    const bindOffset=parent&&parent.id===authored.parent?joint.rotation-(authored.rotation-parent.rotation):0;
+    for(const [axis,range] of Object.entries(joint.space?.limits??{})){
+      const name=joint.id+'.'+axis;
+      // A player may have reassembled the limb in a bent pose. Keep the
+      // authored anatomical stops fixed as that bind pose changes.
+      const offset=axis==='rotation'?bindOffset:0;
+      const min=range[0]-offset,max=range[1]-offset;
+      const keys=tracks[name]?.map(([time,value,ease])=>[time,clamp(value,min,max),ease]);
+      stops.push({name,min,max,keys});delete tracks[name];
+    }
+  }
+  return {doc,joints,pieces,stops,clip:{...doc.clip,tracks},spatial:joints.some(j=>j.space)};
 }
 
 // Times at which a rounded drawing index crosses into its next registered cell.
@@ -128,12 +169,23 @@ export function spriteDrawingTimes(doc){
 
 export function sampleSpritePuppet(rig,seconds,overrides){
   const {doc,joints,pieces}=rig;
-  const pose=sampleClip(doc.clip,Math.max(0,seconds));
+  const elapsed=Math.max(0,seconds),pose=sampleClip(rig.clip,elapsed);
+  const time=rig.clip.loop?elapsed%rig.clip.duration:Math.min(elapsed,rig.clip.duration);
+  for(const {name,min,max,keys} of rig.stops){
+    // Hinge travel is signed. Crossing the other side of the circle would pass
+    // through a physical stop, even when the alternative arc is shorter.
+    const value=overrides?.[name]??(keys?interpolate(keys,time,'smooth',false):0);
+    pose[name]=clamp(value,min,max);
+  }
+  const headings={};
   for(const name of Object.keys(doc.channels)){
-    pose[name]=Math.round(Math.max(0,Math.min(doc.channels[name].length-1,overrides?.[name]??pose[name]??0)));
+    const input=overrides?.[name]??pose[name];
+    const level=Math.max(0,Math.min(doc.channels[name].length-1,input??0));
+    if(input!==undefined)headings[name]=level;
+    pose[name]=Math.round(level);
   }
   for(const joint of joints){
-    if(joint.registration){
+    if(joint.registration&&!rig.spatial){
       const [x,y]=joint.registration.offsets[pose[joint.registration.channel]];
       pose[joint.id+'.x']=(pose[joint.id+'.x']??0)+x;
       pose[joint.id+'.y']=(pose[joint.id+'.y']??0)+y;
@@ -141,23 +193,37 @@ export function sampleSpritePuppet(rig,seconds,overrides){
     const key=joint.id+'.rotation';
     pose[key]=(pose[key]||0)+joint.rotation;
   }
-  const world=forwardKinematics(joints,pose);
-  return pieces.map(part=>{
-    const joint=world[part.id],offset=turn(0,-part.pivot*part.size,joint.rotation);
-    const drawing=part.switches.find(v=>v.conditions.every(([channel,value])=>(pose[channel]??0)===value));
+  const world=rig.spatial?projectSpriteJoints(rig,pose,headings):forwardKinematics(joints,pose);
+  const result=pieces.map(part=>{
+    const joint=world[part.id],offset=turn(0,-part.pivot*part.size*(joint.length??1),joint.rotation);
+    const view=part.space?.view,bearing=(world[view?.joint]??joint).bearing;
+    const selected=channel=>view?.channel===channel?viewIndex(bearing,view.range,doc.channels[channel].length):pose[channel]??0;
+    const drawing=part.switches.find(v=>v.conditions.every(([channel,value])=>selected(channel)===value));
+    const base=drawing?.tile??part.defaultTile,angles=part.directional.get(base);
     const layers=part.layers?.map(l=>{
-      const view=l.views[pose[l.viewChannel]];
+      const view=l.views[selected(l.viewChannel)];
       return {channel:l.channel,x:view.x+l.width*pose[l.channel],y:view.y,
         left:view.left,top:view.top,width:l.width,height:l.height,empty:l.emptyValue===pose[l.channel]};
     });
     let deformation;
     if(part.skin){
       const angles=part.skin.joints.map((id,i)=>world[id]?Math.round(world[id].rotation-joint.rotation-part.skinRest[i]):0);
-      if(angles.some(Boolean))deformation={skin:part.skin,view:pose[part.skin.viewChannel],angles};
+      if(angles.some(Boolean))deformation={skin:part.skin,view:selected(part.skin.viewChannel),angles};
     }
     return {id:part.id,x:joint.x+offset.x,y:joint.y+offset.y,rotation:joint.rotation,layers,deformation,
-      tile:drawing?.tile??part.defaultTile,size:part.size,depth:pose[part.id+'.depth']??part.depth};
+      tile:angles?angles[viewIndex(joint.bearing,part.space.bearings.range,angles.length)]:base,size:part.size,
+      ...(rig.spatial?{z:joint.z,bearing:joint.bearing,stretch:joint.length}:{}),
+      depth:(pose[part.id+'.depth']??part.depth)+(joint.z??0)-(joint.m?.[7]??0)*part.pivot*part.size};
   });
+  for(const [i,part] of pieces.entries()){
+    const weight=pose[part.id+'.plant'];
+    if(!part.space?.plant||!weight)continue;
+    const dx=(part.x+part.space.plant[0]*part.size-result[i].x)*weight,dy=(part.y+part.space.plant[1]*part.size-result[i].y)*weight;
+    const dz=(part.space.plant[2]-result[i].z)*weight;
+    for(const frame of result){frame.x+=dx;frame.y+=dy;frame.z+=dz;frame.depth+=dz;}
+    break;
+  }
+  return result;
 }
 
 export function drawSpritePuppet(ctx,atlas,rig,seconds,overrides,focus){
@@ -175,6 +241,7 @@ export function drawSpriteFrame(ctx,atlas,doc,pose,baked){
   for(const p of pose){
     const size=9*p.size;
     ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rotation*radians);
+    if(p.stretch!==undefined&&Math.abs(p.stretch-1)>1e-6)ctx.scale(1,p.stretch);
     const region=p.deformation&&baked?.frames[[p.id,p.tile,p.deformation.view,...p.deformation.angles].join('/')];
     if(region){
       const [x,y,w,h,left,top]=region,scale=size/tile;

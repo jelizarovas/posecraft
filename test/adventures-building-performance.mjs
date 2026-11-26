@@ -67,12 +67,28 @@ if(process.argv.includes('--dev')){
   const requireGame=createRequire(path.join(game,'package.json'));
   const {createServer:createVite}=await import(pathToFileURL(requireGame.resolve('vite')));
   const dev=await createVite({root:game,configFile:path.join(game,'vite.config.ts'),
-    server:{host:'0.0.0.0',port:Number(process.env.PORT||5272),strictPort:true},
+    optimizeDeps:{entries:['index.html']},
+    server:{host:'0.0.0.0',port:Number(process.env.PORT||5272),strictPort:true,
+      watch:{ignored:['**/hosting-dist/**','**/.firebase/**','**/tmp/**','**/*.log']}},
     plugins:[{name:'local-test-town',transformIndexHtml:()=>[{tag:'script',injectTo:'head-prepend',
       children:'if(!localStorage.getItem('+JSON.stringify(SAVE_KEY)+'))localStorage.setItem('+JSON.stringify(SAVE_KEY)+','+JSON.stringify(seed)+');'}]}]});
   await dev.listen();dev.printUrls();await new Promise(()=>{});
 }
 const preview=process.argv.includes('--serve');
+const firstTap=process.argv.includes('--first-editor');
+// Count actual canvas paints in the timing fixture, including transferred
+// canvases. The production worker has no benchmark messages or counters.
+const probeWorker=`
+const painted=new Map(), clear=OffscreenCanvasRenderingContext2D.prototype.clearRect;
+OffscreenCanvasRenderingContext2D.prototype.clearRect=function(...args) {
+  let times=painted.get(this);if(!times){times=[];painted.set(this,times);}
+  times.push(performance.timeOrigin+performance.now());if(times.length>100)times.shift();
+  return clear.apply(this,args);
+};
+addEventListener('message',e=>{
+  if(e.data?.kind==='measure-painted-frames'){e.stopImmediatePropagation();e.ports[0].postMessage([...painted.values()]);}
+},true);
+`;
 const types={'.js':'text/javascript','.css':'text/css','.html':'text/html','.webp':'image/webp','.svg':'image/svg+xml','.json':'application/json','.woff2':'font/woff2','.png':'image/png'};
 await stat(path.join(dist,'index.html'));
 const server=createServer(async(req,res)=>{
@@ -86,6 +102,8 @@ const server=createServer(async(req,res)=>{
       const html=await readFile(file,'utf8');
       const init='if(!localStorage.getItem('+JSON.stringify(SAVE_KEY)+'))localStorage.setItem('+JSON.stringify(SAVE_KEY)+','+JSON.stringify(seed)+');';
       res.end(html.replace('<head>','<head><script>'+init+'</script>'));
+    }else if(firstTap&&/^porchPainter\.worker-.*\.js$/.test(path.basename(file))){
+      res.end(probeWorker+await readFile(file,'utf8'));
     }else createReadStream(file).pipe(res);
   } catch {res.writeHead(404).end();}
 });
@@ -107,11 +125,58 @@ try {
     if(!localStorage.getItem(key))localStorage.setItem(key,seed);
     localStorage.setItem('littlelands_voice_muted','true');
   },{seed,key:SAVE_KEY});
+  if(firstTap)await page.addInitScript(()=>{
+    const Native=window.Worker;
+    window.Worker=class extends Native{constructor(url,options){super(url,options);if(options?.name==='porch-dancers')window.paintWorker=this;}};
+    window.workerPaints=()=>new Promise((resolve,reject)=>{
+      const channel=new MessageChannel();
+      const timer=setTimeout(()=>reject(Error('Paint counter unavailable')),3000);
+      channel.port1.onmessage=e=>{clearTimeout(timer);channel.port1.close();resolve(e.data);};
+      window.paintWorker.postMessage({kind:'measure-painted-frames'},[channel.port2]);
+    });
+  });
   await page.goto('http://127.0.0.1:'+server.address().port);
   if(headed)await page.bringToFront();
   const target=page.locator('[data-decoration-id="stress-0"]').first();
   await target.waitFor();
-  if(process.argv.includes('--first-editor')){
+  if(process.argv.includes('--compare-renderers')){
+    const capture=async fallback=>{
+      const scene=await browser.newPage({viewport:{width,height:844},deviceScaleFactor:2,reducedMotion:'reduce'});
+      await scene.addInitScript(({seed,key,fallback})=>{
+        localStorage.setItem(key,seed);
+        if(fallback)HTMLCanvasElement.prototype.transferControlToOffscreen=undefined;
+      },{seed,key:SAVE_KEY,fallback});
+      await scene.goto('http://127.0.0.1:'+server.address().port);
+      await scene.waitForFunction(()=>{
+        const c=document.querySelector('canvas.puppet-composite');if(!c)return false;
+        const copy=document.createElement('canvas');copy.width=c.width;copy.height=c.height;
+        const ctx=copy.getContext('2d');ctx.drawImage(c,0,0);
+        return ctx.getImageData(0,0,c.width,c.height).data.some((n,i)=>i%4===3&&n>0);
+      });
+      const snapshot=await scene.locator('canvas.puppet-composite').first().evaluate(c=>{
+        const copy=document.createElement('canvas');copy.width=c.width;copy.height=c.height;
+        copy.getContext('2d').drawImage(c,0,0);
+        let transferred=false;try{c.getContext('2d');}catch{transferred=true;}
+        return {transferred,pixels:copy.toDataURL()};
+      });
+      await scene.close();return snapshot;
+    };
+    const remote=await capture(false),local=await capture(true);
+    assert.equal(remote.transferred,true);assert.equal(local.transferred,false);
+    const diff=await page.evaluate(async ([a,b])=>{
+      const read=async url=>{const im=new Image();im.src=url;await im.decode();const canvas=document.createElement('canvas');canvas.width=im.width;canvas.height=im.height;const ctx=canvas.getContext('2d');ctx.drawImage(im,0,0);return {w:im.width,h:im.height,data:ctx.getImageData(0,0,im.width,im.height).data};};
+      const left=await read(a),right=await read(b);if(left.w!==right.w||left.h!==right.h)throw Error('Different canvas sizes');
+      let visible=0,outline=0,error=0;
+      for(let i=0;i<left.data.length;i+=4){
+        const alpha=left.data[i+3],beta=right.data[i+3];if(!alpha&&!beta)continue;
+        visible++;if((alpha>=128)!==(beta>=128))outline++;
+        for(let k=0;k<3;k++)error+=Math.abs(left.data[i+k]*alpha/255-right.data[i+k]*beta/255);
+      }
+      return {visible,outline,meanColorError:error/(3*visible)};
+    },[remote.pixels,local.pixels]);
+    console.log('Worker/fallback reduced-motion pixels',JSON.stringify(diff));
+    assert.ok(diff.visible>0&&diff.outline/diff.visible<.01&&diff.meanColorError<2,'Worker and page should match the painted pose within raster sampling tolerance');
+  }else if(process.argv.includes('--first-editor')){
     assert.ok(dance&&phone);
     const cdp=await page.context().newCDPSession(page);
     await page.waitForFunction(n=>[...document.querySelectorAll('[data-puppet=performing]')].filter(el=>el.getAnimations()[0]?.playState==='running').length===n,zombies);
@@ -119,10 +184,16 @@ try {
     const opener=page.getByRole('button',{name:'Edit selected prop'});
     await opener.tap({trial:true});
     const bounds=await opener.boundingBox(),x=bounds.x+bounds.width/2,y=bounds.y+bounds.height/2;
+    const workerPainting=await page.evaluate(()=>!!window.paintWorker);
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(t=>{
       const roots=[...document.querySelectorAll('[data-puppet=performing]')];
       const clocks=roots.map(e=>e.getAnimations()[0]),starts=clocks.map(a=>Number(a.currentTime));
-      window.firstEdit={frames:[],tap:null,visible:null,clocks,starts,start:t};
+      const paints=window.paintWorker?[]:roots.map(root=>{
+        const ctx=root.querySelector('canvas.puppet-composite').getContext('2d'),clear=ctx.clearRect;
+        const counter={count:0};ctx.clearRect=function(...args){counter.count++;return clear.apply(this,args);};
+        return counter;
+      });
+      window.firstEdit={frames:[],tap:null,visible:null,clocks,starts,paints,start:t};
       const panel=document.querySelector('.prop-editor-panel [role=dialog]');
       const observer=new IntersectionObserver(entries=>{
         const hit=entries.find(e=>e.intersectionRatio>=.05&&panel.closest('.prop-editor-layer.open'));
@@ -143,14 +214,22 @@ try {
     // would walk the town's accessibility tree during the interval being timed.
     await page.waitForTimeout(450);
     const result=await page.evaluate(()=>{
-      const {frames,tap,visible,clocks,starts,raf,start}=window.firstEdit;cancelAnimationFrame(raf);
+      const {frames,tap,visible,clocks,starts,paints,raf,start}=window.firstEdit;cancelAnimationFrame(raf);
       const d=frames.filter(([t,ms])=>t+ms>=tap).map(row=>row[1]);
-      if(visible===null||tap===null)throw Error('The first tap did not reveal the drawer');
-      return {fps:+(1000*d.length/d.reduce((a,b)=>a+b,0)).toFixed(1),worstMs:+Math.max(...d).toFixed(1),
-        over25:d.filter(ms=>ms>25).length,visibleMs:Math.round(visible-tap),
+      if(visible===null||tap===null)throw Error('The first tap did not reveal the drawer '+JSON.stringify({tap,visible,open:!!document.querySelector('.prop-editor-layer.open')}));
+      return {startAt:performance.timeOrigin+tap,endAt:performance.timeOrigin+frames.at(-1)[0]+frames.at(-1)[1],fps:+(1000*d.length/d.reduce((a,b)=>a+b,0)).toFixed(1),worstMs:+Math.max(...d).toFixed(1),
+        over25:d.filter(ms=>ms>25).length,visibleMs:Math.round(visible-tap),minPaints:Math.min(...paints.map(p=>p.count)),
         dancers:clocks.filter((a,i)=>a.playState==='running'&&Number(a.currentTime)-starts[i]>=frames.at(-1)[0]-start-18).length};
     });
-    assert.ok(result.visibleMs>=0);assert.equal(result.dancers,zombies);assert.deepEqual(errors,[]);console.log('First editor tap',JSON.stringify(result));
+    if(workerPainting){
+      const paints=await page.evaluate(()=>window.workerPaints());assert.equal(paints.length,zombies);
+      const visible=paints.map(times=>times.filter(t=>t>=result.startAt&&t<=result.endAt));
+      result.minPaints=Math.min(...visible.map(times=>times.length));result.renderer='worker';
+      const gaps=visible.flatMap(times=>times.slice(1).map((t,i)=>t-times[i]));
+      result.worstDanceFrameMs=+Math.max(...gaps).toFixed(1);
+    }else result.renderer='page';
+    delete result.startAt;delete result.endAt;
+    assert.ok(result.visibleMs>=0&&result.minPaints>=12);assert.equal(result.dancers,zombies);assert.deepEqual(errors,[]);console.log('First editor tap',JSON.stringify(result));
   }else{
   assert.equal(await page.locator('.placed-prop').count(),save.decorations.length);
   await page.evaluate(()=>Promise.all([...document.images].map(i=>i.decode().catch(()=>{}))));
@@ -355,7 +434,19 @@ try {
       return tiles;
     });
     assert.equal(new Set(drawings.map(d=>d[0])).size,49);
-    assert.equal(new Set(drawings.map(d=>d[1])).size,3);
+    const puppet=JSON.parse(await readFile(path.join(game,'src/game/porch-zombie.puppet.json'),'utf8'));
+    const {images,columns,height,tile}=puppet.atlas;
+    const handViews=puppet.parts.find(p=>p.id==='rightHand').space.bearings.images;
+    const seenGestures=new Set(),seenTiles=new Set();
+    for(const [,position] of drawings){
+      const [x,y]=position.split(' ').map(parseFloat);
+      const cell=Math.round(y*(height/tile-1)/100)*columns+Math.round(x*(columns-1)/100);
+      const gesture=Object.keys(handViews).find(key=>handViews[key].includes(images[cell]));
+      assert.ok(gesture,'Unregistered hand drawing '+images[cell]);
+      seenGestures.add(gesture);seenTiles.add(cell);
+    }
+    assert.deepEqual(seenGestures,new Set(['fist','uncurl','four']));
+    assert.ok(seenTiles.size>seenGestures.size,'The hand should also turn within a gesture');
     for(const i of [2,3,4])assert.ok(new Set(drawings.map(d=>d[i].split(' ')[0])).size>=11);
     await root.evaluate(b=>b.click());
     await page.waitForFunction(n=>document.querySelectorAll('[data-puppet]').length===n,zombies-1);

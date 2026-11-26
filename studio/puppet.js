@@ -8,6 +8,7 @@ const $=id=>document.getElementById(id);
 const canvas=document.querySelector('canvas');
 let doc=structuredClone(initial),player,generation=0;
 let overrides={},facePart,sliders=[];
+$('skeleton').onchange=()=>player?.skeleton($('skeleton').value);
 function previewFace(){
   player?.preview(overrides,$('closeup').checked?facePart?.id:null);
   $('key-face').disabled=$('release-face').disabled=!Object.keys(overrides).length;
@@ -52,21 +53,29 @@ function options(select,items){
   select.replaceChildren(...items.map(([value,label])=>new Option(label,value)));
 }
 function showKey(seek){
-  const track=$('track').value,keys=doc.clip.tracks[track],i=Number($('key').value);
-  const [time,value]=keys[i];
+  const track=$('track').value,keys=doc.clip.tracks[track]??[],i=Number($('key').value);
+  const [time,value]=keys[i]??[Number($('time').value),0];
   $('at').value=time;
   const choices=doc.channels[track];
   const input=document.createElement(choices?'select':'input');
   if(choices)options(input,choices.map((label,j)=>[j,label]));
   else {input.type='number';input.step='any';}
-  input.value=value;input.setAttribute('aria-label',choices?'Drawing':track.endsWith('.rotation')?'Rotation in degrees':track.endsWith('.depth')?'Draw order':'Joint offset');
+  const [id,axis]=track.split('.'),part=doc.parts.find(p=>p.id===id);
+  const limits=part?.space?.limits?.[axis];
+  $('stops').hidden=!part?.space||!['rotation','yaw','pitch','twist'].includes(axis);
+  $('stop-min').value=limits?.[0]??'';$('stop-max').value=limits?.[1]??'';
+  if(limits){input.min=limits[0];input.max=limits[1];}
+  const units={rotation:'Rotation in degrees',yaw:'Yaw in degrees',pitch:'Pitch in degrees',twist:'Forearm twist in degrees',depth:'Draw order',z:'Depth offset',plant:'Plant weight'};
+  input.value=value;input.setAttribute('aria-label',choices?'Drawing':units[axis]??'Joint offset');
   $('value').replaceChildren(input);
   $('remove').disabled=keys.length<2;
-  if(seek)player?.seek(time);
+  $('set').disabled=!keys.length;
+  if(seek&&keys.length)player?.seek(time);
 }
 function keys(index=0){
   const track=$('track').value;
-  options($('key'),doc.clip.tracks[track].map(([t,v],i)=>[i,t.toFixed(2)+' s · '+(doc.channels[track]?.[v]??v+(track.endsWith('.rotation')?'°':''))]));
+  const timeline=doc.clip.tracks[track]??[];
+  options($('key'),timeline.length?timeline.map(([t,v],i)=>[i,t.toFixed(2)+' s · '+(doc.channels[track]?.[v]??v+(/\.(rotation|yaw|pitch|twist)$/.test(track)?'°':''))]):[[0,'No keys']]);
   $('key').selectedIndex=index;showKey(false);
 }
 async function load(next,position){
@@ -80,27 +89,49 @@ async function load(next,position){
   player?.dispose();player=view;doc=next;
   $('name').textContent=doc.name;$('time').max=$('at').max=doc.clip.duration;
   const previous=$('track').value;
-  options($('track'),Object.keys(doc.clip.tracks).map(t=>[t,t.replace('.rotation',' · rotation')]));
-  if(Object.hasOwn(doc.clip.tracks,previous))$('track').value=previous;
+  const tracks=new Set(Object.keys(doc.clip.tracks));
+  for(const part of doc.parts)if(part.space){
+    for(const axis of ['rotation','yaw','pitch','z'])tracks.add(part.id+'.'+axis);
+    if(part.space.twist)tracks.add(part.id+'.twist');
+  }
+  options($('track'),[...tracks].map(t=>[t,t.replace('.',' · ')]));
+  if(tracks.has(previous))$('track').value=previous;
+  $('rig-view').hidden=!doc.parts.some(p=>p.space);
+  player.skeleton($('rig-view').hidden?'':$('skeleton').value);
   keys();faceControls();
   if(position!==undefined)player.seek(position);
 }
 function report(error){$('status').textContent=error.message;}
 async function edit(mode){
-  const next=structuredClone(doc),name=$('track').value,track=next.clip.tracks[name];
+  const next=structuredClone(doc),name=$('track').value,track=next.clip.tracks[name]??=[];
   const selected=Number($('key').value);
   if(mode!=='add')track.splice(selected,1);
   const time=mode==='add'?Number($('time').value):Number($('at').value);
+  let message='Keyframes updated.';
   if(mode!=='remove'){
     const value=$('value').firstChild.value;
     if(value===''||$('at').value==='')throw Error('Enter a time and value.');
-    const ease=doc.channels[name]&&!doc.interpolated?.includes(name)?'step':doc.clip.tracks[name][selected][2]||'smooth';
-    track.push([time,Number(value),ease]);
+    const ease=doc.channels[name]&&!doc.interpolated?.includes(name)?'step':doc.clip.tracks[name]?.[selected]?.[2]||'smooth';
+    const input=$('value').firstChild;
+    const angle=input.min!==''&&input.min!==undefined?Math.max(Number(input.min),Math.min(Number(input.max),Number(value))):Number(value);
+    if(angle!==Number(value))message='Key saved at the joint limit of '+angle+'°.';
+    track.push([time,angle,ease]);
     track.sort((a,b)=>a[0]-b[0]);
   }
   await load(next,time);
-  keys(Math.max(0,track.findIndex(key=>key[0]===time)));$('status').textContent='Keyframes updated.';
+  keys(Math.max(0,track.findIndex(key=>key[0]===time)));$('status').textContent=message;
 }
+$('set-stops').onclick=async()=>{
+  try{
+    const name=$('track').value,[id,axis]=name.split('.');
+    const min=$('stop-min').valueAsNumber,max=$('stop-max').valueAsNumber;
+    if(!Number.isFinite(min)||!Number.isFinite(max)||min>max)throw Error('Enter two angles with the minimum first.');
+    const next=structuredClone(doc),space=next.parts.find(p=>p.id===id).space;
+    (space.limits??={})[axis]=[min,max];
+    for(const key of next.clip.tracks[name]??[])key[1]=Math.max(min,Math.min(max,key[1]));
+    await load(next,Number($('time').value));$('status').textContent='Joint limits saved.';
+  }catch(error){report(error);}
+};
 function download(blob,name){
   const url=URL.createObjectURL(blob),link=document.createElement('a');
   link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);

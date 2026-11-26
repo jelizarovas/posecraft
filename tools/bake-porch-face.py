@@ -16,8 +16,9 @@ import cv2
 from PIL import Image
 from scipy.ndimage import map_coordinates
 from scipy.spatial import Delaunay
+from porch_sprite_views import rig_and_drawings
 
-TILE, COLUMNS, VIEWS, LEVELS = 128, 15, 49, 11
+TILE, COLUMNS, VIEWS, LEVELS = 128, 20, 49, 11
 WIDTH, HEIGHT = 56, 34
 Y, X = np.mgrid[:TILE, :TILE]
 GRID = np.column_stack([X.ravel(), Y.ravel()])
@@ -73,7 +74,7 @@ def warp_pair(a,b,p,q,f):
     return first*(1-f)+second*f
 
 
-def registered_turn(a,b,p,q):
+def registered_turn(a,b,p,q,arc=0):
     # Solve the same correspondence once for the entire arc. Re-triangulating and
     # re-estimating flow at every angle made fine features flutter between poses.
     p=np.array(BORDER+list(p),np.float32);q=np.array(BORDER+list(q),np.float32)
@@ -107,7 +108,15 @@ def registered_turn(a,b,p,q):
     def draw(f):
         if f==0:return a
         if f==1:return b
-        center=coordinate_map(p*(1-f)+q*f,mid)
+        target=p*(1-f)+q*f
+        if arc:
+            # Two orthographic reference views determine each landmark's X and
+            # Z. Project that point onto the intermediate camera's horizontal axis.
+            axis=63.5
+            a0=math.sin((1-f)*arc)/math.sin(arc)
+            a1=math.sin(f*arc)/math.sin(arc)
+            target[len(BORDER):,0]=axis+a0*(p[len(BORDER):,0]-axis)+a1*(q[len(BORDER):,0]-axis)
+        center=coordinate_map(target,mid)
         def from_source(img,coordinates,motion,weight):
             at=center
             for _ in range(4):
@@ -370,6 +379,7 @@ def fit_body(doc,tiles):
     palm=parts['leftHand'];x,y=local(palm);along=y-palm['pivot']*palm['size']
     palm_paint=pixels(Image.open(folder/'wave.webp'))
     tiles['palm']=mask(sample(palm_paint,283-x/.014,132+along/.0113),(along+.42)*5)
+    dorsal=mask(sample(anatomy,1204+x/.016,674+along/.014),(along+.42)*5)
     hand=parts['rightHand'];x,y=local(hand);along=y-hand['pivot']*hand['size']
     for name,cx in [('fist',276),('uncurl',752),('four',1249)]:
         tiles[name]=mask(sample(costume,cx+x/.015,674+along/.020),(along+.45)*4)
@@ -416,7 +426,7 @@ def fit_body(doc,tiles):
         times=sorted(set(k[0] for k in bend+tracks['body.rotation']))
         keys['rotation']=[[t,round(smooth_at(bend,t)-.55*smooth_at(tracks['body.rotation'],t),6),'smooth'] for t in times]
         for axis,values in keys.items():tracks[hip['id']+'.'+axis]=values
-    return shirts
+    return shirts,dorsal
 
 
 def shirt_skin():
@@ -467,14 +477,14 @@ def bake(doc):
     closed,whistle=cell('blink'),cell('whistle')
     slots=['rightEyelid','leftEyelid','mouth']
     tiles={n:cell(n) for n in names if n not in ['blink','whistle','blinkWhistle','arm','leg','foot']}
-    shirts=fit_body(doc,tiles)
+    shirts,dorsal=fit_body(doc,tiles)
     frames=[];layers=[dict(channel=k,label=l,viewChannel='view',emptyValue=0,width=WIDTH,height=HEIGHT,views=[])
                        for k,l in zip(slots,['Right eyelid','Left eyelid','Whistle'])]
     body,head=doc['parts'][:2];head['layers']=layers
     body['skin']=shirt_skin()
     head['variants']=[];body['variants']=[]
     shirt_marks=[[(64,16),(67,56),(45,73),(51,106),(79,104)],[(64,16),(93,55),(31,70),(41,104),(84,105)],[(64,16),(101,53),(28,66),(35,102),(87,104)]]
-    turns=[[registered_turn(img[i],img[i+1],marks[i],marks[i+1]) for i in range(2)]
+    turns=[[registered_turn(img[i],img[i+1],marks[i],marks[i+1],math.radians(35) if img is heads else 0) for i in range(2)]
            for img,marks in [(heads,LANDMARKS),(shirts,shirt_marks)]]
     for i in range(VIEWS):
         half=(VIEWS-1)//2
@@ -488,6 +498,7 @@ def bake(doc):
             name=rest[i//half] if i%half==0 else key+str(i)
             tiles[name]=arr;part['variants'].append(dict(image=name,when={'view':i}))
         frames.append((face,[between(EYES[0]),between(EYES[1]),between(MOUTHS)]))
+    rig_and_drawings(doc,tiles,dorsal)
     base_rows=math.ceil(len(tiles)/COLUMNS)
     strips_per_row=COLUMNS*TILE//(LEVELS*WIDTH)
     atlas=Image.new('RGBA',(COLUMNS*TILE,base_rows*TILE+math.ceil(len(slots)*VIEWS/strips_per_row)*HEIGHT))
