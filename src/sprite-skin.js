@@ -1,7 +1,7 @@
 // Rasterize the small painted tile in its own pixel space. Shared edges use the
 // same UVs and pixel centers, so translucent antialiasing cannot open a seam.
 const caches=new WeakMap();
-const cacheBytes=8*1024*1024;
+const cacheBytes=20*1024*1024;
 const degrees=Math.PI/180;
 
 function surface(width,height){
@@ -11,7 +11,7 @@ function surface(width,height){
 }
 
 function sourcePixels(atlas,doc,tile,steps,cache){
-  const key=tile+'/'+steps;
+  const key=[doc.atlas.tile,doc.atlas.columns,tile,steps].join('/');
   if(cache.sources.has(key))return cache.sources.get(key);
   const {tile:size,columns}=doc.atlas;
   const canvas=surface(size,size),ctx=canvas.getContext('2d',{willReadFrequently:true});
@@ -64,14 +64,14 @@ function paintTriangle(src,size,output,width,left,top,a,b,c){
 export function skinnedTile(atlas,doc,frame){
   const {skin,view,angles}=frame.deformation;
   let cache=caches.get(atlas);
-  if(!cache){cache={sources:new Map(),frames:new Map(),bytes:0};caches.set(atlas,cache);}
-  const key=[frame.id,frame.tile,view,...angles].join('/');
+  if(!cache){cache={sources:new Map(),frames:new Map(),skins:new WeakMap(),nextId:0,bytes:0};caches.set(atlas,cache);}
+  if(!cache.skins.has(skin))cache.skins.set(skin,cache.nextId++);
+  const key=[cache.skins.get(skin),frame.tile,view,...angles].join('/');
   const hit=cache.frames.get(key);
   if(hit){cache.frames.delete(key);cache.frames.set(key,hit);return hit;}
   const size=doc.atlas.tile,steps=skin.intervals,stride=steps+1;
   const {pivots,weights}=skin.views[view],count=pivots.length,points=[];
   const encoded=atob(weights);
-  let left=0,top=0,right=size,bottom=size;
   for(let row=0;row<=steps;row++)for(let col=0;col<=steps;col++){
     const s=col*size/steps,t=row*size/steps,offset=points.length*count;
     let x=s,y=t;
@@ -82,12 +82,21 @@ export function skinnedTile(atlas,doc,frame){
       x+=cos*dx-sin*dy;y+=sin*dx+cos*dy;
     }
     points.push({x,y,s,t});
-    left=Math.min(left,Math.floor(x));top=Math.min(top,Math.floor(y));
-    right=Math.max(right,Math.ceil(x));bottom=Math.max(bottom,Math.ceil(y));
   }
-  const width=right-left,height=bottom-top,canvas=surface(width,height),ctx=canvas.getContext('2d');
-  const bitmap=ctx.createImageData(width,height),out=new Uint32Array(bitmap.data.buffer);
   const src=sourcePixels(atlas,doc,frame.tile,steps,cache);
+  // Cache the painted bounds only. Padded, transparent grid corners can swing
+  // well outside the sleeve and used to evict frames mid-loop in a crowded lot.
+  let left=Infinity,top=Infinity,right=-Infinity,bottom=-Infinity;
+  for(let row=0;row<steps;row++)for(let col=0;col<steps;col++){
+    if(!src.visible[row*steps+col])continue;
+    const i=row*stride+col;
+    for(const p of [points[i],points[i+1],points[i+stride],points[i+stride+1]]){
+      left=Math.min(left,Math.floor(p.x));top=Math.min(top,Math.floor(p.y));
+      right=Math.max(right,Math.ceil(p.x));bottom=Math.max(bottom,Math.ceil(p.y));
+    }
+  }
+  if(!Number.isFinite(left)){left=top=0;right=bottom=1;}
+  const width=right-left,height=bottom-top,bitmap=new ImageData(width,height),out=new Uint32Array(bitmap.data.buffer);
   for(let row=0;row<steps;row++)for(let col=0;col<steps;col++){
     if(!src.visible[row*steps+col])continue;
     const i=row*stride+col,a=points[i],b=points[i+1],c=points[i+stride],d=points[i+stride+1];
@@ -102,10 +111,22 @@ export function skinnedTile(atlas,doc,frame){
       paintTriangle(src.pixels,size,bitmap.data,width,left,top,a,d,c);
     }
   }
-  ctx.putImageData(bitmap,0,0);
-  const bytes=width*height*4,result={canvas,left,top,bytes};
+  let x0=width,y0=height,x1=-1,y1=-1;
+  for(let y=0;y<height;y++){
+    const row=y*width;
+    let start=0,end=width-1;
+    while(start<width&&!out[row+start])start++;
+    if(start===width)continue;
+    while(!out[row+end])end--;
+    x0=Math.min(x0,start);x1=Math.max(x1,end);y0=Math.min(y0,y);y1=y;
+  }
+  const canvas=surface(Math.max(1,x1-x0+1),Math.max(1,y1-y0+1));
+  canvas.getContext('2d').putImageData(bitmap,-x0,-y0);
+  const bytes=canvas.width*canvas.height*4;
+  const result={canvas:canvas.transferToImageBitmap?.()??canvas,left:left+x0,top:top+y0,bytes};
   while(cache.bytes+bytes>cacheBytes&&cache.frames.size){
-    const oldest=cache.frames.keys().next().value;cache.bytes-=cache.frames.get(oldest).bytes;cache.frames.delete(oldest);
+    const oldest=cache.frames.keys().next().value,entry=cache.frames.get(oldest);
+    cache.bytes-=entry.bytes;entry.canvas.close?.();cache.frames.delete(oldest);
   }
   cache.frames.set(key,result);cache.bytes+=bytes;
   return result;
