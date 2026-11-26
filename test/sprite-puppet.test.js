@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {compileSpritePuppet,sampleSpritePuppet,spriteDrawingTimes,validateSpritePuppet} from '../src/sprite-puppet.js';
+import {compileSpriteDrawList,compileSpritePuppet,sampleSpritePuppet,spriteDrawingTimes,validateSpritePuppet} from '../src/sprite-puppet.js';
 import example from '../examples/characters/porch-zombie.puppet.json' with {type:'json'};
 
 const rig=compileSpritePuppet(example);
@@ -139,4 +139,18 @@ test('shirt deformation follows independent shoulder edits, including partial as
   assert.equal(body(compileSpritePuppet(doc)).deformation,undefined);
   doc.parts[0].skin=skin;skin.views[48].weights='AQ==';
   assert.throws(()=>validateSpritePuppet(doc),/skin weights/);
+});
+
+test('compiled crowd frames retain socket transforms and fall back for unbaked cloth',()=>{
+  const parent={id:'body',x:10,y:20,rotation:90,size:1,tile:0};
+  const child={...parent,id:'hand',x:13,y:24,rotation:90,size:2,stretch:.5,tile:1};
+  const packed=compileSpriteDrawList(example,[[parent,child]],'body');
+  assert.deepEqual([...packed.offsets],[0,22]);
+  const [sheet,sx,sy,w,h,a,b,c,d,x,y]=packed.commands.slice(11);
+  assert.deepEqual([sheet,sx,sy,w,h],[0,example.atlas.tile,0,example.atlas.tile,example.atlas.tile]);
+  assert.ok(Math.abs(a-18)<1e-6&&Math.abs(b)<1e-6&&Math.abs(c)<1e-6&&Math.abs(d-9)<1e-6);
+  assert.ok(Math.abs(x+5)<1e-6&&Math.abs(y+7.5)<1e-6);
+  const shirt={...parent,deformation:{view:0,angles:[30]}};
+  assert.equal(compileSpriteDrawList(example,[[shirt]],'body'),null);
+  assert.equal(compileSpriteDrawList(example,[[shirt]],'body',{'body/0/0/30':[1,2,3,4,5,6]}).commands[0],1);
 });

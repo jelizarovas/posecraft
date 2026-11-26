@@ -33,3 +33,7 @@ export function compileSpritePuppet(document:SpritePuppet,bindings?:Record<strin
 export function spriteDrawingTimes(document:SpritePuppet):number[];
 export function sampleSpritePuppet(rig:SpriteRig,seconds:number,overrides?:Record<string,number>):SpriteFrame[];
 export function drawSpritePuppet(ctx:CanvasRenderingContext2D,atlas:CanvasImageSource,rig:SpriteRig,seconds:number,overrides?:Record<string,number>,focus?:string):void;
+
+export interface SpriteDrawList {offsets:Uint32Array;commands:Float32Array}
+export function compileSpriteDrawList(doc:SpritePuppet,frames:SpriteFrame[][],rootId:string,baked?:Record<string,number[]>):SpriteDrawList|null;
+export function drawSpriteListFrame(ctx:CanvasRenderingContext2D|OffscreenCanvasRenderingContext2D,list:SpriteDrawList,index:number,atlas:CanvasImageSource,cloth:CanvasImageSource,side:number,span:number):void;
