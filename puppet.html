@@ -11,6 +11,7 @@
 <div><button id="key-face" disabled>Key at playhead</button> <button id="release-face" disabled>Follow timeline</button></div></fieldset>
 <label>Animation track<select id="track"></select></label>
 <fieldset id="stops" hidden><legend>Joint limits</legend>
+<div id="joint-preview" hidden><label>Preview rotation <input id="joint-angle" type="range" step="any"></label><output id="joint-reading" for="joint-angle" aria-live="off"></output></div>
 <label>Minimum ° <input id="stop-min" type="number" step="any"></label>
 <label>Maximum ° <input id="stop-max" type="number" step="any"></label>
 <button id="set-stops">Apply limits</button></fieldset>

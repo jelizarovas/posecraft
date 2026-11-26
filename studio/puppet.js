@@ -1,6 +1,7 @@
 import initial from '../examples/characters/porch-zombie.puppet.json';
 import {validateSpritePuppet} from '../src/sprite-puppet.js';
 import {spritePlayer} from './sprite-player.js';
+import {jointLimitGuide} from './joint-limit-guide.js';
 import {sampleClip} from '../src/index.js';
 import runtime from 'virtual:posecraft-sprite-embed';
 
@@ -8,9 +9,10 @@ const $=id=>document.getElementById(id);
 const canvas=document.querySelector('canvas');
 let doc=structuredClone(initial),player,generation=0;
 let overrides={},facePart,sliders=[];
+let rotationPreview=null;
 $('skeleton').onchange=()=>player?.skeleton($('skeleton').value);
 function previewFace(){
-  player?.preview(overrides,$('closeup').checked?facePart?.id:null);
+  player?.preview(rotationPreview?{...overrides,...rotationPreview}:overrides,$('closeup').checked?facePart?.id:null);
   $('key-face').disabled=$('release-face').disabled=!Object.keys(overrides).length;
 }
 function faceControls(){
@@ -62,6 +64,20 @@ function showKey(seek){
   else {input.type='number';input.step='any';}
   const [id,axis]=track.split('.'),part=doc.parts.find(p=>p.id===id);
   const limits=part?.space?.limits?.[axis];
+  rotationPreview=null;
+  const slider=$('joint-angle');
+  $('joint-preview').hidden=!limits;
+  if(limits){
+    [slider.min,slider.max]=limits;slider.disabled=limits[0]===limits[1];
+    slider.oninput=()=>{input.value=slider.value;input.dispatchEvent(new Event('input'));};
+    input.oninput=()=>{
+      if(!Number.isFinite(input.valueAsNumber))return;
+      player.seek(Number($('time').value));
+      rotationPreview={[track]:input.valueAsNumber};previewFace();
+    };
+  }
+  player?.guide(limits?jointLimitGuide(id,track,slider,$('joint-reading')):null);
+  previewFace();
   $('stops').hidden=!part?.space||!['rotation','yaw','pitch','twist'].includes(axis);
   $('stop-min').value=limits?.[0]??'';$('stop-max').value=limits?.[1]??'';
   if(limits){input.min=limits[0];input.max=limits[1];}
@@ -136,8 +152,9 @@ function download(blob,name){
   const url=URL.createObjectURL(blob),link=document.createElement('a');
   link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-$('play').onclick=()=>player?.toggle();
-$('time').oninput=()=>player?.seek(Number($('time').value));
+function followRotation(){if(rotationPreview){rotationPreview=null;previewFace();}}
+$('play').onclick=()=>{followRotation();player?.toggle();};
+$('time').oninput=()=>{const time=Number($('time').value);followRotation();player?.seek(time);};
 $('track').onchange=()=>{keys();showKey(true);};
 $('key').onchange=()=>showKey(true);
 for(const [id,mode] of [['set','set'],['add','add'],['remove','remove']])$(id).onclick=()=>edit(mode).catch(report);

@@ -167,15 +167,19 @@ export function spriteDrawingTimes(doc){
   return [...times].sort((a,b)=>a-b);
 }
 
+export function sampleSpriteStop(stop,time,override){
+  const value=override??(stop.keys?interpolate(stop.keys,time,'smooth',false):0);
+  return clamp(value,stop.min,stop.max);
+}
+
 export function sampleSpritePuppet(rig,seconds,overrides){
   const {doc,joints,pieces}=rig;
   const elapsed=Math.max(0,seconds),pose=sampleClip(rig.clip,elapsed);
   const time=rig.clip.loop?elapsed%rig.clip.duration:Math.min(elapsed,rig.clip.duration);
-  for(const {name,min,max,keys} of rig.stops){
+  for(const stop of rig.stops){
     // Hinge travel is signed. Crossing the other side of the circle would pass
     // through a physical stop, even when the alternative arc is shorter.
-    const value=overrides?.[name]??(keys?interpolate(keys,time,'smooth',false):0);
-    pose[name]=clamp(value,min,max);
+    pose[stop.name]=sampleSpriteStop(stop,time,overrides?.[stop.name]);
   }
   const headings={};
   for(const name of Object.keys(doc.channels)){

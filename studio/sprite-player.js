@@ -6,7 +6,7 @@ export async function spritePlayer(canvas,document,onTime){
   const {tile,columns,images}=document.atlas;
   if(atlas.width!==tile*columns||atlas.height!==(document.atlas.height??tile*Math.ceil(images.length/columns)))throw Error('Atlas dimensions do not match its cells.');
   const ctx=canvas.getContext('2d');
-  let overrides={},focus=null,skeleton='';
+  let overrides={},focus=null,skeleton='',guide=null;
   const reduce=matchMedia('(prefers-reduced-motion: reduce)');
   let frame=0,time=0,previous=null,playing=!reduce.matches,visible=true;
   function draw(){
@@ -18,7 +18,7 @@ export async function spritePlayer(canvas,document,onTime){
     ctx.resetTransform();ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.setTransform(scale,0,0,scale,(canvas.width-scale*w)/2-left*scale,(canvas.height-scale*h)/2-top*scale);
     if(skeleton!=='side')drawSpritePuppet(ctx,atlas,rig,time,overrides,focus);
-    if(skeleton){
+    if(skeleton||guide){
       const pose=sampleSpritePuppet(rig,time,overrides),centers=new Map();
       const origin=focus&&pose.find(p=>p.id===focus);
       if(origin)ctx.translate(-(skeleton==='side'?origin.z:origin.x),-origin.y);
@@ -27,9 +27,13 @@ export async function spritePlayer(canvas,document,onTime){
         const part=rig.pieces[i],r=p.rotation*Math.PI/180,offset=part.pivot*p.size*(p.stretch??1);
         const x=skeleton==='side'?p.z:p.x-offset*Math.sin(r),y=p.y+offset*Math.cos(r);
         const parent=centers.get(part.parent);
-        if(parent){ctx.beginPath();ctx.moveTo(...parent);ctx.lineTo(x,y);ctx.stroke();}
-        ctx.beginPath();ctx.arc(x,y,3/scale,0,2*Math.PI);ctx.fill();ctx.stroke();centers.set(p.id,[x,y]);
+        if(skeleton){
+          if(parent){ctx.beginPath();ctx.moveTo(...parent);ctx.lineTo(x,y);ctx.stroke();}
+          ctx.beginPath();ctx.arc(x,y,3/scale,0,2*Math.PI);ctx.fill();ctx.stroke();
+        }
+        centers.set(p.id,[x,y]);
       }
+      guide?.(ctx,centers,rig,document.clip.loop?time%document.clip.duration:time,overrides);
     }
     onTime?.(time,playing);
   }
@@ -56,6 +60,7 @@ export async function spritePlayer(canvas,document,onTime){
   resize.observe(canvas);intersection.observe(canvas);reduce.addEventListener('change',preference);
   canvas.ownerDocument.addEventListener('visibilitychange',schedule);draw();schedule();
   return {
+    guide(callback){guide=callback;draw();},
     skeleton(mode){skeleton=mode;draw();},
     preview(values,part){overrides=values;focus=part;draw();},
     seek(value){playing=false;time=Math.max(0,Math.min(document.clip.duration,value));schedule();draw();},
