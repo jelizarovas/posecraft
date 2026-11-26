@@ -128,6 +128,19 @@ try{
   await page.getByText('Keyframes updated.').waitFor();
   await page.locator('#track').selectOption('leftElbow.twist');
   assert.equal(await page.getByLabel('Maximum °').inputValue(),'0');
+  const reading=page.locator('#joint-reading'),angle=page.getByRole('slider',{name:'Preview rotation'});
+  for(const [value,state,label] of [['-90','free','within range'],['-175','near','5° from minimum'],['-180','at','at minimum'],['0','at','at maximum']]){
+    if(value==='0')await angle.press('End');
+    else if(value==='-180')await angle.press('Home');
+    else await angle.evaluate((el,v)=>{el.value=v;el.dispatchEvent(new Event('input'));},value);
+    assert.equal(await reading.getAttribute('data-stop'),state);
+    assert.equal(await reading.textContent(),value+'° · '+label);
+    assert.equal(await page.getByLabel('Forearm twist in degrees').inputValue(),value);
+  }
+  await scrub(1.15);assert.equal(await reading.getAttribute('data-stop'),'free');
+  assert.ok(Number(await angle.inputValue())< -80);
+  await page.screenshot({path:resolve(output,'joint-limit-guide.png')});
+  await scrub(0);
   await page.getByLabel('Minimum °').fill('-82');await page.getByRole('button',{name:'Apply limits'}).click();
   await page.getByText('Joint limits saved.').waitFor();
   await page.getByLabel('Forearm twist in degrees').fill('-240');await page.locator('#set').click();
