@@ -127,6 +127,17 @@ try{
   await page.locator('#value input').fill('-12');await page.locator('#set').click();
   await page.getByText('Keyframes updated.').waitFor();
   await page.locator('#track').selectOption('leftElbow.twist');
+  await page.locator('#contact-editor summary').click();
+  await page.getByLabel('Show collision shapes').check();
+  await page.getByLabel('Body part',{exact:true}).selectOption('leftHand');
+  await page.getByLabel('Radius',{exact:true}).fill('1.05');
+  await page.getByRole('button',{name:'Apply shape'}).click();
+  await page.getByText('Collision shape saved.').waitFor();
+  await page.getByLabel('3D skeleton').selectOption('side');
+  await canvas.screenshot({path:resolve(output,'pelvis-contacts-side.png')});
+  await page.getByLabel('3D skeleton').selectOption('');
+  await page.getByLabel('Show collision shapes').uncheck();
+  await page.locator('#contact-editor summary').click();
   assert.equal(await page.getByLabel('Maximum °').inputValue(),'0');
   const reading=page.locator('#joint-reading'),angle=page.getByRole('slider',{name:'Preview rotation'});
   for(const [value,state,label] of [['-90','free','within range'],['-175','near','5° from minimum'],['-180','at','at minimum'],['0','at','at maximum']]){
@@ -151,6 +162,7 @@ try{
   const save=page.waitForEvent('download');await page.locator('#save').click();
   const file=resolve(output,'edited.puppet.json');await (await save).saveAs(file);
   const saved=JSON.parse(await readFile(file,'utf8')),tracks=saved.clip.tracks;
+  assert.equal(saved.parts.find(p=>p.id==='leftHand').space.collision.spheres[0][3],1.05);
   assert.deepEqual(saved.parts.find(p=>p.id==='leftElbow').space.limits.twist,[-82,0]);
   assert.equal(tracks['leftElbow.twist'][0][1],-82);
   assert.equal(tracks.grip[2][0],3.11);

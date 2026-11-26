@@ -5,6 +5,7 @@ export interface SpriteSkin {
 }
 export interface SpritePart extends SpriteBinding {
   space?:{z?:number;aim?:{channel?:string;range?:[number,number]};view?:{channel:string;range:[number,number];joint?:string};
+    collision?:{spheres:[number,number,number,number][];avoid?:{target:string;pivot:string;side:'behind'|'front'}};
     bearings?:{range:[number,number];images:Record<string,string[]>};plant?:[number,number,number];
     twist?:{to:string;neutral:number};limits?:Partial<Record<'rotation'|'yaw'|'pitch'|'twist',[number,number]>>};
   id:string;parent:string|null;pivot:number;depth:number;image:string;
@@ -23,7 +24,7 @@ export interface SpritePuppet {
   clip:{duration:number;loop:boolean;tracks:Record<string,(number|string)[][]>};
 }
 export interface SpriteRegion {channel:string;x:number;y:number;left:number;top:number;width:number;height:number;empty?:boolean}
-export interface SpriteFrame extends SpriteBinding {id:string;tile:number;depth:number;z?:number;bearing?:number;stretch?:number;layers?:SpriteRegion[];
+export interface SpriteFrame extends SpriteBinding {id:string;tile:number;depth:number;z?:number;bearing?:number;stretch?:number;layers?:SpriteRegion[];collision?:{x:number;y:number;z:number;r:number}[];contactBlocked?:boolean;
   deformation?:{skin:SpriteSkin;view:number;angles:number[]}}
 export interface SpriteRig {doc:SpritePuppet;pieces:SpritePart[]}
 export interface BakedSpriteSkin {image:CanvasImageSource;frames:Record<string,number[]>}
@@ -31,7 +32,7 @@ export function drawSpriteFrame(ctx:CanvasRenderingContext2D|OffscreenCanvasRend
 export function validateSpritePuppet(document:unknown):SpritePuppet;
 export function compileSpritePuppet(document:SpritePuppet,bindings?:Record<string,SpriteBinding>):SpriteRig;
 export function spriteDrawingTimes(document:SpritePuppet):number[];
-export function sampleSpritePuppet(rig:SpriteRig,seconds:number,overrides?:Record<string,number>):SpriteFrame[];
+export function sampleSpritePuppet(rig:SpriteRig,seconds:number,overrides?:Record<string,number>,inspectCollisions?:boolean):SpriteFrame[];
 export function drawSpritePuppet(ctx:CanvasRenderingContext2D,atlas:CanvasImageSource,rig:SpriteRig,seconds:number,overrides?:Record<string,number>,focus?:string):void;
 
 export interface SpriteDrawList {offsets:Uint32Array;commands:Float32Array}

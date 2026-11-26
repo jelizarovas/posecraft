@@ -6,6 +6,12 @@
 <div class="transport"><button id="play">Pause</button><input aria-label="Scrub performance" id="time" type="range" min="0" step=".01"><output id="clock"></output></div></section>
 <section class="controls"><h1 id="name"></h1>
 <label id="rig-view" hidden>3D skeleton<select id="skeleton"><option value="">Artwork</option><option value="overlay">Show joints on artwork</option><option value="side">Side view of joints</option></select></label>
+<details id="contact-editor" hidden><summary>Collision shapes</summary>
+<label><input id="contact-show" type="checkbox"> Show collision shapes</label>
+<label>Body part <select id="contact-part" aria-label="Body part"></select></label>
+<label>Sphere <select id="contact-sphere" aria-label="Sphere"></select></label>
+<div class="sphere-fields"><label>X <input id="contact-x" type="number" step="any"></label><label>Y <input id="contact-y" type="number" step="any"></label><label>Z <input id="contact-z" type="number" step="any"></label><label>Radius <input id="contact-radius" type="number" min="0.001" step="any"></label></div>
+<button id="contact-apply" type="button">Apply shape</button></details>
 <fieldset id="face" hidden><legend>Face controls</legend><div id="facial-sliders"></div>
 <label><input type="checkbox" id="closeup"> Face close-up</label>
 <div><button id="key-face" disabled>Key at playhead</button> <button id="release-face" disabled>Follow timeline</button></div></fieldset>
