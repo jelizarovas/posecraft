@@ -123,21 +123,24 @@ try {
       const roots=[...document.querySelectorAll('[data-puppet=performing]')];
       const clocks=roots.map(e=>e.getAnimations()[0]),starts=clocks.map(a=>Number(a.currentTime));
       window.firstEdit={frames:[],tap:null,visible:null,clocks,starts,start:t};
+      const panel=document.querySelector('.prop-editor-panel [role=dialog]');
+      const observer=new IntersectionObserver(entries=>{
+        const hit=entries.find(e=>e.intersectionRatio>=.05&&panel.closest('.prop-editor-layer.open'));
+        if(hit){window.firstEdit.visible=hit.time;observer.disconnect();}
+      },{threshold:.05});
+      observer.observe(panel);
       document.addEventListener('touchstart',event=>{window.firstEdit.tap=event.timeStamp;},{once:true,capture:true});
       let last=t;
       function tick(now){
         window.firstEdit.frames.push([last,now-last]);last=now;
-        if(window.firstEdit.visible===null){
-          const panel=document.querySelector('.prop-editor-layer.open [role=dialog]');
-          if(panel&&getComputedStyle(panel).visibility==='visible'&&panel.getBoundingClientRect().top<innerHeight-16)window.firstEdit.visible=now;
-        }
         window.firstEdit.raf=requestAnimationFrame(tick);
       }
       window.firstEdit.raf=requestAnimationFrame(tick);resolve();
     })));
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
     await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
-    await page.getByRole('dialog',{name:'Edit decoration'}).waitFor();
+    // The in-page observer above records the reveal. A simultaneous role lookup
+    // would walk the town's accessibility tree during the interval being timed.
     await page.waitForTimeout(450);
     const result=await page.evaluate(()=>{
       const {frames,tap,visible,clocks,starts,raf,start}=window.firstEdit;cancelAnimationFrame(raf);
