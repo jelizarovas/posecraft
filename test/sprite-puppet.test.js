@@ -6,6 +6,60 @@ import example from '../examples/characters/porch-zombie.puppet.json' with {type
 const rig=compileSpritePuppet(example);
 const pose=(seconds,part)=>sampleSpritePuppet(rig,seconds).find(p=>p.id===part);
 const image=(seconds,part)=>example.atlas.images[pose(seconds,part).tile];
+test('a turning parent projects a child in depth and selects art independently of the gesture track',()=>{
+  const doc=structuredClone(example);
+  doc.parts=['body','leftHand'].map((id,i)=>({
+    id,parent:i?'body':null,x:i?4:0,y:0,size:1,pivot:0,depth:0,rotation:0,image:'palm',variants:[],
+    space:i?{z:2,bearings:{range:[0,90],images:{palm:['palm','four']}}}:{},
+  }));
+  doc.clip.tracks={'body.yaw':[[0,0,'linear'],[1,90,'linear']]};
+  const rig=compileSpritePuppet(doc),hand=t=>sampleSpritePuppet(rig,t)[1];
+  assert.equal(hand(0).x,4);assert.equal(hand(0).z,2);
+  assert.ok(Math.abs(hand(1).x-2)<1e-8&&Math.abs(hand(1).z+4)<1e-8);
+  assert.equal(doc.atlas.images[hand(1).tile],'four');
+  assert.ok(Math.abs(hand(.5).bearing-45)<1e-8);
+  delete doc.parts[0].space;delete doc.parts[1].space;doc.clip.tracks={};
+  assert.equal(sampleSpritePuppet(compileSpritePuppet(doc),0)[1].x,4);
+});
+test('the far wrist turns from its dorsal drawing to palm while the other hand counts',()=>{
+  assert.ok(Math.abs(pose(0,'leftHand').bearing)>120);
+  assert.equal(image(3.2,'leftHand'),'palm');
+  assert.ok(pose(0,'leftShoulder').z<pose(0,'rightShoulder').z);
+  const head=sampleSpritePuppet(rig,0,{view:48}).find(p=>p.id==='head');
+  assert.equal(head.bearing,0);
+});
+test('signed stops follow the permitted long arc and clamp both keyed and preview angles',()=>{
+  const doc=structuredClone(example),body=doc.parts[0];
+  body.space={limits:{yaw:[-120,120]}};delete body.skin;doc.parts=[body];
+  doc.clip.tracks={'body.yaw':[[0,-200,'linear'],[1,200,'linear']]};
+  const rig=compileSpritePuppet(doc);
+  for(const [t,expected] of [[0,-120],[.25,-60],[.5,0],[.75,60],[1,120]])
+    assert.ok(Math.abs(sampleSpritePuppet(rig,t)[0].bearing-expected)<1e-8);
+  assert.ok(Math.abs(sampleSpritePuppet(rig,0,{'body.yaw':900})[0].bearing-120)<1e-8);
+  body.space.limits.yaw=[80,-80];assert.throws(()=>validateSpritePuppet(doc),/limits/);
+});
+test('reassembling a joint cannot move its anatomical stops',()=>{
+  const doc=structuredClone(example),body=doc.parts[0],arm=doc.parts.find(p=>p.id==='leftShoulder');
+  delete body.skin;body.rotation=0;body.space={};
+  delete arm.registration;arm.rotation=10;arm.space={limits:{rotation:[-30,40]}};
+  doc.parts=[body,arm];doc.clip.tracks={};
+  const bound=compileSpritePuppet(doc,{[body.id]:{},[arm.id]:{rotation:110}});
+  const angle=offset=>sampleSpritePuppet(bound,0,{[arm.id+'.rotation']:offset})[1].rotation;
+  assert.ok(Math.abs(angle(0)-50)<1e-8);
+  assert.ok(Math.abs(angle(-200)+20)<1e-8);
+});
+test('pronation and supination rotate around the actual elbow-to-wrist line, with mirrored stops',()=>{
+  for(const side of ['left','right']){
+    const part=example.parts.find(p=>p.id===side+'Elbow');
+    const [min,max]=part.space.limits.twist;
+    assert.deepEqual([min,max],side==='left'?[0,180]:[-180,0]);
+    const hand=v=>sampleSpritePuppet(rig,3.2,{[part.id+'.twist']:v}).find(p=>p.id===side+'Hand');
+    const wrist=p=>{const r=p.rotation*Math.PI/180,d=example.parts.find(s=>s.id===p.id).pivot*p.size*p.stretch;return [p.x-Math.sin(r)*d,p.y+Math.cos(r)*d,p.z];};
+    assert.deepEqual(hand(-300),hand(min));assert.deepEqual(hand(300),hand(max));
+    assert.notEqual(hand(min).tile,hand(max).tile);
+    const a=wrist(hand(min)),b=wrist(hand(max));assert.ok(Math.hypot(...a.map((v,i)=>v-b[i]))<1e-7);
+  }
+});
 test('direction, expression and hand drawings change independently of the waving arm',()=>{
   assert.equal(image(0,'head'),'profile');
   assert.equal(image(.585,'body'),'torsoQuarter');
@@ -47,6 +101,7 @@ test('the trousers follow the pelvis and the supporting boot stays planted throu
   for(let i=0;i<408;i++){
     const sample=pose(i/60,'leftFoot');
     assert.ok(Math.hypot(sample.x-foot.x,sample.y-foot.y)<.03);
+    assert.ok(Math.abs(sample.z-foot.z)<1e-8);
   }
   assert.ok(Math.abs(pose(3.18,'rightKnee').rotation-pose(0,'rightKnee').rotation)>8);
   assert.notEqual(image(0,'pelvis'),image(1.82,'pelvis'));

@@ -3,10 +3,7 @@ import {hairShellPath} from './hair-shell.js';
 import {clamp} from './index.js';
 export const spatialChannels={opacity:{min:0,max:1},yaw:{min:-180,max:180},pitch:{min:-90,max:90},z:{min:-500,max:500},bend:{min:0,max:1}};
 export function poseDefaults(pack){return Object.fromEntries(pack.joints.flatMap(j=>[[j.id+'.rotation',j.rotation],[j.id+'.x',0],[j.id+'.y',0],...(pack.spatial?Object.keys(spatialChannels).map(k=>[j.id+'.'+k,k==='opacity'?1:0]):[])]));}
-const I=[1,0,0,0,1,0,0,0,1],rad=Math.PI/180;
-const mul=(a,b)=>Array.from({length:9},(_,i)=>{const row=Math.floor(i/3),col=i%3;return a[row*3]*b[col]+a[row*3+1]*b[col+3]+a[row*3+2]*b[col+6];});
-const apply=(m,x,y,z)=>({x:m[0]*x+m[1]*y+m[2]*z,y:m[3]*x+m[4]*y+m[5]*z,z:m[6]*x+m[7]*y+m[8]*z});
-const rotationMatrix=({rotation=0,yaw=0,pitch=0})=>{const r=rotation*rad,y=yaw*rad,p=pitch*rad,c=Math.cos,s=Math.sin;return mul(mul([c(r),-s(r),0,s(r),c(r),0,0,0,1],[c(y),0,s(y),0,1,0,-s(y),0,c(y)]),[1,0,0,0,c(p),-s(p),0,s(p),c(p)]);};
+import {I,rad,mul,apply,rotationMatrix} from './joint-matrix.js';
 const wrapRotation=value=>((value+180)%360+360)%360-180;
 /** Author an end joint's orientation in the actor's world frame. Ancestors are
  * ordered root to parent; joint records may supply nonzero rest rotations. */

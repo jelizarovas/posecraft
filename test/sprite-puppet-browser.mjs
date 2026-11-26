@@ -118,13 +118,30 @@ try{
   await page.getByRole('button',{name:'Key at playhead'}).click();
   await page.getByText('Face keys saved at 3.21 s.').waitFor();
   await page.getByLabel('Face close-up').uncheck();
+  const painted=await artwork();
+  await page.getByLabel('3D skeleton').selectOption('overlay');const joints=await artwork();
+  await page.getByLabel('3D skeleton').selectOption('side');const side=await artwork();
+  assert.equal(new Set([painted,joints,side]).size,3);
+  await page.getByLabel('3D skeleton').selectOption('');
+  await page.locator('#track').selectOption('head.yaw');
+  await page.locator('#value input').fill('-12');await page.locator('#set').click();
+  await page.getByText('Keyframes updated.').waitFor();
+  await page.locator('#track').selectOption('leftElbow.twist');
+  assert.equal(await page.getByLabel('Minimum °').inputValue(),'0');
+  await page.getByLabel('Maximum °').fill('82');await page.getByRole('button',{name:'Apply limits'}).click();
+  await page.getByText('Joint limits saved.').waitFor();
+  await page.getByLabel('Forearm twist in degrees').fill('240');await page.locator('#set').click();
+  await page.getByText('Key saved at the joint limit of 82°.').waitFor();
   await page.locator('#track').selectOption('grip');await page.locator('#key').selectOption('2');
   await page.locator('#at').fill('3.11');await page.locator('#set').click();
   await page.getByText('Keyframes updated.').waitFor();
   const save=page.waitForEvent('download');await page.locator('#save').click();
   const file=resolve(output,'edited.puppet.json');await (await save).saveAs(file);
-  const tracks=JSON.parse(await readFile(file,'utf8')).clip.tracks;
+  const saved=JSON.parse(await readFile(file,'utf8')),tracks=saved.clip.tracks;
+  assert.deepEqual(saved.parts.find(p=>p.id==='leftElbow').space.limits.twist,[0,82]);
+  assert.equal(tracks['leftElbow.twist'][0][1],82);
   assert.equal(tracks.grip[2][0],3.11);
+  assert.equal(tracks['head.yaw'][0][1],-12);
   for(const [channel,value] of [['leftEyelid',10],['rightEyelid',0],['mouth',6]])
     assert.deepEqual(tracks[channel].find(([time])=>time===3.21),[3.21,value,'smooth']);
   await page.reload();await page.locator('#open').setInputFiles(file);
@@ -160,4 +177,8 @@ try{
   assert.equal(await page.getByRole('textbox').inputValue(),'still responsive');
   assert.deepEqual(errors,[]);
   console.log('PASS key editing, saved file, reopen, offline animated export and reduced motion.');
+}catch(error){
+  const page=browser.contexts()[0]?.pages()[0];
+  console.error('Studio status:',await page?.locator('#status').textContent({timeout:500}).catch(()=>'unavailable'));
+  throw error;
 }finally{await browser.close();}
