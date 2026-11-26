@@ -14,6 +14,36 @@ try{
   await page.locator('#track option').first().waitFor({state:'attached'});
   const canvas=page.locator('canvas');
   const scrub=t=>page.locator('#time').evaluate((input,value)=>{input.value=value;input.dispatchEvent(new Event('input'));},String(t));
+  // A connected silhouette also passes with a rigid shirt and a bare arm across
+  // its opening. Isolate the fabric and check the actual painted cuff as it lifts.
+  const shirt=JSON.parse(await readFile(new URL('../examples/characters/porch-zombie.puppet.json',import.meta.url),'utf8'));
+  shirt.bounds=[-7,-6,14,12];
+  shirt.parts=shirt.parts.filter(p=>p.id==='body'||p.id.endsWith('Shoulder'));
+  for(const p of shirt.parts.slice(1))p.size=.001;
+  shirt.clip={duration:2,loop:false,tracks:{view:[[0,48,'step']],
+    'leftShoulder.rotation':[[0,0,'linear'],[1,84,'linear'],[2,84]],
+    'rightShoulder.rotation':[[0,0,'linear'],[1,0,'linear'],[2,-74]]}};
+  await page.locator('#open').setInputFiles({name:'shirt-check.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(shirt))});
+  await page.getByText('Opened shirt-check.json').waitFor();
+  for(let step=0;step<=20;step++){
+    await scrub(step/10);
+    const check=await canvas.evaluate((c,step)=>{
+      const ctx=c.getContext('2d'),fit=Math.min(c.width/14,c.height/12)*9/128;
+      function pixel(x,y){return ctx.getImageData(Math.round(c.width/2+(x-64)*fit),Math.round(c.height/2+(y-64)*fit),1,1).data;}
+      const cuffs=[[29,12,Math.min(step,10)*8.4],[99,116,-Math.max(step-10,0)*7.4]];
+      for(const [pivot,rest,angle] of cuffs){
+        const a=angle*Math.PI/180,x=pivot+(rest-pivot)*Math.cos(a)-25*Math.sin(a);
+        const y=36+(rest-pivot)*Math.sin(a)+25*Math.cos(a);
+        for(let n=0;n<=12;n++){
+          const t=n/12,p=pixel(x+(64-x)*t,y+(53-y)*t);
+          if(p[3]<190||p[0]<=p[1])return {step,x,y,n,rgba:[...p]};
+        }
+      }
+      return null;
+    },step);
+    assert.equal(check,null,JSON.stringify(check));
+  }
+  await page.reload();await page.locator('#track option').first().waitFor({state:'attached'});
   // A correct joint transform alone cannot prove that the painted pieces touch.
   const detached=await page.evaluate(()=>{
     const c=document.querySelector('canvas'),input=document.querySelector('#time'),ctx=c.getContext('2d');

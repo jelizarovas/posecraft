@@ -267,8 +267,7 @@ def fit_body(doc,tiles):
             if suffix=='Knee':p['pivot']=-2.55
             p['depth']=depth;p['image']=side+suffix
             tiles[p['image']]=trousers(p,side)
-        # Bind the exposed upper arm inside the cuff; changing its pivot leaves
-        # the elbow and wrist at their saved rest positions.
+        # Register skin in the lowered pose before moving its animation pivot.
         parts[side+'Shoulder']['pivot']=-.8
         for suffix,end,lo,hi in [('Shoulder','Elbow',202,397),('Elbow','Hand',397,675)]:
             p=parts[side+suffix];across,along,length=axis_coords(p,parts[side+end])
@@ -280,7 +279,11 @@ def fit_body(doc,tiles):
             alpha=np.clip((length+.85*cap-along)*12,0,1)
             if suffix=='Elbow':alpha*=np.clip((along+.83*cap)*5,0,1)
             p['image']=side+suffix;p['depth']=4.5 if suffix=='Shoulder' else 7
-            if suffix=='Shoulder':alpha*=np.clip((along+.35*cap-(.52 if side=='right' else 0))*8,0,1)
+            if suffix=='Shoulder':
+                # The near arm also passes in front of the shirt in profile.
+                # Keep its top inside the dark cuff opening there.
+                start=.52-.35*cap if side=='right' else -1.05*cap
+                alpha*=np.clip((along-start)*8,0,1)
             skin=mask(sample(anatomy,sx,sy),alpha)
             tiles[p['image']]=skin
     palm=parts['leftHand'];x,y=local(palm);along=y-palm['pivot']*palm['size']
@@ -295,13 +298,12 @@ def fit_body(doc,tiles):
         sx=cx+(X-63.5)*3.02;sy=256+(Y-63.5)*2.88
         shirt=sample(costume,sx,sy)
         skin=(shirt[:,:,1]-shirt[:,:,0])/(shirt[:,:,3]+1e-6)
-        # Keep the original collar, shoulders and cuffs in one continuous shirt drawing.
-        # Only the exposed skin rotates with the upper arm underneath the fabric.
         shirts.append(mask(shirt,1-(sy>345)*np.clip((skin+.005)*30,0,1)))
     tracks=doc['clip']['tracks']
     for side,inset in [('left',2.08),('right',-2.08)]:
         for key in tracks[side+'Shoulder.x']:key[1]+=inset
         tracks[side+'Shoulder.y']=[[0,-1.0]]
+        parts[side+'Shoulder']['pivot']=-3.1
     # In profile the near arm emerges over the shirt, immediately inside its cuff.
     tracks['rightShoulder.depth']=[[0,6,'step'],[.65,4.5,'step'],[5.99,6,'step']]
     for key in tracks['rightShoulder.x']:
@@ -312,6 +314,36 @@ def fit_body(doc,tiles):
     tracks['body.y']=[[t,pelvis['y']*(1-math.cos(math.radians(angle)))] for t,angle in tracks['body.rotation']]
     lower_body_motion(doc)
     return shirts
+
+
+def shirt_skin():
+    # Weights are painted in shirt space. The cuff follows the humerus, the
+    # armhole shares the bend, and the collar, patch and waistband stay pinned.
+    intervals=16
+    y,x=np.mgrid[0:TILE+1:8,0:TILE+1:8]
+    def ramp(value):
+        u=np.clip(value,0,1)
+        return u*u*(3-2*u)
+    views=[]
+    for index in range(VIEWS):
+        view=index/(VIEWS-1)
+        def at(profile,quarter,front):
+            return float(np.interp(view,[0,.5,1],[profile,quarter,front]))
+        # Rest sockets are in the same tile coordinates as the arm joints.
+        pivots=[[at(70,50,29),36],[at(54,81,99),36]]
+        # The sewn armhole curves outward at the armpit. Pin the chest-side
+        # stitches below it; pulling them with the cuff smears the embroidery.
+        curve=ramp((y-48)/33)*11
+        seam_left=at(32,29,35)-curve;seam_right=at(48,81,93)+curve
+        lower=ramp((86-y)/12)
+        top=ramp((y-15)/22)
+        left=ramp((seam_left-x)/18+.48)*lower*top*at(0,.80,1)
+        right=ramp((x-seam_right)/18+.48)*lower*top
+        # The profile sleeve lies diagonally across the side of the chest.
+        right*=ramp((at(91,125,154)-x)/14)
+        weights=np.uint8(np.round(np.stack([left,right],axis=2)*255))
+        views.append(dict(pivots=pivots,weights=base64.b64encode(weights.tobytes()).decode()))
+    return dict(viewChannel='view',joints=['leftShoulder','rightShoulder'],intervals=intervals,views=views)
 
 
 def bake(doc):
@@ -329,6 +361,7 @@ def bake(doc):
     frames=[];layers=[dict(channel=k,label=l,viewChannel='view',emptyValue=0,width=WIDTH,height=HEIGHT,views=[])
                        for k,l in zip(slots,['Right eyelid','Left eyelid','Whistle'])]
     body,head=doc['parts'][:2];head['layers']=layers
+    body['skin']=shirt_skin()
     head['variants']=[];body['variants']=[]
     shirt_marks=[[(64,16),(67,56),(45,73),(51,106),(79,104)],[(64,16),(93,55),(31,70),(41,104),(84,105)],[(64,16),(101,53),(28,66),(35,102),(87,104)]]
     turns=[[registered_turn(img[i],img[i+1],marks[i],marks[i+1]) for i in range(2)]

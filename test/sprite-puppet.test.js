@@ -62,3 +62,16 @@ test('a malformed drawing key fails before replacing an open puppet',()=>{
   const doc=structuredClone(example);doc.clip.tracks.grip[0][1]=99;
   assert.throws(()=>validateSpritePuppet(doc),/grip/);
 });
+test('shirt deformation follows independent shoulder edits, including partial assemblies and legacy puppets',()=>{
+  const doc=structuredClone(example);
+  doc.clip.tracks={'view':[[0,48,'step']],'leftShoulder.rotation':[[0,82]],'rightShoulder.rotation':[[0,-16]]};
+  const body=rig=>sampleSpritePuppet(rig,0).find(p=>p.id==='body');
+  assert.deepEqual(body(compileSpritePuppet(doc)).deformation.angles,[82,-16]);
+  const parts=Object.fromEntries(doc.parts.filter(p=>['body','rightShoulder'].includes(p.id)).map(p=>[p.id,p]));
+  assert.deepEqual(body(compileSpritePuppet(doc,parts)).deformation.angles,[0,-16]);
+  const skin=doc.parts[0].skin;
+  delete doc.parts[0].skin;
+  assert.equal(body(compileSpritePuppet(doc)).deformation,undefined);
+  doc.parts[0].skin=skin;skin.views[48].weights='AQ==';
+  assert.throws(()=>validateSpritePuppet(doc),/skin weights/);
+});
