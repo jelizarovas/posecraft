@@ -43,3 +43,17 @@ test('saved runtime state cannot restore onto different terrace heights',()=>{
  const changed=fixture();changed.terraces[0].heightOffset=15;changed.actors=[{id:'hero',x:5.5,y:4.5,speed:3}];const target=new MapController(changed,{execution:'main'});
  assert.throws(()=>target.restore(state),/Incompatible map save/);source.dispose();target.dispose();
 });
+
+test('terrace data is cached for maps with and without terraces',async()=>{
+ const {terraceLevels}=await import('../src/map-cliffs.js');
+ const flat=fixture();delete flat.terraces;flat.elevations=Array((flat.width+1)*(flat.height+1)).fill(0);
+ assert.equal(terraceLevels(flat),terraceLevels(flat));assert.deepEqual([...terraceLevels(flat)],[0]);
+ const stepped=fixture();stepped.terraces.push({id:'step',x:5,y:4,width:2,height:2,heightOffset:3});
+ const levels=terraceLevels(stepped);assert.equal(terraceLevels(stepped),levels,'unchanged terraces reuse derived data');
+ stepped.terraces=[...stepped.terraces,{id:'high',x:1,y:1,width:1,height:1,heightOffset:5}];
+ assert.notEqual(terraceLevels(stepped),levels,'replacing terraces rebuilds derived data');
+ // Camera visibility unprojects four corners every frame; it must stay far below a frame budget.
+ const big={...flat,width:128,height:128,terrain:Array(128*128).fill(flat.terrain[0]),elevations:Array(129*129).fill(0).map((_,i)=>(i%7)/4)};
+ const start=performance.now();for(let i=0;i<400;i++)unprojectMap(big,{x:(i%40)*20-400,y:i*3});
+ assert.ok(performance.now()-start<200,'400 unprojections should take well under 200 ms');
+});

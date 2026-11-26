@@ -1,6 +1,6 @@
 import {artPropSelection,mapImageBounds,groundHeight} from './map-art-layout.js';
 import {continuousSegmentClear,propBlocksCell,propBlocksMovement,propHitsSegment} from './map-collision.js';
-import {cliffFaces,cliffGroundPick,terraceLevels,terrainHeightOffset,terrainTileCorners} from './map-cliffs.js';
+import {cliffFaces,cliffGroundPick,smoothHeight,terraceLevels,terrainHeightOffset} from './map-cliffs.js';
 import {assertMapBirds} from './map-birds.js';
 export {groundHeight} from './map-art-layout.js';
 export {cliffFaces,cliffGroundPick,terrainHeightOffset,terrainTileCorners} from './map-cliffs.js';
@@ -195,7 +195,7 @@ export function unprojectMap(map, p) {
     let low=base+2*level-32,high=base+2*level+32;
     for(let i=0;i<44;i++){
       const sum=(low+high)/2,q={x:(sum+difference)/2,y:(sum-difference)/2};
-      const smooth=groundHeight({...map,terraces:undefined},q);
+      const smooth=smoothHeight(map,q);
       if(sum/2-smooth-level>p.y/map.tileSize.height)high=sum;else low=sum;
     }
     const sum=(low+high)/2,q={x:(sum+difference)/2,y:(sum-difference)/2};
@@ -331,13 +331,15 @@ export class MapIndex {
     const tiles = [], props = [], found = new Set();
     const stats = { visitedChunks: 0, candidateTiles: 0, candidateProps: 0 };
     const intersects = (left, top, right, bottom) => right >= view.x && bottom >= view.y && left <= view.x + view.width && top <= view.y + view.height;
+    const stride=map.width+1,heightAt=map.elevations?(x,y)=>map.elevations[y*stride+x]:()=>0;
     const tileRange=range(this.tileReach);
     for (let y = tileRange.minY; y <= tileRange.maxY; y++) for (let x = tileRange.minX; x <= tileRange.maxX; x++) {
       stats.candidateTiles++;
       const terrain=map.terrain[y*map.width+x];
       if(map.elevations||map.terraces?.length){
-        const corners=terrainTileCorners(map,x,y),base=(x+y)*map.tileSize.height/2,th=map.tileSize.height;
-        const a=base-corners[0].z*th,b=base+th/2-corners[1].z*th,c=base+th-corners[2].z*th,d=base+th/2-corners[3].z*th;
+        // Same heights as terrainTileCorners, without four objects per candidate tile.
+        const offset=map.terraces?.length?terrainHeightOffset(map,{x:x+.5,y:y+.5}):0,base=(x+y)*map.tileSize.height/2,th=map.tileSize.height;
+        const a=base-(heightAt(x,y)+offset)*th,b=base+th/2-(heightAt(x+1,y)+offset)*th,c=base+th-(heightAt(x+1,y+1)+offset)*th,d=base+th/2-(heightAt(x,y+1)+offset)*th;
         if(intersects((x-y-1)*map.tileSize.width/2,Math.min(a,b,c,d),(x-y+1)*map.tileSize.width/2,Math.max(a,b,c,d)))tiles.push({x,y,terrain});
       }else{
         const p=projectMap(map,{x:x+.5,y:y+.5}),bounds=this.tileBounds[terrain];

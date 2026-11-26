@@ -25,7 +25,7 @@ import {SoundEffects} from '../src/audio.js';
 const $=id=>document.getElementById(id),icon=name=>`<span class="material-symbols-outlined" aria-hidden="true">${name}</span>`;
 const media=matchMedia('(prefers-reduced-motion: reduce)'),sound=new SoundEffects();
 let ensembleSoundTime=-Infinity,ensembleSoundEvents=new Set();
-let nativeGym,gameDemo,mapDemo;
+let nativeGym,gameDemo,mapDemo,galleryFrame=0;
 let pointers,bottleControls,reviewLive=false,bottleWide=false;
 let playbackRate=1,reviewBeat=null,loopBeat=false;
 let scrubPending=null,selected,documentData,controller,worker,renderer,frame,renderedScene,token=0,ready=false,inFlight=false,pending=null,time=0,last=null,playing=!media.matches,offset={x:0,y:0},drag=null,debug=false,shakeStart=null,wander=false,nextWalk=0;
@@ -41,7 +41,7 @@ for(const [group,items] of [['Featured scenes',demoCatalog.filter(d=>['littlelan
  const doc=createDemo(d.id),episode=doc.kind==='episode',engine=episode?new EpisodeController(doc):new SceneController(doc),f=engine.frame(0),scene=episode?doc.scenes[f.scene]:doc;
  const button=document.createElement('button');button.className='demo-card';button.dataset.demo=d.id;button.style.setProperty('--demo-color',d.color);button.innerHTML=`<span class="demo-thumb">${renderSVG(scene,f)}</span><span class="demo-card-copy"><strong>${d.title}</strong><small>${d.category}</small></span>`;button.onclick=()=>select(d.id);$('demo-list').append(button);engine.dispose?.();
 }}
-function cleanup(){mapDemo?.dispose();mapDemo=null;gameDemo?.dispose();gameDemo=null;nativeGym?.dispose();nativeGym=null;bottleWide=false;$('demo-art').style.background='';bottleControls?.dispose();bottleControls=null;reviewLive=false;pointers?.dispose();pointers=null;playbackRate=1;reviewBeat=null;loopBeat=false;ensembleSoundTime=-Infinity;ensembleSoundEvents.clear();scrubPending=null;stopMotion();wander=false;nextWalk=0;token++;worker?.terminate();worker=null;controller?.dispose();controller=null;renderer?.dispose();renderer=null;renderedScene=null;ready=false;inFlight=false;pending=null;offset={x:0,y:0};drag=null;$('demo-stage').style.transform='';}
+function cleanup(){cancelAnimationFrame(galleryFrame);galleryFrame=0;mapDemo?.dispose();mapDemo=null;gameDemo?.dispose();gameDemo=null;nativeGym?.dispose();nativeGym=null;bottleWide=false;$('demo-art').style.background='';bottleControls?.dispose();bottleControls=null;reviewLive=false;pointers?.dispose();pointers=null;playbackRate=1;reviewBeat=null;loopBeat=false;ensembleSoundTime=-Infinity;ensembleSoundEvents.clear();scrubPending=null;stopMotion();wander=false;nextWalk=0;token++;worker?.terminate();worker=null;controller?.dispose();controller=null;renderer?.dispose();renderer=null;renderedScene=null;ready=false;inFlight=false;pending=null;offset={x:0,y:0};drag=null;$('demo-stage').style.transform='';}
 const timedScenes=new Set(['campfire-night','ship-in-a-bottle','loveseat-stairs','gym-routine']);
 const actionReview=()=>{if(nativeGym||selected?.id!=='gym-routine')return null;const review=gymActionReviews.find(r=>r.clip===documentData?.actors.find(a=>a.id==='atlas')?.inputs.action);return review?{...review,duration:documentData.packs.atlas.clips[review.clip].duration}:null;};
 const sceneDuration=()=>selected?.id==='campfire-night'||documentData?.fluid?180:Math.min(180,Math.max(...documentData.actors.map(a=>{const p=documentData.packs[a.pack],state=p.states[a.inputs?.action]||p.states[p.initial];return p.clips[state.clip].duration;})));
@@ -79,7 +79,7 @@ function show(f){
 }
 function send(){if(!ready||inFlight||pending===null)return;inFlight=true;worker.postMessage({type:'frame',time:pending});pending=null;}
 function requestFrame(){pending=Math.min(time,episodeDuration(documentData));send();}
-function transport(){const episode=documentData?.kind==='episode';$('demo-play').innerHTML=icon(playing?'pause':'play_arrow');$('demo-play').setAttribute('aria-label',playing?'Pause demo':'Play demo');if(mapDemo||gameDemo||nativeGym||documentData?.presentation==='live'&&!reviewLive){$('demo-time').textContent=playing?'Live illustration':'Paused';}else if(timedScenes.has(selected?.id)){const duration=sceneDuration(),t=scrubPending??(documentData.presentation==='live'||actionReview()?Math.min(duration,frame?.time||0):(frame?.time||0)%duration);$('demo-scrub').value=t;$('demo-time').textContent=(reviewLive?'Replay: ':'')+t.toFixed(1)+' / '+duration+' s';}else if(episode){$('demo-scrub').value=time;$('demo-time').textContent=time.toFixed(1)+' / '+episodeDuration(documentData).toFixed(0)+' s';}else $('demo-time').textContent=playing?'Live preview':'Paused';}
+function transport(){scheduleGalleryFrame();const episode=documentData?.kind==='episode';$('demo-play').innerHTML=icon(playing?'pause':'play_arrow');$('demo-play').setAttribute('aria-label',playing?'Pause demo':'Play demo');if(mapDemo||gameDemo||nativeGym||documentData?.presentation==='live'&&!reviewLive){$('demo-time').textContent=playing?'Live illustration':'Paused';}else if(timedScenes.has(selected?.id)){const duration=sceneDuration(),t=scrubPending??(documentData.presentation==='live'||actionReview()?Math.min(duration,frame?.time||0):(frame?.time||0)%duration);$('demo-scrub').value=t;$('demo-time').textContent=(reviewLive?'Replay: ':'')+t.toFixed(1)+' / '+duration+' s';}else if(episode){$('demo-scrub').value=time;$('demo-time').textContent=time.toFixed(1)+' / '+episodeDuration(documentData).toFixed(0)+' s';}else $('demo-time').textContent=playing?'Live preview':'Paused';}
 const targets=()=>documentData.actors.filter(a=>!a.unlit&&(!a.layer||a.layer==='characters')).filter(a=>$('demo-target')?.value==='all'||a.id===$('demo-target')?.value);
 function resume(){playing=true;last=null;controller?.play();transport();}
 function drawControls(){
@@ -168,14 +168,36 @@ $('download-demo').onclick=()=>{if(mapDemo){mapDemo.download();return;}if(native
 $('copy-demo').onclick=async()=>{try{await navigator.clipboard.writeText(location.href);$('demo-status').textContent='Demo link copied.';}catch{$('demo-status').textContent='Copy this page address to share the demo.';}};
 $('demo-stage').onpointerdown=e=>{if(selected.id==='shake-and-settle'&&e.button===0){resume();const rect=$('demo-stage').getBoundingClientRect(),x=(e.clientX-rect.left)/rect.width*documentData.bounds.width;walkCast(x);return;}if(selected.id!=='zero-gravity'||e.button!==0)return;resume();drag={x:e.clientX-offset.x,y:e.clientY-offset.y};$('demo-stage').setPointerCapture(e.pointerId);};
 $('demo-stage').onpointermove=e=>{if(!drag)return;offset={x:Math.max(-55,Math.min(55,e.clientX-drag.x)),y:Math.max(-35,Math.min(35,e.clientY-drag.y))};$('demo-stage').style.transform=`translate(${offset.x}px,${offset.y}px)`;};$('demo-stage').onpointerup=$('demo-stage').onpointercancel=()=>drag=null;
-window.addEventListener('hashchange',()=>{if(location.hash.slice(1)!==selected.id)select(location.hash.slice(1));});document.addEventListener('visibilitychange',()=>{last=null;controller?.rebaseline();if(document.hidden){stopMotion();sound.mute();$('demo-sound').classList.remove('active');$('demo-sound').innerHTML=icon('play_arrow')+'Sound off';$('demo-sound').setAttribute('aria-label','Enable interaction sounds');}});window.addEventListener('pagehide',()=>{cleanup();sound.dispose();});
-media.addEventListener('change',e=>{if(e.matches){stopMotion();playing=false;mapDemo?.pause();gameDemo?.pause();nativeGym?.pause();controller?.pause();transport();}last=null;});
+window.addEventListener('hashchange',()=>{if(location.hash.slice(1)!==selected.id)select(location.hash.slice(1));});document.addEventListener('visibilitychange',()=>{last=null;controller?.rebaseline();scheduleGalleryFrame();if(document.hidden){stopMotion();sound.mute();$('demo-sound').classList.remove('active');$('demo-sound').innerHTML=icon('play_arrow')+'Sound off';$('demo-sound').setAttribute('aria-label','Enable interaction sounds');}});window.addEventListener('pagehide',()=>{cleanup();sound.dispose();});
+media.addEventListener('change',e=>{if(e.matches){stopMotion();playing=false;mapDemo?.pause();gameDemo?.pause();nativeGym?.pause();controller?.pause();transport();}last=null;scheduleGalleryFrame();});
 select(location.hash.slice(1),undefined,new URLSearchParams(location.search).get('obstacles')==='1'?'obstacles':undefined);
-function tick(now){if(mapDemo||gameDemo||nativeGym)return requestAnimationFrame(tick);const dt=last===null?0:Math.min(.1,(now-last)/1000)*playbackRate;last=now;if(playing&&!document.hidden){if(actionReview()&&!loopBeat&&(frame?.time||0)>=actionReview().duration){playing=false;controller.pause();transport();return requestAnimationFrame(tick);}if(reviewBeat&&loopBeat&&scrubPending===null&&frame?.time>=reviewBeat.end){scrubPending=reviewBeat.start;controller.seek(reviewBeat.start);}if(documentData.kind==='episode'){time=(time+dt)%episodeDuration(documentData);requestFrame();}else{if(selected.id==='shake-and-settle'){
- const signal=phone.signal.sample(now),age=shakeStart===null?2:(now-shakeStart)/1000,pulse=age<.85?Math.sin(age*42)*1100*(1-age/.85):0;
- if(age>=.85)shakeStart=null;const ax=signal.ax+pulse,ay=signal.ay-pulse*.45;
- controller?.setAcceleration(ax,ay);$('demo-stage').style.transform=`translate(${Math.max(-12,Math.min(12,ax/100))}px,${Math.max(-8,Math.min(8,ay/120))}px) rotate(${signal.turn*.35}deg)`;
- if(wander&&now>nextWalk){walkCast(110+Math.random()*(documentData.bounds.width-220));nextWalk=now+4500;}
- }else controller?.sampleHost({...offset,time:now/1000});controller?.step(dt);}}requestAnimationFrame(tick);}requestAnimationFrame(tick);
+function galleryCanPlay(){return playing&&!document.hidden&&!mapDemo&&!gameDemo&&!nativeGym;}
+function scheduleGalleryFrame(){
+ if(galleryCanPlay()){if(!galleryFrame)galleryFrame=requestAnimationFrame(tick);}
+ else if(galleryFrame){cancelAnimationFrame(galleryFrame);galleryFrame=0;}
+}
+function tick(now){
+ galleryFrame=0;
+ if(!galleryCanPlay())return;
+ const dt=last===null?0:Math.min(.1,(now-last)/1000)*playbackRate;
+ last=now;
+ const review=actionReview();
+ if(review&&!loopBeat&&(frame?.time||0)>=review.duration){playing=false;controller.pause();transport();return;}
+ if(reviewBeat&&loopBeat&&scrubPending===null&&frame?.time>=reviewBeat.end){scrubPending=reviewBeat.start;controller.seek(reviewBeat.start);}
+ if(documentData.kind==='episode'){
+  time=(time+dt)%episodeDuration(documentData);requestFrame();
+ }else{
+  if(selected.id==='shake-and-settle'){
+   const signal=phone.signal.sample(now),age=shakeStart===null?2:(now-shakeStart)/1000,pulse=age<.85?Math.sin(age*42)*1100*(1-age/.85):0;
+   if(age>=.85)shakeStart=null;
+   const ax=signal.ax+pulse,ay=signal.ay-pulse*.45;
+   controller?.setAcceleration(ax,ay);
+   $('demo-stage').style.transform=`translate(${Math.max(-12,Math.min(12,ax/100))}px,${Math.max(-8,Math.min(8,ay/120))}px) rotate(${signal.turn*.35}deg)`;
+   if(wander&&now>nextWalk){walkCast(110+Math.random()*(documentData.bounds.width-220));nextWalk=now+4500;}
+  }else controller?.sampleHost({...offset,time:now/1000});
+  controller?.step(dt);
+ }
+ scheduleGalleryFrame();
+}
 
 function walkCast(x){let sent=0;for(const a of targets()){const f=frame?.actors.find(v=>v.id===a.id);if(f?.recovery&&['home','blocked','walking'].includes(f.recovery.phase)){controller.walkTo(a.id,Math.max(0,Math.min(documentData.bounds.width,x+(sent++-(targets().length-1)/2)*70)));}}if(!sent)$('demo-status').textContent='Let the cast stand up before walking.';}

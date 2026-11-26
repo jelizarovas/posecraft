@@ -1,6 +1,7 @@
 import {groundHeight,projectMap} from './map.js';
 
 const TAU=Math.PI*2;
+const mountedBirds=new WeakMap();
 const species=new Set(['crow','eagle']);
 const clamp=(value,low,high)=>Math.max(low,Math.min(high,value));
 const mix=(a,b,t)=>a+(b-a)*t;
@@ -60,11 +61,12 @@ function profile(map,bird){
  const durations=crow
   ?[5+random()*4,4+random()*3,6+random()*5,4+random()*3]
   :[9+random()*6,5+random()*3,7+random()*5,5+random()*3];
- return{direction,angle,radius,target,durations,offset:random()*durations.reduce((sum,value)=>sum+value,0),wingOffset:random()*TAU};
+ const total=durations.reduce((sum,value)=>sum+value,0);
+ return{direction,angle,radius,target,durations,total,offset:random()*total,wingOffset:random()*TAU};
 }
 
 function phaseAt(info,time){
- const total=info.durations.reduce((sum,value)=>sum+value,0);
+ const {total}=info;
  let local=((Math.max(0,Number.isFinite(time)?time:0)+info.offset)%total+total)%total;
  for(let index=0;index<info.durations.length;index++){
   const duration=info.durations[index];
@@ -75,8 +77,9 @@ function phaseAt(info,time){
 }
 
 function crowSample(map,bird,info,time,phase){
- const home=bird.home,target=info.target,ground=groundHeight(map,target)+.08;
+ const home=bird.home,target=info.target;
  if(phase.index===0)return{x:home.x,y:home.y,z:home.z,state:'perch',heading:info.angle,wing:0,active:false};
+ const ground=groundHeight(map,target)+.08;
  if(phase.index===2){
   const wander=Math.sin(phase.t*TAU*2+info.angle)*bird.radius*.08;
   return{x:clamp(target.x+Math.cos(info.angle+Math.PI/2)*wander,0,map.width-1e-6),y:clamp(target.y+Math.sin(info.angle+Math.PI/2)*wander,0,map.height-1e-6),z:ground,state:'forage',heading:info.angle+Math.sin(phase.t*TAU)*.8,wing:0,active:true};
@@ -115,12 +118,20 @@ export function createMapBirdLife(map){
  assertMapBirds(map);
  const definitions=(map.birds??[]).map(bird=>({...bird,home:{...bird.home}})),sample=makeSampler(map,definitions);
  let disposed=false;
- return{
+ let envelopes;
+ const life={
   sample(time){return disposed?[]:sample(time);},
-  hasVisible(time,rect,{reduced=false}={}){return !disposed&&hasVisibleMapBirds(map,sample(time),time,rect,{reduced});},
-  nextWake(time,rect,{reduced=false}={}){return disposed?null:mapBirdWakeDelay(map,this,time,rect,{reduced});},
-  dispose(){disposed=true;}
+  hasVisible(time,rect,{reduced=false}={}){return !disposed&&!reduced&&hasVisibleMapBirds(map,sample(time),time,rect);},
+  nextWake(time,rect,{reduced=false}={}){
+   if(disposed||reduced)return null;
+   if(life.hasVisible(time,rect))return 0;
+   envelopes??=definitions.map(bird=>flightEnvelope(map,bird));
+   return envelopes.some(bounds=>flightEnvelopeVisible(bounds,rect))?750:null;
+  },
+  dispose(){disposed=true;mountedBirds.delete(life);}
  };
+ mountedBirds.set(life,definitions);
+ return life;
 }
 
 function projectedRadius(map,sample){return (sample.species==='eagle'?15:9)*map.tileSize.width/64;}
@@ -132,23 +143,29 @@ export function hasVisibleMapBirds(map,birds,time,rect,{reduced=false}={}){
  return samples.some(bird=>bird.active&&inside(projectMap(map,bird),rect,projectedRadius(map,bird)));
 }
 
-function flightEnvelopeVisible(map,bird,rect){
+function flightEnvelope(map,bird){
  const points=[],steps=16,rise=bird.species==='eagle'?Math.min(4,bird.radius*.42+1):Math.min(2.3,bird.radius*.5+.45),clearance=bird.species==='eagle'?.8:.45;
  for(let index=0;index<steps;index++){
   const angle=index/steps*TAU,x=clamp(bird.home.x+Math.cos(angle)*bird.radius,0,map.width-1e-6),y=clamp(bird.home.y+Math.sin(angle)*bird.radius,0,map.height-1e-6);
   const ground=groundHeight(map,{x,y});points.push(projectMap(map,{x,y,z:Math.min(bird.home.z,ground)}),projectMap(map,{x,y,z:Math.max(bird.home.z+rise,ground+clearance)}));
  }
  points.push(projectMap(map,bird.home));
- const pad=(bird.species==='eagle'?16:10)*map.tileSize.width/64,left=Math.min(...points.map(point=>point.x))-pad,right=Math.max(...points.map(point=>point.x))+pad,top=Math.min(...points.map(point=>point.y))-pad,bottom=Math.max(...points.map(point=>point.y))+pad,width=rect?.width??rect?.w??0,height=rect?.height??rect?.h??0;
+ const pad=(bird.species==='eagle'?16:10)*map.tileSize.width/64,left=Math.min(...points.map(point=>point.x))-pad,right=Math.max(...points.map(point=>point.x))+pad,top=Math.min(...points.map(point=>point.y))-pad,bottom=Math.max(...points.map(point=>point.y))+pad;
+ return {left,right,top,bottom};
+}
+
+function flightEnvelopeVisible({left,right,top,bottom},rect){
+ const width=rect?.width??rect?.w??0,height=rect?.height??rect?.h??0;
  return !!rect&&left<=rect.x+width&&right>=rect.x&&top<=rect.y+height&&bottom>=rect.y;
 }
 
 /** Delay for a single invalidation while a visible flight envelope is currently quiet. */
 export function mapBirdWakeDelay(map,birds,time,rect,{reduced=false}={}){
  if(reduced)return null;
+ if(mountedBirds.has(birds))return birds.nextWake(time,rect);
  const samples=birds&&typeof birds.sample==='function'?birds.sample(time):Array.isArray(birds)&&birds.every(bird=>typeof bird.state==='string')?birds:makeSampler(map,birdDefinitions(map,birds))(time);
  if(samples.some(bird=>bird.active&&inside(projectMap(map,bird),rect,projectedRadius(map,bird))))return 0;
- return samples.some(bird=>flightEnvelopeVisible(map,bird.definition??bird,rect))?750:null;
+ return samples.some(bird=>flightEnvelopeVisible(flightEnvelope(map,bird.definition??bird),rect))?750:null;
 }
 
 function polygon(ctx,points,fill){ctx.beginPath();ctx.moveTo(points[0][0],points[0][1]);for(let i=1;i<points.length;i++)ctx.lineTo(points[i][0],points[i][1]);ctx.closePath();ctx.fillStyle=fill;ctx.fill();}
@@ -168,8 +185,8 @@ function drawRoost(ctx,map,bird,rect){
  ctx.restore();
 }
 
-function drawBird(ctx,map,bird,reduced){
- const point=projectMap(map,bird),scale=map.tileSize.width/64*(bird.species==='eagle'?1.25:.72),heading=bird.heading??0;
+function drawBird(ctx,map,bird,point,reduced){
+ const scale=map.tileSize.width/64*(bird.species==='eagle'?1.25:.72),heading=bird.heading??0;
  const dx=Math.cos(heading),dy=Math.sin(heading),angle=Math.atan2((dx+dy)*map.tileSize.height/2,(dx-dy)*map.tileSize.width/2);
  const flying=bird.state==='flight'||bird.state==='glide',wing=reduced?0:bird.wing??0;
  const dark=bird.species==='eagle'?'#493b31':'#202427',mid=bird.species==='eagle'?'#765b3f':'#383d40',light=bird.species==='eagle'?'#d6c7a7':'#70777a';
@@ -190,10 +207,10 @@ function drawBird(ctx,map,bird,reduced){
 
 /** Draw visible birds in projected world space. Returns true while visible birds animate. */
 export function drawMapBirds(ctx,map,birds,time,rect,{reduced=false}={}){
- const definitions=birdDefinitions(map,birds),samples=birds&&typeof birds.sample==='function'?birds.sample(time):Array.isArray(birds)&&birds.every(bird=>typeof bird.state==='string')?birds:makeSampler(map,definitions)(time);
+ const definitions=mountedBirds.get(birds)??birdDefinitions(map,birds),samples=birds&&typeof birds.sample==='function'?birds.sample(time):Array.isArray(birds)&&birds.every(bird=>typeof bird.state==='string')?birds:makeSampler(map,definitions)(time);
  for(const bird of definitions)drawRoost(ctx,map,bird,rect);
  let active=false;
- for(const bird of samples){const point=projectMap(map,bird),pad=projectedRadius(map,bird);if(!inside(point,rect,pad))continue;drawBird(ctx,map,bird,reduced);if(bird.active&&!reduced)active=true;}
+ for(const bird of samples){const point=projectMap(map,bird),pad=projectedRadius(map,bird);if(!inside(point,rect,pad))continue;drawBird(ctx,map,bird,point,reduced);if(bird.active&&!reduced)active=true;}
  return active;
 }
 

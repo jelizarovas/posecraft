@@ -7,7 +7,7 @@ try{
  const page=await browser.newPage({viewport:{width:1366,height:900}}),errors=[],images=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('requestfailed',r=>errors.push(r.url()));page.on('request',r=>{if(r.url().includes('/assets/map/')&&r.url().endsWith('.webp'))images.push(r.url());});
  await page.goto(base+'/demos.html#littlelands-map');await page.waitForFunction(()=>window.mapDemo?.view);await page.evaluate(()=>mapDemo.view.ready);
- await page.waitForFunction(()=>mapDemo.view.stats().art.loaded===15&&!mapDemo.view.stats().terrainCache?.pending);
+ await page.waitForFunction(()=>mapDemo.view.stats().art.requested>0&&mapDemo.view.stats().art.loaded===mapDemo.view.stats().art.requested&&!mapDemo.view.stats().terrainCache?.pending);
  const before=await page.evaluate(()=>mapDemo.view.stats());assert.deepEqual(before.art,{requested:13,loaded:13,failed:0});assert.ok(before.visibleProps<before.totalProps/3);assert.ok(before.visibleTiles<before.totalTiles/4);
  assert.equal(new Set(images.filter(u=>!u.endsWith('/thumbnail.webp'))).size,13);
  await page.locator('#demo-art canvas').screenshot({path:'test-results/map-woodland-canvas.png'});await page.screenshot({path:'test-results/map-woodland-desktop.png'});

@@ -5,6 +5,9 @@ import {groundHeight} from './map-art-layout.js';
 
 const patterns=new WeakMap();
 const sceneryTopMasks=new WeakMap();
+const waterfalls=new WeakMap();
+const riverChunks=new WeakMap();
+const rippleColors=Array.from({length:12},(_,i)=>`rgba(202,237,237,${.12+i*.12/11})`);
 const overlaps=(a,b)=>a.x<b.x+b.width&&a.x+a.width>b.x&&a.y<b.y+b.height&&a.y+a.height>b.y;
 const polygon=(ctx,points)=>{ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();};
 export function cliffSceneryMasks(map,prop){
@@ -42,13 +45,17 @@ export function drawCliffFace(ctx,map,prop,art){
 
 /** Animated water uses visible tile/face geometry only; no offscreen simulation. */
 export function drawCliffWater(ctx,map,props,rect,time,{reduced=false,art}={}){
- let visible=0;const scale=map.tileSize.width/64,t=reduced?0:time;
- for(const prop of props){
-  const f=prop.cliffFace;
-  if(map.terrain[f.y*map.width+f.x]!==2||!overlaps(prop.cliffBounds,rect))continue;
+ let falls=waterfalls.get(props);
+ if(!falls){
+  falls=props.filter(({cliffFace:f})=>map.terrain[f.y*map.width+f.x]===2);
+  waterfalls.set(props,falls);
+ }
+ let visible=0;const scale=map.tileSize.width/64,t=reduced?0:time,image=art?.image(map.art?.terrain?.water);
+ for(const prop of falls){
+  if(!overlaps(prop.cliffBounds,rect))continue;
   visible++;const p=prop.cliffPoints;
   ctx.save();polygon(ctx,p);ctx.clip();ctx.fillStyle='#578f9bd9';ctx.fill();
-  const image=art?.image(map.art?.terrain?.water),b=prop.cliffBounds;
+  const b=prop.cliffBounds;
   if(image){const span=80*scale,offset=t*70*scale%span;ctx.globalAlpha=.66;for(let y=b.y-span+offset;y<b.y+b.height;y+=span)ctx.drawImage(image,b.x,y,b.width,span);ctx.globalAlpha=1;}
   const glow=ctx.createLinearGradient(b.x,0,b.x+b.width,0);glow.addColorStop(0,'#e5faff12');glow.addColorStop(.5,'#d9f5f75a');glow.addColorStop(1,'#e5faff12');ctx.fillStyle=glow;ctx.fillRect(b.x,b.y,b.width,b.height);
   for(let i=0;i<16;i++){
@@ -64,18 +71,51 @@ export function drawCliffWater(ctx,map,props,rect,time,{reduced=false,art}={}){
  return visible;
 }
 
-export function drawRiverWater(ctx,map,tiles,rect,time,{reduced=false}={}){
- let visible=0;const s=map.tileSize.width/64,t=reduced?0:time;
- for(const tile of tiles){
-  if(tile.terrain!==2)continue;
-  const p=terrainTileCorners(map,tile.x,tile.y).map(p=>projectMap(map,p));
-  const bounds={x:Math.min(...p.map(p=>p.x)),y:Math.min(...p.map(p=>p.y)),width:map.tileSize.width,height:map.tileSize.height+2};
-  if(!overlaps(bounds,rect))continue;visible++;
-  ctx.save();polygon(ctx,p);ctx.clip();ctx.lineWidth=.8*s;
-  for(let i=0;i<2;i++){
-   const u=(t*.24+tile.x*.371+tile.y*.183+i*.5)%1,v=(tile.x*.127+tile.y*.281+i*.43)%1;
-   const a={x:p[0].x+(p[1].x-p[0].x)*u+(p[3].x-p[0].x)*v,y:p[0].y+(p[1].y-p[0].y)*u+(p[3].y-p[0].y)*v};
-   ctx.strokeStyle=`rgba(202,237,237,${.12+Math.sin(u*Math.PI)*.12})`;ctx.beginPath();ctx.moveTo(a.x-3*s,a.y);ctx.quadraticCurveTo(a.x,a.y+s,a.x+4*s,a.y);ctx.stroke();
-  }ctx.restore();
- }return visible;
+function waterChunks(map){
+ let chunks=riverChunks.get(map);
+ if(chunks)return chunks;
+ const size=16,groups=new Map();
+ for(let y=0;y<map.height;y++)for(let x=0;x<map.width;x++){
+  if(map.terrain[y*map.width+x]!==2)continue;
+  const points=terrainTileCorners(map,x,y).map(p=>projectMap(map,p));
+  const left=points[3].x,right=points[1].x;
+  const top=Math.min(...points.map(p=>p.y)),bottom=Math.max(...points.map(p=>p.y));
+  const key=Math.floor(y/size)*Math.ceil(map.width/size)+Math.floor(x/size);
+  let chunk=groups.get(key);
+  if(!chunk){chunk={left,right,top,bottom,tiles:[]};groups.set(key,chunk);}
+  chunk.left=Math.min(chunk.left,left);chunk.right=Math.max(chunk.right,right);
+  chunk.top=Math.min(chunk.top,top);chunk.bottom=Math.max(chunk.bottom,bottom);
+  chunk.tiles.push({left,right,top,bottom,points,phase:(x*.371+y*.183)%1,cross:(x*.127+y*.281)%1});
+ }
+ chunks=[...groups.values()];
+ riverChunks.set(map,chunks);
+ return chunks;
+}
+
+export function drawRiverWater(ctx,map,_tiles,rect,time,{reduced=false}={}){
+ let visible=0;
+ const scale=map.tileSize.width/64,t=reduced?0:time,phase=t*.24%1;
+ const right=rect.x+rect.width,bottom=rect.y+rect.height,paths=[];
+ for(const chunk of waterChunks(map)){
+  if(chunk.right<=rect.x||chunk.left>=right||chunk.bottom<=rect.y||chunk.top>=bottom)continue;
+  for(const tile of chunk.tiles){
+   if(tile.right<=rect.x||tile.left>=right||tile.bottom<=rect.y||tile.top>=bottom)continue;
+   visible++;
+   const [a,b,c,d]=tile.points;
+   for(let i=0;i<2;i++){
+    // Leave enough room for the stroke inside the projected shoreline.
+    const u=.16+((phase+tile.phase+i*.5)%1)*.68,v=.16+((tile.cross+i*.43)%1)*.68;
+    const x=a.x+(b.x-a.x)*u+(d.x-a.x)*v;
+    const y=a.y+(b.y-a.y)*u+(d.y-a.y)*v+(a.y-b.y+c.y-d.y)*u*v;
+    const color=Math.round(Math.sin(u*Math.PI)*11);
+    const path=paths[color]??(paths[color]=new Path2D());
+    path.moveTo(x-3*scale,y);path.quadraticCurveTo(x,y+scale,x+4*scale,y);
+   }
+  }
+ }
+ if(!visible)return 0;
+ ctx.save();ctx.lineWidth=.8*scale;
+ for(let i=0;i<paths.length;i++)if(paths[i]){ctx.strokeStyle=rippleColors[i];ctx.stroke(paths[i]);}
+ ctx.restore();
+ return visible;
 }
