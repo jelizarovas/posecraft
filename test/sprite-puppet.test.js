@@ -23,6 +23,10 @@ test('a turning parent projects a child in depth and selects art independently o
 });
 test('the far wrist turns from its dorsal drawing to palm while the other hand counts',()=>{
   assert.ok(Math.abs(pose(0,'leftHand').bearing)>120);
+  for(const t of [1.15,5.2]){
+    const bearing=pose(t,'leftHand').bearing;
+    assert.ok(bearing>50&&bearing<135,`thumb must turn toward the viewer at ${t}s, got ${bearing}°`);
+  }
   assert.equal(image(3.2,'leftHand'),'palm');
   assert.ok(pose(0,'leftShoulder').z<pose(0,'rightShoulder').z);
   const head=sampleSpritePuppet(rig,0,{view:48}).find(p=>p.id==='head');
@@ -52,11 +56,13 @@ test('pronation and supination rotate around the actual elbow-to-wrist line, wit
   for(const side of ['left','right']){
     const part=example.parts.find(p=>p.id===side+'Elbow');
     const [min,max]=part.space.limits.twist;
-    assert.deepEqual([min,max],side==='left'?[0,180]:[-180,0]);
+    assert.deepEqual([min,max],side==='left'?[-180,0]:[0,180]);
     const hand=v=>sampleSpritePuppet(rig,3.2,{[part.id+'.twist']:v}).find(p=>p.id===side+'Hand');
     const wrist=p=>{const r=p.rotation*Math.PI/180,d=example.parts.find(s=>s.id===p.id).pivot*p.size*p.stretch;return [p.x-Math.sin(r)*d,p.y+Math.cos(r)*d,p.z];};
     assert.deepEqual(hand(-300),hand(min));assert.deepEqual(hand(300),hand(max));
     assert.notEqual(hand(min).tile,hand(max).tile);
+    const middle=hand((min+max)/2);
+    assert.ok(middle.bearing>65&&middle.bearing<115,`${side} hand crosses the thumb-facing edge`);
     const a=wrist(hand(min)),b=wrist(hand(max));assert.ok(Math.hypot(...a.map((v,i)=>v-b[i]))<1e-7);
   }
 });

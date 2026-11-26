@@ -127,19 +127,19 @@ try{
   await page.locator('#value input').fill('-12');await page.locator('#set').click();
   await page.getByText('Keyframes updated.').waitFor();
   await page.locator('#track').selectOption('leftElbow.twist');
-  assert.equal(await page.getByLabel('Minimum °').inputValue(),'0');
-  await page.getByLabel('Maximum °').fill('82');await page.getByRole('button',{name:'Apply limits'}).click();
+  assert.equal(await page.getByLabel('Maximum °').inputValue(),'0');
+  await page.getByLabel('Minimum °').fill('-82');await page.getByRole('button',{name:'Apply limits'}).click();
   await page.getByText('Joint limits saved.').waitFor();
-  await page.getByLabel('Forearm twist in degrees').fill('240');await page.locator('#set').click();
-  await page.getByText('Key saved at the joint limit of 82°.').waitFor();
+  await page.getByLabel('Forearm twist in degrees').fill('-240');await page.locator('#set').click();
+  await page.getByText('Key saved at the joint limit of -82°.').waitFor();
   await page.locator('#track').selectOption('grip');await page.locator('#key').selectOption('2');
   await page.locator('#at').fill('3.11');await page.locator('#set').click();
   await page.getByText('Keyframes updated.').waitFor();
   const save=page.waitForEvent('download');await page.locator('#save').click();
   const file=resolve(output,'edited.puppet.json');await (await save).saveAs(file);
   const saved=JSON.parse(await readFile(file,'utf8')),tracks=saved.clip.tracks;
-  assert.deepEqual(saved.parts.find(p=>p.id==='leftElbow').space.limits.twist,[0,82]);
-  assert.equal(tracks['leftElbow.twist'][0][1],82);
+  assert.deepEqual(saved.parts.find(p=>p.id==='leftElbow').space.limits.twist,[-82,0]);
+  assert.equal(tracks['leftElbow.twist'][0][1],-82);
   assert.equal(tracks.grip[2][0],3.11);
   assert.equal(tracks['head.yaw'][0][1],-12);
   for(const [channel,value] of [['leftEyelid',10],['rightEyelid',0],['mouth',6]])
