@@ -4,15 +4,20 @@ export async function spritePlayer(canvas,document,onTime){
   const rig=compileSpritePuppet(document),atlas=new Image();
   atlas.src=document.atlas.src;await atlas.decode();
   const {tile,columns,images}=document.atlas;
-  if(atlas.width!==tile*columns||atlas.height!==tile*Math.ceil(images.length/columns))throw Error('Atlas dimensions do not match its cells.');
-  const ctx=canvas.getContext('2d'),[left,top,w,h]=document.bounds;
+  if(atlas.width!==tile*columns||atlas.height!==(document.atlas.height??tile*Math.ceil(images.length/columns)))throw Error('Atlas dimensions do not match its cells.');
+  const ctx=canvas.getContext('2d');
+  let overrides={},focus=null;
   const reduce=matchMedia('(prefers-reduced-motion: reduce)');
   let frame=0,time=0,previous=null,playing=!reduce.matches,visible=true;
   function draw(){
-    const scale=Math.min(canvas.width/w,canvas.height/h);
+    const span=focus?12*rig.pieces.find(p=>p.id===focus).size:0;
+    const [left,top,w,h]=focus?[-span/2,-span/2,span,span]:document.bounds;
+    const fit=Math.min(canvas.width/w,canvas.height/h);
+    // Inspect the original paint without magnifying a small sprite to stage width.
+    const scale=focus?Math.min(fit,1.5*tile/(.75*span)):fit;
     ctx.resetTransform();ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.setTransform(scale,0,0,scale,(canvas.width-scale*w)/2-left*scale,(canvas.height-scale*h)/2-top*scale);
-    drawSpritePuppet(ctx,atlas,rig,time);onTime?.(time,playing);
+    drawSpritePuppet(ctx,atlas,rig,time,overrides,focus);onTime?.(time,playing);
   }
   function tick(now){
     frame=0;
@@ -37,6 +42,7 @@ export async function spritePlayer(canvas,document,onTime){
   resize.observe(canvas);intersection.observe(canvas);reduce.addEventListener('change',preference);
   canvas.ownerDocument.addEventListener('visibilitychange',schedule);draw();schedule();
   return {
+    preview(values,part){overrides=values;focus=part;draw();},
     seek(value){playing=false;time=Math.max(0,Math.min(document.clip.duration,value));schedule();draw();},
     toggle(){playing=!playing;if(playing&&time===document.clip.duration)time=0;schedule();draw();},
     dispose(){playing=false;schedule();resize.disconnect();intersection.disconnect();reduce.removeEventListener('change',preference);canvas.ownerDocument.removeEventListener('visibilitychange',schedule);}

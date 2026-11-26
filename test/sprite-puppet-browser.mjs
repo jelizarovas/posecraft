@@ -14,15 +14,58 @@ try{
   await page.locator('#track option').first().waitFor({state:'attached'});
   const canvas=page.locator('canvas');
   const scrub=t=>page.locator('#time').evaluate((input,value)=>{input.value=value;input.dispatchEvent(new Event('input'));},String(t));
+  // A correct joint transform alone cannot prove that the painted pieces touch.
+  const detached=await page.evaluate(()=>{
+    const c=document.querySelector('canvas'),input=document.querySelector('#time'),ctx=c.getContext('2d');
+    const w=c.width,h=c.height,queue=new Int32Array(w*h),bad=[];
+    for(let frame=0;frame<=204;frame++){
+      input.value=String(frame/30);input.dispatchEvent(new Event('input'));
+      const pixels=ctx.getImageData(0,0,w,h).data;
+      let components=0;
+      for(let i=0;i<w*h;i++){
+        if(pixels[4*i+3]<100)continue;
+        let read=0,count=1;queue[0]=i;pixels[4*i+3]=0;
+        while(read<count){
+          const p=queue[read++];
+          for(const n of [p-w,p+w,p%w?p-1:-1,p%w<w-1?p+1:-1]){
+            if(n<0||n>=w*h||pixels[4*n+3]<100)continue;
+            pixels[4*n+3]=0;queue[count++]=n;
+          }
+        }
+        if(count>=12)components++;
+      }
+      if(components!==1)bad.push(frame);
+    }
+    return bad;
+  });
+  assert.deepEqual(detached,[],'every full-body pose has one connected painted silhouette');
   for(const t of [0,.65,1.3,1.85,2.7,3.2,4,4.35,5.15,6.7]){
     await scrub(t);await canvas.screenshot({path:resolve(output,'pose-'+t+'.png')});
   }
+  await scrub(3.21);
+  await page.getByLabel('Face close-up').check();
+  const dial=(name,n)=>page.getByRole('slider',{name,exact:true}).evaluate((input,v)=>{
+    input.value=v;input.dispatchEvent(new Event('input'));
+  },String(n));
+  const artwork=()=>canvas.evaluate(c=>c.toDataURL());
+  for(const [name,count] of [['Head turn',49],['Left eyelid',11],['Right eyelid',11],['Whistle',11]]){
+    const frames=new Set();
+    for(let i=0;i<count;i++){await dial(name,i);frames.add(await artwork());}
+    assert.equal(frames.size,count,name+' must produce distinct rendered drawings');
+  }
+  await dial('Right eyelid',0);await dial('Whistle',6);
+  await page.getByRole('button',{name:'Key at playhead'}).click();
+  await page.getByText('Face keys saved at 3.21 s.').waitFor();
+  await page.getByLabel('Face close-up').uncheck();
   await page.locator('#track').selectOption('grip');await page.locator('#key').selectOption('2');
   await page.locator('#at').fill('3.11');await page.locator('#set').click();
   await page.getByText('Keyframes updated.').waitFor();
   const save=page.waitForEvent('download');await page.locator('#save').click();
   const file=resolve(output,'edited.puppet.json');await (await save).saveAs(file);
-  assert.equal(JSON.parse(await readFile(file,'utf8')).clip.tracks.grip[2][0],3.11);
+  const tracks=JSON.parse(await readFile(file,'utf8')).clip.tracks;
+  assert.equal(tracks.grip[2][0],3.11);
+  for(const [channel,value] of [['leftEyelid',10],['rightEyelid',0],['mouth',6]])
+    assert.deepEqual(tracks[channel].find(([time])=>time===3.21),[3.21,value,'smooth']);
   await page.reload();await page.locator('#open').setInputFiles(file);
   await page.getByText('Opened edited.puppet.json').waitFor();await page.locator('#track').selectOption('grip');
   assert.match(await page.locator('#key').innerText(),/3.11 s · Four/);

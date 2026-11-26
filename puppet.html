@@ -5,6 +5,9 @@
 <section class="stage"><canvas aria-label="Animated puppet preview"></canvas>
 <div class="transport"><button id="play">Pause</button><input aria-label="Scrub performance" id="time" type="range" min="0" step=".01"><output id="clock"></output></div></section>
 <section class="controls"><h1 id="name"></h1>
+<fieldset id="face" hidden><legend>Face controls</legend><div id="facial-sliders"></div>
+<label><input type="checkbox" id="closeup"> Face close-up</label>
+<div><button id="key-face" disabled>Key at playhead</button> <button id="release-face" disabled>Follow timeline</button></div></fieldset>
 <label>Animation track<select id="track"></select></label>
 <label>Keyframe<select id="key"></select></label>
 <label>Time in seconds<input id="at" type="number" min="0" step=".01"></label>
