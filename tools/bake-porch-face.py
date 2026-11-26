@@ -267,7 +267,10 @@ def fit_body(doc,tiles):
             if suffix=='Knee':p['pivot']=-2.55
             p['depth']=depth;p['image']=side+suffix
             tiles[p['image']]=trousers(p,side)
-        for suffix,end,lo,hi in [('Shoulder','Elbow',82,397),('Elbow','Hand',397,675)]:
+        # Bind the exposed upper arm inside the cuff; changing its pivot leaves
+        # the elbow and wrist at their saved rest positions.
+        parts[side+'Shoulder']['pivot']=-.8
+        for suffix,end,lo,hi in [('Shoulder','Elbow',202,397),('Elbow','Hand',397,675)]:
             p=parts[side+suffix];across,along,length=axis_coords(p,parts[side+end])
             sy=lo+(hi-lo)*along/length
             cx=np.interp(sy,[82,397,675],[1204,1181,1203])
@@ -277,20 +280,8 @@ def fit_body(doc,tiles):
             alpha=np.clip((length+.85*cap-along)*12,0,1)
             if suffix=='Elbow':alpha*=np.clip((along+.83*cap)*5,0,1)
             p['image']=side+suffix;p['depth']=4.5 if suffix=='Shoulder' else 7
+            if suffix=='Shoulder':alpha*=np.clip((along+.35*cap-(.52 if side=='right' else 0))*8,0,1)
             skin=mask(sample(anatomy,sx,sy),alpha)
-            if suffix=='Shoulder':
-                if side=='right':p['depth']=6  # The near sleeve covers the armhole in profile.
-                # Wrap the shirt fabric around the whole shoulder volume. Using
-                # a flat sleeve cutout would expose bare skin above a raised sleeve.
-                shoulder=sample(anatomy,cx+(sx-cx)*.87,sy)
-                volume=shoulder[:,:,1]/np.maximum(.001,shoulder[:,:,3])
-                fabric=sample(costume,1209+across*11,218+np.clip(along,-1.4,2.8)*12)
-                cuff=2.1+.16*(across/1.45)**2
-                shade=np.clip(.46+volume*.96,.57,1.12)*(1-.2*np.exp(-((along-cuff+.09)/.07)**2))
-                sleeve=fabric.copy()
-                sleeve[:,:,:3]*=shade[:,:,None]
-                sleeve=mask(sleeve,shoulder[:,:,3]*np.clip((cuff-along)*18,0,1))
-                skin=sleeve+skin*(1-sleeve[:,:,3:])
             tiles[p['image']]=skin
     palm=parts['leftHand'];x,y=local(palm);along=y-palm['pivot']*palm['size']
     palm_paint=pixels(Image.open(folder/'wave.webp'))
@@ -300,20 +291,21 @@ def fit_body(doc,tiles):
         tiles[name]=mask(sample(costume,cx+x/.015,674+along/.020),(along+.45)*4)
     # Put the shoulders under the sleeves and keep the neck tucked into the head.
     shirts=[]
-    for cx,limits in [(279,(91,71)),(753,(117,100)),(1253,(108,108))]:
+    for cx in [279,753,1253]:
         sx=cx+(X-63.5)*3.02;sy=256+(Y-63.5)*2.88
         shirt=sample(costume,sx,sy)
         skin=(shirt[:,:,1]-shirt[:,:,0])/(shirt[:,:,3]+1e-6)
-        # The mobile sleeve supplies the outer shoulder. Retain cloth across
-        # the middle and beneath it so a deep bend never uncovers the backdrop.
-        left,right=limits
-        extra=np.interp(sy,[125,160,300,321],[50,0,0,55])
-        inside=np.clip((np.minimum(sx-cx+left,cx+right-sx)+extra)*.65,0,1)
-        shirts.append(mask(shirt,inside*(1-(sy>345)*np.clip((skin+.005)*30,0,1))))
+        # Keep the original collar, shoulders and cuffs in one continuous shirt drawing.
+        # Only the exposed skin rotates with the upper arm underneath the fabric.
+        shirts.append(mask(shirt,1-(sy>345)*np.clip((skin+.005)*30,0,1)))
     tracks=doc['clip']['tracks']
-    for side,inset in [('left',1.45),('right',-1.45)]:
+    for side,inset in [('left',2.08),('right',-2.08)]:
         for key in tracks[side+'Shoulder.x']:key[1]+=inset
         tracks[side+'Shoulder.y']=[[0,-1.0]]
+    # In profile the near arm emerges over the shirt, immediately inside its cuff.
+    tracks['rightShoulder.depth']=[[0,6,'step'],[.65,4.5,'step'],[5.99,6,'step']]
+    for key in tracks['rightShoulder.x']:
+        if key[0] in (0,6.8):key[1]-=.25
     # Counter-rotate the pelvis. The support feet stay planted as the chest leans.
     tracks['pelvis.rotation']=[[t,-angle] for t,angle in tracks['body.rotation']]
     tracks['body.x']=[[t,pelvis['y']*math.sin(math.radians(angle))] for t,angle in tracks['body.rotation']]

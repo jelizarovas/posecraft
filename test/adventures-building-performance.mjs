@@ -255,8 +255,11 @@ try {
     await editor.waitFor({state:'hidden'});
   }
   const editButton=await page.getByRole('button',{name:'Edit selected prop'}).elementHandle();
+  const editBounds=await editButton.boundingBox();
+  const editX=editBounds.x+editBounds.width/2,editY=editBounds.y+editBounds.height/2;
   await measure('open editor',async()=>{
-    await editButton.click();
+    if(phone){await finger('touchStart',editX,editY);await finger('touchEnd');}
+    else await page.mouse.click(editX,editY);
     await page.waitForTimeout(850);
   });
   await editor.waitFor();
