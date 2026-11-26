@@ -28,6 +28,11 @@ export function validateSpritePuppet(doc){
     ids.add(part.id);
     require([part.x,part.y,part.rotation,part.pivot,part.size,part.depth].every(Number.isFinite)&&part.size>0,'registration');
     require(atlas.images.includes(part.image)&&Array.isArray(part.variants),'drawing '+part.id);
+    if(part.registration){
+      const {channel,offsets}=part.registration;
+      require(channels[channel]&&Array.isArray(offsets)&&offsets.length===channels[channel].length&&
+        offsets.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)),'view registration '+part.id);
+    }
     const layers=part.layers??[];
     require(Array.isArray(layers)&&new Set(layers.map(l=>l.channel)).size===layers.length,'layers '+part.id);
     for(const l of layers){
@@ -92,7 +97,7 @@ export function compileSpritePuppet(doc,bindings){
     const parent=part.parent;
     const base=pivots.get(parent)||{x:0,y:0,rotation:0};
     pivots.set(part.id,pivot);
-    joints.push({id:part.id,parent:parent||null,...turn(pivot.x-base.x,pivot.y-base.y,-base.rotation),
+    joints.push({id:part.id,parent:parent||null,registration:part.registration,...turn(pivot.x-base.x,pivot.y-base.y,-base.rotation),
       rotation:part.rotation-base.rotation,length:0});
     const skinRest=part.skin?.joints.map(id=>doc.parts.find(p=>p.id===id).rotation-doc.parts.find(p=>p.id===part.id).rotation);
     pieces.push({...part,skinRest,defaultTile:doc.atlas.images.indexOf(part.image),
@@ -128,6 +133,11 @@ export function sampleSpritePuppet(rig,seconds,overrides){
     pose[name]=Math.round(Math.max(0,Math.min(doc.channels[name].length-1,overrides?.[name]??pose[name]??0)));
   }
   for(const joint of joints){
+    if(joint.registration){
+      const [x,y]=joint.registration.offsets[pose[joint.registration.channel]];
+      pose[joint.id+'.x']=(pose[joint.id+'.x']??0)+x;
+      pose[joint.id+'.y']=(pose[joint.id+'.y']??0)+y;
+    }
     const key=joint.id+'.rotation';
     pose[key]=(pose[key]||0)+joint.rotation;
   }
@@ -160,12 +170,16 @@ export function drawSpritePuppet(ctx,atlas,rig,seconds,overrides,focus){
 }
 
 // The host can share sampled, depth-sorted poses across identical bind poses.
-export function drawSpriteFrame(ctx,atlas,doc,pose){
+export function drawSpriteFrame(ctx,atlas,doc,pose,baked){
   const {tile,columns}=doc.atlas;
   for(const p of pose){
     const size=9*p.size;
     ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rotation*radians);
-    if(p.deformation){
+    const region=p.deformation&&baked?.frames[[p.id,p.tile,p.deformation.view,...p.deformation.angles].join('/')];
+    if(region){
+      const [x,y,w,h,left,top]=region,scale=size/tile;
+      ctx.drawImage(baked.image,x,y,w,h,left*scale-size/2,top*scale-size/2,w*scale,h*scale);
+    }else if(p.deformation){
       const {canvas,left,top}=skinnedTile(atlas,doc,p),scale=size/tile;
       ctx.drawImage(canvas,left*scale-size/2,top*scale-size/2,canvas.width*scale,canvas.height*scale);
     }else ctx.drawImage(atlas,p.tile%columns*tile,Math.floor(p.tile/columns)*tile,tile,tile,-size/2,-size/2,size,size);

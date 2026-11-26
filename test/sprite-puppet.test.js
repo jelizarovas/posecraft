@@ -49,6 +49,16 @@ test('the trousers follow the pelvis and the supporting boot stays planted throu
     assert.ok(Math.hypot(sample.x-foot.x,sample.y-foot.y)<.03);
   }
   assert.ok(Math.abs(pose(3.18,'rightKnee').rotation-pose(0,'rightKnee').rotation)>8);
+  assert.notEqual(image(0,'pelvis'),image(1.82,'pelvis'));
+  assert.ok(Math.abs(pose(1,'pelvis').rotation-pose(2,'pelvis').rotation)>2);
+  assert.ok(Math.abs(foot.y-18.7)<.05,'support boot retains the authored waistband-to-sole distance');
+});
+test('an independently held turn keeps the arm on the sleeve socket',()=>{
+  const front=sampleSpritePuppet(rig,0,{view:48}),quarter=sampleSpritePuppet(rig,0,{view:24});
+  const arm=pose=>pose.find(p=>p.id==='rightShoulder');
+  assert.notEqual(arm(front).tile,arm(quarter).tile);
+  assert.ok(arm(front).x-arm(quarter).x>.8);
+  assert.equal(arm(front).rotation,arm(quarter).rotation);
 });
 test('a second bind pose with one arm segment keeps its authored wrist position and bend at rest',()=>{
   const doc=structuredClone(example);

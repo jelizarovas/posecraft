@@ -6,6 +6,7 @@ export interface SpriteSkin {
 export interface SpritePart extends SpriteBinding {
   id:string;parent:string|null;pivot:number;depth:number;image:string;
   variants:{image:string;when:Record<string,number>}[];
+  registration?:{channel:string;offsets:[number,number][]};
   skin?:SpriteSkin;
   layers?:{channel:string;label:string;viewChannel:string;emptyValue?:number;width:number;height:number;
     views:{x:number;y:number;left:number;top:number}[]}[];
@@ -22,7 +23,8 @@ export interface SpriteRegion {channel:string;x:number;y:number;left:number;top:
 export interface SpriteFrame extends SpriteBinding {id:string;tile:number;depth:number;layers?:SpriteRegion[];
   deformation?:{skin:SpriteSkin;view:number;angles:number[]}}
 export interface SpriteRig {doc:SpritePuppet;pieces:SpritePart[]}
-export function drawSpriteFrame(ctx:CanvasRenderingContext2D,atlas:CanvasImageSource,document:SpritePuppet,pose:SpriteFrame[]):void;
+export interface BakedSpriteSkin {image:CanvasImageSource;frames:Record<string,number[]>}
+export function drawSpriteFrame(ctx:CanvasRenderingContext2D,atlas:CanvasImageSource,document:SpritePuppet,pose:SpriteFrame[],baked?:BakedSpriteSkin):void;
 export function validateSpritePuppet(document:unknown):SpritePuppet;
 export function compileSpritePuppet(document:SpritePuppet,bindings?:Record<string,SpriteBinding>):SpriteRig;
 export function spriteDrawingTimes(document:SpritePuppet):number[];
