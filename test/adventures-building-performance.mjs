@@ -193,7 +193,12 @@ try {
         const counter={count:0};ctx.clearRect=function(...args){counter.count++;return clear.apply(this,args);};
         return counter;
       });
-      window.firstEdit={frames:[],tap:null,visible:null,clocks,starts,paints,start:t};
+      const inputEvents=[];
+      if(PerformanceObserver.supportedEntryTypes.includes('event')){
+        const events=new PerformanceObserver(list=>inputEvents.push(...list.getEntries()));
+        events.observe({type:'event',durationThreshold:16});
+      }
+      window.firstEdit={inputEvents,frames:[],tap:null,visible:null,clocks,starts,paints,start:t};
       const panel=document.querySelector('.prop-editor-panel [role=dialog]');
       const observer=new IntersectionObserver(entries=>{
         const hit=entries.find(e=>e.intersectionRatio>=.05&&panel.closest('.prop-editor-layer.open'));
@@ -214,10 +219,11 @@ try {
     // would walk the town's accessibility tree during the interval being timed.
     await page.waitForTimeout(450);
     const result=await page.evaluate(()=>{
-      const {frames,tap,visible,clocks,starts,paints,raf,start}=window.firstEdit;cancelAnimationFrame(raf);
+      const {inputEvents,frames,tap,visible,clocks,starts,paints,raf,start}=window.firstEdit;cancelAnimationFrame(raf);
       const d=frames.filter(([t,ms])=>t+ms>=tap).map(row=>row[1]);
       if(visible===null||tap===null)throw Error('The first tap did not reveal the drawer '+JSON.stringify({tap,visible,open:!!document.querySelector('.prop-editor-layer.open')}));
-      return {startAt:performance.timeOrigin+tap,endAt:performance.timeOrigin+frames.at(-1)[0]+frames.at(-1)[1],fps:+(1000*d.length/d.reduce((a,b)=>a+b,0)).toFixed(1),worstMs:+Math.max(...d).toFixed(1),
+      const handlers=inputEvents.filter(e=>e.startTime>=tap-1&&['pointerdown','pointerup','touchstart','touchend','click'].includes(e.name));
+      return {handlerMs:handlers.length?+Math.max(...handlers.map(e=>e.processingEnd-e.processingStart)).toFixed(1):null,startAt:performance.timeOrigin+tap,endAt:performance.timeOrigin+frames.at(-1)[0]+frames.at(-1)[1],fps:+(1000*d.length/d.reduce((a,b)=>a+b,0)).toFixed(1),worstMs:+Math.max(...d).toFixed(1),
         over25:d.filter(ms=>ms>25).length,visibleMs:Math.round(visible-tap),minPaints:Math.min(...paints.map(p=>p.count)),
         dancers:clocks.filter((a,i)=>a.playState==='running'&&Number(a.currentTime)-starts[i]>=frames.at(-1)[0]-start-18).length};
     });

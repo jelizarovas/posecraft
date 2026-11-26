@@ -258,3 +258,44 @@ export function drawSpriteFrame(ctx,atlas,doc,pose,baked){
     ctx.restore();
   }
 }
+
+
+// Pack already solved poses into a transferable list for a crowd renderer.
+// Each 11-float entry selects an atlas rectangle and maps its unit square
+// into the moving root's coordinate system. All actors of one bind share it.
+export function compileSpriteDrawList(doc,frames,rootId,baked){
+  const values=[],offsets=new Uint32Array(frames.length+1);
+  const {tile,columns}=doc.atlas;
+  for(let i=0;i<frames.length;i++){
+    offsets[i]=values.length;
+    const pose=frames[i],root=pose.find(p=>p.id===rootId);
+    const angle=-root.rotation*radians,c=Math.cos(angle),s=Math.sin(angle);
+    for(const p of pose){
+      const dx=p.x-root.x,dy=p.y-root.y,x=c*dx-s*dy,y=s*dx+c*dy;
+      const turn=(p.rotation-root.rotation)*radians,a=Math.cos(turn),b=Math.sin(turn);
+      const stretch=p.stretch??1,ax=-b*stretch,ay=a*stretch;
+      const size=9*p.size,scale=size/tile;
+      const add=(source,sx,sy,w,h,left,top)=>{
+        const u=left*scale-size/2,v=top*scale-size/2;
+        values.push(source,sx,sy,w,h,a*w*scale,b*w*scale,ax*h*scale,ay*h*scale,x+a*u+ax*v,y+b*u+ay*v);
+      };
+      if(p.deformation){
+        const region=baked?.[[p.id,p.tile,p.deformation.view,...p.deformation.angles].join('/')];
+        if(!region)return null;
+        add(1,...region);
+      }else add(0,p.tile%columns*tile,Math.floor(p.tile/columns)*tile,tile,tile,0,0);
+      for(const r of p.layers??[])if(!r.empty)add(0,r.x,r.y,r.width,r.height,r.left,r.top);
+    }
+  }
+  offsets[frames.length]=values.length;
+  return {offsets,commands:Float32Array.from(values)};
+}
+
+export function drawSpriteListFrame(ctx,list,index,atlas,cloth,side,span){
+  const v=list.commands,scale=side/span,center=side/2;
+  ctx.resetTransform();ctx.clearRect(0,0,side,side);
+  for(let i=list.offsets[index],end=list.offsets[index+1];i<end;i+=11){
+    ctx.setTransform(scale*v[i+5],scale*v[i+6],scale*v[i+7],scale*v[i+8],center+scale*v[i+9],center+scale*v[i+10]);
+    ctx.drawImage(v[i]?cloth:atlas,v[i+1],v[i+2],v[i+3],v[i+4],0,0,1,1);
+  }
+}
