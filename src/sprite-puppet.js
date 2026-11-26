@@ -1,6 +1,7 @@
 import {forwardKinematics,sampleClip,interpolate,clamp} from './index.js';
 import {skinnedTile} from './sprite-skin.js';
 import {projectSpriteJoints,viewIndex} from './sprite-projection.js';
+import {compileSpriteContacts,collisionSpheres,solveSpriteContacts} from './sprite-collision.js';
 
 const radians=Math.PI/180;
 const turn=(x,y,degrees)=>({
@@ -64,6 +65,19 @@ export function validateSpritePuppet(doc){
     }
   }
   require(parts.filter(p=>p.space?.plant).length<=1,'support foot');
+  for(const part of parts){
+    const shape=part.space?.collision;
+    if(!shape)continue;
+    require(Array.isArray(shape.spheres)&&shape.spheres.length>0&&shape.spheres.length<=16&&
+      shape.spheres.every(s=>Array.isArray(s)&&s.length===4&&s.every(Number.isFinite)&&s[3]>0),'collision spheres '+part.id);
+    if(shape.avoid){
+      const {target,pivot,side}=shape.avoid;
+      const ancestors=p=>{const result=[];while(p){result.push(p.id);p=parts.find(b=>b.id===p.parent);}return result;};
+      const obstacle=parts.find(p=>p.id===target);
+      require(obstacle?.space?.collision&&!obstacle.space.collision.avoid&&ancestors(part).includes(pivot)&&
+        !ancestors(obstacle).includes(pivot)&&['behind','front'].includes(side),'collision pair '+part.id);
+    }
+  }
   for(const part of parts){
     const skin=part.skin;
     if(!skin)continue;
@@ -144,7 +158,7 @@ export function compileSpritePuppet(doc,bindings){
       stops.push({name,min,max,keys});delete tracks[name];
     }
   }
-  return {doc,joints,pieces,stops,clip:{...doc.clip,tracks},spatial:joints.some(j=>j.space)};
+  return {doc,joints,pieces,stops,contacts:compileSpriteContacts(pieces),clip:{...doc.clip,tracks},spatial:joints.some(j=>j.space)};
 }
 
 // Times at which a rounded drawing index crosses into its next registered cell.
@@ -172,7 +186,7 @@ export function sampleSpriteStop(stop,time,override){
   return clamp(value,stop.min,stop.max);
 }
 
-export function sampleSpritePuppet(rig,seconds,overrides){
+export function sampleSpritePuppet(rig,seconds,overrides,inspectCollisions=false){
   const {doc,joints,pieces}=rig;
   const elapsed=Math.max(0,seconds),pose=sampleClip(rig.clip,elapsed);
   const time=rig.clip.loop?elapsed%rig.clip.duration:Math.min(elapsed,rig.clip.duration);
@@ -198,6 +212,7 @@ export function sampleSpritePuppet(rig,seconds,overrides){
     pose[key]=(pose[key]||0)+joint.rotation;
   }
   const world=rig.spatial?projectSpriteJoints(rig,pose,headings):forwardKinematics(joints,pose);
+  if(rig.contacts.length)solveSpriteContacts(rig.contacts,world);
   const result=pieces.map(part=>{
     const joint=world[part.id],offset=turn(0,-part.pivot*part.size*(joint.length??1),joint.rotation);
     const view=part.space?.view,bearing=(world[view?.joint]??joint).bearing;
@@ -215,16 +230,26 @@ export function sampleSpritePuppet(rig,seconds,overrides){
       if(angles.some(Boolean))deformation={skin:part.skin,view:selected(part.skin.viewChannel),angles};
     }
     return {id:part.id,x:joint.x+offset.x,y:joint.y+offset.y,rotation:joint.rotation,layers,deformation,
+      ...(inspectCollisions&&part.space?.collision?{collision:collisionSpheres(part,joint),contactBlocked:!!joint.contactBlocked}:{}),
       tile:angles?angles[viewIndex(joint.bearing,part.space.bearings.range,angles.length)]:base,size:part.size,
       ...(rig.spatial?{z:joint.z,bearing:joint.bearing,stretch:joint.length}:{}),
       depth:(pose[part.id+'.depth']??part.depth)+(joint.z??0)-(joint.m?.[7]??0)*part.pivot*part.size};
   });
+  for(const frame of result){
+    const order=world[frame.id].contactOrder;
+    if(!order)continue;
+    const target=result.find(p=>p.id===order.target),limit=target.depth+order.sign*.01;
+    frame.depth=order.sign<0?Math.min(frame.depth,limit):Math.max(frame.depth,limit);
+  }
   for(const [i,part] of pieces.entries()){
     const weight=pose[part.id+'.plant'];
     if(!part.space?.plant||!weight)continue;
     const dx=(part.x+part.space.plant[0]*part.size-result[i].x)*weight,dy=(part.y+part.space.plant[1]*part.size-result[i].y)*weight;
     const dz=(part.space.plant[2]-result[i].z)*weight;
-    for(const frame of result){frame.x+=dx;frame.y+=dy;frame.z+=dz;frame.depth+=dz;}
+    for(const frame of result){
+      frame.x+=dx;frame.y+=dy;frame.z+=dz;frame.depth+=dz;
+      if(frame.collision)for(const p of frame.collision){p.x+=dx;p.y+=dy;p.z+=dz;}
+    }
     break;
   }
   return result;

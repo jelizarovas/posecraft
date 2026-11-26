@@ -75,6 +75,24 @@ def turn_limb(front, degrees, thickness, back=None):
     return out
 
 
+def fit_porch_contacts(parts,tracks):
+    parts['pelvis']['space']['collision'] = dict(spheres=[
+        [-1.7, .1, 0, 2.1], [0, .6, 0, 2.3], [1.7, .1, 0, 2.1]])
+    for side, facing in [('left', 'behind'), ('right', 'front')]:
+        avoid = dict(target='pelvis', pivot=side+'Shoulder', side=facing)
+        parts[side+'Elbow']['space']['collision'] = dict(avoid=avoid, spheres=[
+            [0, .25, 0, 1.16], [0, 2.5, 0, 1.23], [0, 4.7, 0, 1.0]])
+        parts[side+'Hand']['space']['collision'] = dict(avoid=avoid, spheres=[
+            [0, .4, 0, 1.0], [0, 2.7, 0, 1.85], [0, 5.1, 0, 1.4]])
+    # The far arm brushes the back pocket as the greeting settles.
+    for axis,tail in [('rotation',[(5.18,-9),(5.66,-26),(5.98,-22),(6.53,0)]),
+                      ('pitch',[(5.04,-10),(5.66,-42),(5.98,-35),(6.53,0)])]:
+        key='leftShoulder.'+axis
+        tracks[key]=[k for k in tracks[key] if k[0]<=4.7]+[[t,v,'smooth'] for t,v in tail]+[[6.8,0,'smooth']]
+    for joint in ['leftElbow','leftHand']:
+        tracks[joint+'.depth'][-1]=[4.65,0,'step']
+
+
 def rig_and_drawings(doc,tiles,dorsal):
     tracks=doc['clip']['tracks']
     def keys(points):return [[t,v,'smooth'] for t,v in points]
@@ -139,3 +157,4 @@ def rig_and_drawings(doc,tiles,dorsal):
         parts[side+'Knee']['space']['limits']=dict(rotation=[-135,0] if left else [0,135],yaw=[0,0],pitch=[0,0])
     tracks['leftElbow.twist']=keys([(0,0),(.6,0),(1.55,-147),(1.95,-180),(2.3,-157),(2.7,-172),(3.2,-180),(4.5,-180),(5.8,0),(6.8,0)])
     tracks['rightElbow.twist']=keys([(0,40),(1.15,0),(4.75,0),(6.53,40),(6.8,40)])
+    fit_porch_contacts(parts,tracks)

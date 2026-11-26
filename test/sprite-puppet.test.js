@@ -121,6 +121,49 @@ test('an independently held turn keeps the arm on the sleeve socket',()=>{
   assert.ok(arm(front).x-arm(quarter).x>.8);
   assert.equal(arm(front).rotation,arm(quarter).rotation);
 });
+test('pelvis contacts clear both arms without stretching the bones or losing the rear draw order',()=>{
+  const unchecked={...rig,contacts:[]},penetrated=new Set(),overlaps=new Set();
+  function socket(p){
+    const offset=example.parts.find(part=>part.id===p.id).pivot*p.size*p.stretch,a=p.rotation*Math.PI/180;
+    return [p.x-offset*Math.sin(a),p.y+offset*Math.cos(a),p.z];
+  }
+  function length(p,q){const a=socket(p);return Math.hypot(...socket(q).map((v,i)=>v-a[i]));}
+  for(let frame=0;frame<=408;frame++){
+    const sample=r=>Object.fromEntries(sampleSpritePuppet(r,frame/60,{},true).map(p=>[p.id,p]));
+    const before=sample(unchecked),after=sample(rig);
+    for(const side of ['left','right']){
+      const sign=side==='left'?-1:1;
+      for(const suffix of ['Elbow','Hand']){
+        const id=side+suffix,parent=side+(suffix==='Hand'?'Elbow':'Shoulder');
+        assert.ok(Math.abs(length(after[parent],after[id])-length(before[parent],before[id]))<1e-8);
+        for(const pose of [before,after]){
+          for(const a of pose[id].collision)for(const b of pose.pelvis.collision){
+            const xy=Math.hypot(a.x-b.x,a.y-b.y),sum=a.r+b.r;
+            const gap=Math.hypot(xy,Math.max(0,sign*(a.z-b.z)))-sum;
+            if(pose===before){if(gap<-.001)penetrated.add(id);continue;}
+            assert.ok(gap>=-1e-7,`${id} penetrates pelvis at frame ${frame}`);
+            if(xy>=sum)continue;
+            overlaps.add(id);assert.ok(sign*(pose[id].depth-pose.pelvis.depth)>0);
+          }
+        }
+      }
+    }
+  }
+  assert.ok(penetrated.has('leftElbow')&&penetrated.has('rightElbow'));
+  assert.ok(overlaps.has('leftHand')&&overlaps.has('rightHand'));
+});
+test('an edited inward shoulder pose clears an actual hand penetration',()=>{
+  const doc=structuredClone(example);doc.clip.tracks['leftShoulder.rotation']=[[0,-40]];
+  const rig=compileSpritePuppet(doc);
+  function handClearance(r){
+    const pose=sampleSpritePuppet(r,3.2,{'leftElbow.rotation':20},true);
+    const hand=pose.find(p=>p.id==='leftHand'),hip=pose.find(p=>p.id==='pelvis');
+    return Math.min(...hand.collision.flatMap(a=>hip.collision.map(b=>
+      Math.hypot(a.x-b.x,a.y-b.y,Math.max(0,b.z-a.z))-a.r-b.r)));
+  }
+  assert.ok(handClearance({...rig,contacts:[]})<-.5);
+  assert.ok(handClearance(rig)>=0);
+});
 test('a second bind pose with one arm segment keeps its authored wrist position and bend at rest',()=>{
   const doc=structuredClone(example);
   doc.clip.tracks={};doc.clip.loop=false;

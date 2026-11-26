@@ -54,6 +54,32 @@ $('key-face').onclick=async()=>{
 function options(select,items){
   select.replaceChildren(...items.map(([value,label])=>new Option(label,value)));
 }
+const sphereFields=['x','y','z','radius'].map(k=>$('contact-'+k));
+function showSphere(){
+  const part=doc.parts.find(p=>p.id===$('contact-part').value);
+  if(!part)return;
+  const index=Number($('contact-sphere').value);
+  part.space.collision.spheres[index].forEach((v,i)=>{sphereFields[i].value=v;});
+  player?.collisions($('contact-show').checked?part.id:null,index);
+}
+function chooseCollider(index=0){
+  const part=doc.parts.find(p=>p.id===$('contact-part').value);
+  if(!part)return;
+  options($('contact-sphere'),part.space.collision.spheres.map((_,i)=>[i,String(i+1)]));
+  $('contact-sphere').selectedIndex=Math.min(index,part.space.collision.spheres.length-1);
+  showSphere();
+}
+$('contact-part').onchange=()=>chooseCollider();
+$('contact-show').onchange=$('contact-sphere').onchange=showSphere;
+$('contact-apply').onclick=async()=>{
+  try{
+    const sphere=sphereFields.map(f=>f.valueAsNumber);
+    if(!sphere.every(Number.isFinite)||sphere[3]<=0)throw Error('Enter three coordinates and a positive radius.');
+    const next=structuredClone(doc);
+    next.parts.find(p=>p.id===$('contact-part').value).space.collision.spheres[Number($('contact-sphere').value)]=sphere;
+    await load(next,Number($('time').value));$('status').textContent='Collision shape saved.';
+  }catch(error){report(error);}
+};
 function showKey(seek){
   const track=$('track').value,keys=doc.clip.tracks[track]??[],i=Number($('key').value);
   const [time,value]=keys[i]??[Number($('time').value),0];
@@ -114,6 +140,11 @@ async function load(next,position){
   if(tracks.has(previous))$('track').value=previous;
   $('rig-view').hidden=!doc.parts.some(p=>p.space);
   player.skeleton($('rig-view').hidden?'':$('skeleton').value);
+  const shapes=doc.parts.filter(p=>p.space?.collision),previousPart=$('contact-part').value,previousSphere=Number($('contact-sphere').value);
+  $('contact-editor').hidden=!shapes.length;
+  options($('contact-part'),shapes.map(p=>[p.id,p.id]));
+  if(shapes.some(p=>p.id===previousPart))$('contact-part').value=previousPart;
+  chooseCollider(previousSphere);
   keys();faceControls();
   if(position!==undefined)player.seek(position);
 }
