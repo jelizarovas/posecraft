@@ -24,7 +24,14 @@ The runtime is exported from `posecraft/sprite-puppet`. Validate an imported doc
 
 A part can bind its paint to child joints with a `skin`. Each drawing view stores joint pivots in tile pixels and a square grid of joint weights. A shoulder rotation changes the drawing about its registered socket. Players sharing an atlas reuse the resulting bitmaps. The cache holds up to 20 MiB of painted poses per atlas. The porch clip has 279 distinct bent-shirt poses at 60 Hz. Adventures prepaints them onto a shared 2048 × 2712 sheet (21.2 MiB decoded) so a fresh crowd can dance without filling the dynamic cache on its first loop. Other poses use weighted skinning.
 
-Adventures' Porch binds this performance to assembled zombie decorations. Standard assemblies share a compiled rig and sampled poses and draw to one canvas per performer. Individually customized assemblies use separate painted layers. Both paths use the same drawing, joint and draw-order tracks. The performance document in `src/game/porch-zombie.puppet.json` is the same file that opens in Studio. To update the performance, replace that file with the reviewed Studio export. From Posecraft run `node tools/bake-sprite-skin.mjs ../play.littlelands.co/src/game/porch-zombie.puppet.json ../play.littlelands.co/src/game/porch-cloth`, then rebuild Adventures. Its offline build checks the puppet fingerprint and includes the sheet. The game's bind pose, placement and purchases remain in its own save.
+Adventures' Porch binds this performance to assembled zombie decorations. Standard assemblies share a compiled rig and sampled poses and draw to one canvas per performer. Individually customized assemblies use separate painted layers. Both paths use the same drawing, joint and draw-order tracks. To update the performance, replace `src/game/porch-zombie.puppet.json` with the reviewed Studio export. From Posecraft, generate the standard bindings and bake both sets of clothing poses before rebuilding Adventures.
+
+```sh
+node --experimental-strip-types ../play.littlelands.co/scripts/porch-stand-bindings.mjs > porch-bindings.json
+node tools/bake-sprite-skin.mjs ../play.littlelands.co/src/game/porch-zombie.puppet.json ../play.littlelands.co/src/game/porch-cloth porch-bindings.json
+```
+
+The game checks the puppet fingerprint during packaging and tests the packed shirt drawings at every frame of the standard assembly.
 
 For a hot-reloading seeded town, set `BENCH_ZOMBIES=8` and run `node --experimental-strip-types test/adventures-building-performance.mjs 960 --dev` in Posecraft. This starts Adventures Vite on port 5272 with an isolated local save.
 
