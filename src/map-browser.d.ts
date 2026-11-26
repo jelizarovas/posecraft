@@ -72,6 +72,8 @@ export function mountMap(element: HTMLElement, map: MapDocument, options?: {
   maxPixelRatio?: number;
   shadows?: boolean;
   showRoute?: boolean;
+  /** Where W A S D, Space and E are heard: the focused map (default) or the whole document, ignoring form controls. */
+  keyboard?: 'canvas' | 'document';
   /** Automatically follow accepted movement commands. Defaults to false. */
   followOnMove?: boolean;
   onCameraChange?: (tracking: MapCameraTracking) => void;

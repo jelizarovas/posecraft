@@ -1,27 +1,60 @@
 import {artTerrainSelection} from './map-art-layout.js';
 
-const resources=new Map();
+const resources=new Map(),MIP_LIMIT=48*1024*1024;
 const abortError=()=>Object.assign(new Error('Map art loading cancelled.'),{name:'AbortError'});
 function acquire(url,doc){
   let resource=resources.get(url);
   if(!resource){
-    const image=new doc.defaultView.Image();image.crossOrigin='anonymous';image.decoding='async';
-    resource={image,references:0,loaded:false,settled:false,cancel:null};
+    const win=doc.defaultView,image=new win.Image();image.crossOrigin='anonymous';image.decoding='async';
+    resource={image,references:0,loaded:false,settled:false,cancel:null,blob:null,objectURL:null};
     resource.promise=new Promise((resolve,reject)=>{
       const finish=error=>{if(resource.settled)return;resource.settled=true;image.onload=image.onerror=null;if(error)reject(error);else{resource.loaded=true;resolve(image);}};
       image.onload=()=>{if(image.naturalWidth&&image.naturalHeight)finish();else finish(Error(`Map image is empty: ${url}`));};
       image.onerror=()=>finish(Error(`Unable to load map image: ${url}`));
-      resource.cancel=()=>{finish(abortError());image.removeAttribute('src');};image.src=url;
+      // One request serves both the image and later reduced copies, which
+      // decode from the kept file off the main thread.
+      const controller=typeof win.AbortController==='function'?new win.AbortController():null;
+      resource.cancel=()=>{controller?.abort();finish(abortError());image.removeAttribute('src');};
+      if(typeof win.fetch==='function'&&typeof win.URL?.createObjectURL==='function'){
+        resource.blob=win.fetch(url,{signal:controller?.signal,credentials:'same-origin'}).then(response=>{if(!response.ok)throw Object.assign(Error(`Unable to load map image: ${url}`),{status:response.status});return response.blob();});
+        resource.blob.catch(()=>{});
+        resource.blob.then(blob=>{if(resource.settled)return;resource.objectURL=win.URL.createObjectURL(blob);image.src=resource.objectURL;},error=>{if(resource.settled)return;if(error.status)finish(error);else{resource.blob=null;image.src=url;}});
+      }else image.src=url;
     });
     resource.promise.catch(()=>{});resources.set(url,resource);
   }
   resource.references++;
-  return{resource,release(){if(--resource.references===0){if(!resource.settled)resource.cancel();resources.delete(url);}}};
+  return{resource,release(){if(--resource.references===0){if(!resource.settled)resource.cancel();if(resource.objectURL)doc.defaultView.URL.revokeObjectURL(resource.objectURL);resources.delete(url);}}};
 }
 
 /** One decoded image per URL shared by mounted maps; no art requests for unthemed maps. */
 export function loadMapArt(map,{document,onUpdate=()=>{},onError=()=>{}}){
-  let disposed=false,patterns=new WeakMap();const handles=new Map(),pending=[],standingHeights=new Map();
+  let disposed=false,patterns=new WeakMap(),mipBytes=0,mipClock=0;const handles=new Map(),pending=[],standingHeights=new Map(),mips=new Map();
+  const win=document.defaultView||globalThis,canMip=typeof win.createImageBitmap==='function';
+  function dropMip(id,width,level){levels(id).delete(width);if(level.bitmap){mipBytes-=level.bytes;level.bitmap.close?.();}}
+  function levels(id){let value=mips.get(id);if(!value){value=new Map();mips.set(id,value);}return value;}
+  function trimMips(){
+    while(mipBytes>MIP_LIMIT){
+      let oldest=null;
+      for(const [id,list] of mips)for(const [width,level] of list)if(level.bitmap&&(!oldest||level.used<oldest.level.used))oldest={id,width,level};
+      if(!oldest)return;dropMip(oldest.id,oldest.width,oldest.level);
+    }
+  }
+  function requestMip(id,width,image){
+    const list=levels(id),level={bitmap:null,used:++mipClock,bytes:0};list.set(width,level);
+    const blob=handles.get(id)?.resource.blob;if(!blob){level.source=true;return level;}
+    const height=Math.max(1,Math.round(width*image.naturalHeight/image.naturalWidth));
+    // Blob sources decode and resize off the main thread. Drawing the result
+    // uploads a texture sized for the view instead of the full source sheet.
+    // 'low' keeps the crisp painted texture of direct drawing; the smoother
+    // filters visibly soften thatch, wood grain and foliage.
+    blob.then(data=>win.createImageBitmap(data,{resizeWidth:width,resizeHeight:height,resizeQuality:'low'})).then(bitmap=>{
+      if(disposed||list.get(width)!==level){bitmap.close?.();return;}
+      if(bitmap.width!==width||bitmap.height!==height){bitmap.close?.();level.source=true;return;}
+      level.bitmap=bitmap;level.bytes=width*height*4;mipBytes+=level.bytes;trimMips();
+    },()=>{if(list.get(width)===level)level.source=true;});
+    return level;
+  }
   // Action sheets can be large once decoded. Only maps with the corresponding
   // crossings need the extra hand-vault and climbing artwork.
   const vault=map.props.some(p=>p.traversal?.kind==='vault'&&(p.traversal.style==='branch'||p.traversal.activation==='click'));
@@ -40,6 +73,25 @@ export function loadMapArt(map,{document,onUpdate=()=>{},onError=()=>{}}){
   return{
     ready,
     image(id){const resource=handles.get(id)?.resource;return !disposed&&resource?.loaded?resource.image:null;},
+    /**
+     * The image reduced for drawing `width` device pixels wide, or the source
+     * when no reduction is ready. `ready` is false while one is being decoded.
+     * `exact` sizes the reduction to the drawn width (within 8 pixels) so the
+     * final draw is 1:1 and stays crisp; otherwise sizes share powers of two.
+     */
+    scaled(id,width,{exact=false}={}){
+      const image=this.image(id);if(!image)return{image:null,ready:true};
+      if(!canMip||!(width>0))return{image,ready:true};
+      const bucket=exact?Math.max(8,Math.ceil(width/8)*8):Math.max(32,2**Math.ceil(Math.log2(width)));
+      if(bucket*1.25>=image.naturalWidth)return{image,ready:true};
+      const list=levels(id);let level=list.get(bucket);
+      if(!level)level=requestMip(id,bucket,image);
+      level.used=++mipClock;
+      if(level.bitmap)return{image:level.bitmap,ready:true};
+      if(level.source)return{image,ready:true};
+      let best=null;for(const [size,other] of list)if(other.bitmap&&size>=width&&(!best||size<best.size))best={size,other};
+      return{image:best?best.other.bitmap:image,ready:false};
+    },
     standingHeight(actorId,definition=map.actors.find(actor=>actor.id===actorId)){
       const appearance=definition?.appearance;
       if(appearance?.kind==='livestock'){const image=map.art.images[appearance.image];return image.height*image.anchorY;}
@@ -65,8 +117,8 @@ export function loadMapArt(map,{document,onUpdate=()=>{},onError=()=>{}}){
       standingHeights.set(key,height);return height;
     },
     pattern(ctx,id){const image=this.image(id);if(!image)return null;let cache=patterns.get(ctx);if(!cache){cache=new Map();patterns.set(ctx,cache);}if(!cache.has(id)){const pattern=ctx.createPattern(image,'repeat'),definition=map.art.images[id];if(!pattern)return null;pattern.setTransform({a:definition.width/(64*image.naturalWidth),d:definition.height/(64*image.naturalHeight),b:0,c:0,e:0,f:0});cache.set(id,pattern);}return cache.get(id);},
-    stats(){let loaded=0,failed=0;for(const{resource}of handles.values()){if(resource.loaded)loaded++;else if(resource.settled)failed++;}return{requested:handles.size,loaded,failed};},
-    dispose(){if(disposed)return;disposed=true;for(const handle of handles.values())handle.release();handles.clear();patterns=new WeakMap();}
+    stats(){let loaded=0,failed=0;for(const{resource}of handles.values()){if(resource.loaded)loaded++;else if(resource.settled)failed++;}let mipLevels=0;for(const list of mips.values())for(const level of list.values())if(level.bitmap)mipLevels++;return{requested:handles.size,loaded,failed,mipLevels,mipBytes};},
+    dispose(){if(disposed)return;disposed=true;for(const handle of handles.values())handle.release();handles.clear();patterns=new WeakMap();for(const list of mips.values())for(const level of list.values())level.bitmap?.close?.();mips.clear();mipBytes=0;}
   };
 }
 

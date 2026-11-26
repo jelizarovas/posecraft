@@ -37,7 +37,88 @@ export class MapController {
 
  emit(event){for(const listener of this.listeners)try{listener(event);}catch(error){try{this.onError?.(error);}catch{}}}
  fail(error){this.failed=error;this.rejectReady?.(error);for(const job of [...this.active.values()])this.finish(job,error);this.worker?.terminate();clearTimeout(this.timer);this.timer=null;try{this.onError?.(error);}catch{}this.emit({type:'map.error',message:error.message});}
- actor(id){this.check();if(!this.actors.has(id))throw Error('Unknown map actor.');return {moveTo:(target,options)=>this.moveTo(id,target,options),faceTo:(target,options)=>this.faceTo(id,target,options),cancel:()=>this.cancel(id)};}
+ actor(id){this.check();if(!this.actors.has(id))throw Error('Unknown map actor.');return {moveTo:(target,options)=>this.moveTo(id,target,options),faceTo:(target,options)=>this.faceTo(id,target,options),steer:(direction,options)=>this.steer(id,direction,options),jump:()=>this.jump(id),cancel:()=>this.cancel(id)};}
+ /**
+  * Direct control along a map-space direction, such as from held keys. The
+  * actor accelerates, slides along obstacles and vaults low crossings until
+  * steered with `null`, then slows to a stop. Resolves once it has stopped.
+  */
+ steer(id,direction,{gait='walk'}={}){
+  this.check();const actor=this.actors.get(id);if(!actor)throw Error('Unknown map actor.');
+  if(gait!=='walk'&&gait!=='run')throw TypeError('Map gait must be walk or run.');
+  if(direction!==null&&!point(direction))throw TypeError('Steering direction must be null or a finite map vector.');
+  const length=direction?Math.hypot(direction.x,direction.y):0,input=length>1e-9?{x:direction.x/length,y:direction.y/length}:null;
+  let job=this.active.get(id);
+  if(job?.kind==='steer'){job.input=input;job.gait=gait;return job.promise;}
+  if(!input)return Promise.resolve(null);
+  if(actor.jumping||actor.rolling)return this.deferVault(id,()=>this.steer(id,direction,{gait}),undefined);
+  if(this.active.size>=16&&!job)return Promise.reject(Error('At most 16 map movements may be active.'));
+  job=this.startSteer(id,input,gait);return job.promise;
+ }
+ startSteer(id,input,gait){
+  const previous=this.active.get(id),request='map-'+(++this.serial),momentum=previous?.skid?.velocity??previous?.motion;let job;
+  const promise=new Promise((resolve,reject)=>{job={kind:'steer',actor:id,request,gait,input,velocity:momentum?{x:momentum.x,y:momentum.y}:{x:0,y:0},route:[],resolve,reject};this.active.set(id,job);});
+  promise.catch(()=>{});job.promise=promise;
+  this.clearDeferred(id);if(previous)this.finish(previous,abortError('Movement replaced.'));this.active.set(id,job);
+  Object.assign(this.actors.get(id),{turning:false,skidding:false,gait});
+  this.emit({type:'map.move.started',actor:id,request,target:null,gait,steering:true});return job;
+ }
+ /** A hop in place or along the current motion. False while already airborne. */
+ jump(id){
+  this.check();const actor=this.actors.get(id);if(!actor)throw Error('Unknown map actor.');
+  if(actor.jumping||actor.rolling)return false;
+  let job=this.active.get(id);if(job?.kind!=='steer'){if(this.active.size>=16&&!job)return false;job=this.startSteer(id,null,job?.gait??'walk');}
+  const v=job.velocity,speed=Math.hypot(v.x,v.y),duration=job.gait==='run'?.62:.56,heading=speed>.05?Math.atan2(v.y,v.x):actor.facing;
+  const radius=this.map.navigation?.radius??0,start={x:actor.x,y:actor.y},reach={x:start.x+v.x*duration*.8,y:start.y+v.y*duration*.8};
+  // Land at the farthest clear point along the hop. Low crossings can be cleared.
+  const clear=to=>this.steerClear(start,to,radius,{allowVault:true})&&this.steerClear(to,to,radius);
+  let landing=start;
+  if(clear(reach))landing=reach;
+  else{let low=0,high=1;for(let n=0;n<10;n++){const t=(low+high)/2,to={x:start.x+(reach.x-start.x)*t,y:start.y+(reach.y-start.y)*t};if(clear(to))low=t;else high=t;}landing={x:start.x+(reach.x-start.x)*low,y:start.y+(reach.y-start.y)*low};}
+  job.jump={hop:true,start,landing,startZ:groundHeight(this.map,actor),endZ:groundHeight(this.map,landing),height:.42,duration,elapsed:0,heading,style:'hop',action:null,object:null};
+  Object.assign(actor,{jumping:true,jumpProgress:0,vaultId:null,traversalAction:null,traversalProgress:0,supportContact:null,facing:heading,travelFacing:heading,walking:false,running:false});
+  this.emit({type:'map.jump.started',actor:id,request:job.request,x:actor.x,y:actor.y});return true;
+ }
+ steerClear(from,to,radius,{allowVault=false}={}){
+  if(this.map.navigation?.mode==='continuous')return continuousSegmentClear(this.index,from,to,radius,{allowVault});
+  return to.x>=0&&to.y>=0&&to.x<this.map.width&&to.y<this.map.height&&!this.index.isBlocked(Math.floor(to.x),Math.floor(to.y));
+ }
+ advanceSteer(job,dt){
+  const actor=this.actors.get(job.actor),speed=(actor.speed??3.5)*(job.gait==='run'?1.8:1),radius=this.map.navigation?.radius??0,v=job.velocity,input=job.input;
+  if(this.map.navigation?.mode==='continuous'&&input&&Math.hypot(v.x,v.y)>speed*.4&&job.allowVault!==false&&actor.appearance?.kind!=='livestock'){
+   // Walking into a low crossing vaults it, exactly as routed movement does.
+   const jump=planMapVault(this.index,actor,[{x:actor.x,y:actor.y},{x:actor.x+input.x*2.5,y:actor.y+input.y*2.5}],1,job.gait);
+   if(jump&&Math.abs(angleDelta(actor.facing,jump.heading))<.6){
+    job.jump=jump;Object.assign(actor,{jumping:true,jumpProgress:0,vaultId:jump.object,traversalAction:jump.action,traversalProgress:0,facing:jump.heading,travelFacing:jump.heading});
+    this.emit({type:'map.vault.started',actor:actor.id,object:jump.object,x:actor.x,y:actor.y,gait:job.gait});
+    if(this.active.get(actor.id)===job)this.advanceJump(job,dt);return;
+   }
+  }
+  const target=input?{x:input.x*speed,y:input.y*speed}:{x:0,y:0},steps=Math.max(1,Math.ceil(dt*120*Math.max(1,speed/(.04*120)))),h=dt/steps;
+  let travelled=0;
+  for(let n=0;n<steps;n++){
+   const dx=target.x-v.x,dy=target.y-v.y,change=Math.hypot(dx,dy),rate=speed*(input?6:8)*h;
+   if(change<=rate){v.x=target.x;v.y=target.y;}else{v.x+=dx/change*rate;v.y+=dy/change*rate;}
+   const mx=v.x*h,my=v.y*h;if(!mx&&!my)break;
+   // Slide along whatever blocks the full step instead of stopping dead.
+   const from={x:actor.x,y:actor.y};let moved=null;
+   for(const [ax,ay] of [[mx,my],[mx,0],[0,my]]){
+    if(!ax&&!ay)continue;const to={x:from.x+ax,y:from.y+ay};
+    if(this.steerClear(from,to,radius)){moved=to;if(ax!==mx)v.x=0;if(ay!==my)v.y=0;break;}
+   }
+   if(!moved){v.x=0;v.y=0;break;}
+   const length=Math.hypot(moved.x-from.x,moved.y-from.y);actor.x=moved.x;actor.y=moved.y;travelled+=length;
+   actor.travelFacing=Math.atan2(moved.y-from.y,moved.x-from.x);
+   actor.phase=(actor.phase+length*Math.PI*2/((actor.stride??1)*(job.gait==='run'?1.4:1)))%(Math.PI*2);
+  }
+  if(input){const error=angleDelta(actor.facing,Math.atan2(input.y,input.x)),turn=12*dt;actor.facing+=Math.max(-turn,Math.min(turn,error));}
+  const moving=Math.hypot(v.x,v.y)>.05;
+  actor.walking=moving;actor.running=moving&&job.gait==='run';actor.gait=job.gait;actor.gaitWeight=dt>0?Math.min(1,travelled/(dt*speed)):0;
+  job.motion={x:v.x,y:v.y};
+  if(!this.index.isPointBlocked(actor.x,actor.y,radius))actor.lastGround={x:actor.x,y:actor.y};
+  this.indexActor(actor);
+  if(!input&&!moving){v.x=0;v.y=0;this.finish(job,null,{type:'map.steer.stopped',actor:job.actor,request:job.request,x:actor.x,y:actor.y});}
+ }
  deferVault(id,run,signal){
   this.clearDeferred(id);
   return new Promise((resolve,reject)=>{const abort=()=>{this.afterVault.delete(id);reject(abortError('Queued movement cancelled.'));};this.afterVault.set(id,{run:()=>{signal?.removeEventListener('abort',abort);try{Promise.resolve(run()).then(resolve,reject);}catch(e){reject(e);}},reject,signal,abort});signal?.addEventListener('abort',abort,{once:true});});
@@ -115,6 +196,14 @@ export class MapController {
   this.indexActor(actor);
   if(p<1)return;
   actor.lift=0;actor.jumping=false;actor.vaultId=null;actor.traversalAction=null;actor.traversalProgress=0;actor.supportContact=null;actor.lastGround={x:actor.x,y:actor.y};
+  if(job.kind==='steer'){
+   // Steering keeps its momentum through a hop or vault and carries on.
+   job.jump=null;this.emit(jump.hop?{type:'map.jump.landed',actor:actor.id,request:job.request,x:actor.x,y:actor.y}:{type:'map.vault.landed',actor:actor.id,object:jump.object,x:actor.x,y:actor.y});
+   if(this.active.get(actor.id)!==job)return;
+   if(job.stopAfterVault){this.finish(job,abortError('Movement cancelled after landing.'));}
+   const pending=this.afterVault.get(actor.id);if(pending){this.afterVault.delete(actor.id);pending.run();}
+   return;
+  }
   job.jump=null;job.motion=null;job.velocity=0;
   // Establish recovery before delivering the landing event: callbacks may redirect.
   if(job.rollOnLand){
@@ -200,6 +289,7 @@ export class MapController {
    if(job.jump){this.advanceJump(job,dt);continue;}
    if(job.roll){this.advanceRoll(job,dt);continue;}
    if(job.skid){this.advanceSkid(job,dt);continue;}
+   if(job.kind==='steer'){this.advanceSteer(job,dt);continue;}
    if(!job.route)continue;
    if(job.kind==='face'){
     const actor=this.actors.get(job.actor),delta=angleDelta(actor.facing,job.heading);actor.facing+=Math.max(-7*dt,Math.min(7*dt,delta));
@@ -265,7 +355,7 @@ export class MapController {
   }
   for(const i of [...segments].sort((a,b)=>a-b)){const from=i===job.index?this.actors.get(job.actor):job.route[i-1],to=job.route[i],a=projectMap(this.map,from),b=projectMap(this.map,to);if(Math.max(a.x,b.x)>=left&&Math.min(a.x,b.x)<=right&&Math.max(a.y,b.y)>=top&&Math.min(a.y,b.y)<=bottom)routeSegments.push({from:{x:from.x,y:from.y},to:{...to},offset:(job.routeOffsets?.[i-1]??0)+(i===job.index?Math.hypot(from.x-job.route[i-1].x,from.y-job.route[i-1].y):0)});}
   if(job?.manualTraversal&&job.route){const from=job.manualTraversal.entry,to=job.manualTraversal.landing;routeSegments.push({from:{...from},to:{...to},offset:job.routeOffsets?.at(-1)??0});}
-  if(job?.jump){const from={x:this.actors.get(job.actor).x,y:this.actors.get(job.actor).y},to=job.jump.landing;routeSegments.push({from,to:{...to},offset:0});}
+  if(job?.jump&&job.kind!=='steer'){const from={x:this.actors.get(job.actor).x,y:this.actors.get(job.actor).y},to=job.jump.landing;routeSegments.push({from,to:{...to},offset:0});}
   const objects=Object.create(null);for(const p of props)if(Object.hasOwn(this.objects,p.id))objects[p.id]={...this.objects[p.id]};
   return {actors,objects,route:null,routeSegments,destination:movementDestination(job),pending:jobs.filter(j=>!j.route&&!j.jump).length,candidateActors,candidateRouteSegments:segments.size};
  }

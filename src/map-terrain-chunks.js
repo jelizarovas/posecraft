@@ -3,14 +3,14 @@ import {projectMap} from './map.js';
 import {artTerrainSelection} from './map-art-layout.js';
 import {createMapTerrainPainter} from './map-terrain.js';
 
-const CELLS=8,MIB=1024*1024,COLORS=['#65804c','#baa781','#376a71','#c4b78e'],PREVIEW_SCALE=.25;
+const CELLS=8,MIB=1024*1024,HARD_LIMIT=20*MIB,COLORS=['#65804c','#baa781','#376a71','#c4b78e'],PREVIEW_SCALE=.25;
 
 /** World-space terrain chunks. Camera motion only composites completed surfaces. */
 export function createMapTerrainChunks(map,doc,art,fallback,{onUpdate,externalWork=false}={}){
   const painter=createMapTerrainPainter(map,doc,art,{materialLimit:2048}),cache=new Map(),byId=new Map(),staging=new Map(),descriptors=new Map();
   const scheduler=doc.defaultView||globalThis;
   const terraceOffsets=map.terraces?.length?(()=>{const offsets=new Uint8Array(map.width*map.height);for(const t of map.terraces)for(let y=t.y;y<t.y+t.height;y++)for(let x=t.x;x<t.x+t.width;x++){const i=y*map.width+x;if(t.heightOffset>offsets[i])offsets[i]=t.heightOffset;}return offsets;})():null;
-  let pixels=0,maxPixels=4*MIB,rasterScale=1,deferredScale=null,builds=0,completed=0,pending=false,lastTiles=null,lastViewKey='',lastList=[],plan=[],planPixels=0,disposed=false,targetViewportPixels=0,workHandle=0,workSlices=0,buildMs=0,swaps=0,resamples=0,previewBuilds=0,lastUpdateAt=0,pendingVisualUpdate=false;
+  let pixels=0,maxPixels=4*MIB,rasterScale=1,deferredScale=null,builds=0,completed=0,pending=false,lastTiles=null,lastViewKey='',lastList=[],plan=[],ring=[],ringKey='',ringBase=0,ringPixels=0,ringStalled=false,allDescriptors=null,planPixels=0,disposed=false,targetViewportPixels=0,workHandle=0,workSlices=0,buildMs=0,swaps=0,resamples=0,previewBuilds=0,prefetched=0,staleDraws=0,missingDraws=0,lastUpdateAt=0,pendingVisualUpdate=false;
   const workChannel=!externalWork&&typeof scheduler.MessageChannel==='function'?new scheduler.MessageChannel():null;
   let workScheduled=false;
   function cancelWork(){workScheduled=false;if(!workHandle)return;scheduler.clearTimeout(workHandle);workHandle=0;}
@@ -44,6 +44,17 @@ export function createMapTerrainChunks(map,doc,art,fallback,{onUpdate,externalWo
     const width=Math.ceil(maxX)-left+2,height=Math.ceil(maxY)-top+2;
     const result={id,x,y,left,top,width,height,tiles,dominant,quad,depth:level*100000+x+y};descriptors.set(id,result);return result;
   }
+  function everyDescriptor(){
+    if(allDescriptors)return allDescriptors;allDescriptors=[];
+    for(let cy=0;cy*CELLS<map.height;cy++)for(let cx=0;cx*CELLS<map.width;cx++){
+      const levels=new Set();
+      for(let gy=cy*CELLS;gy<Math.min(map.height,cy*CELLS+CELLS);gy++)for(let gx=cx*CELLS;gx<Math.min(map.width,cx*CELLS+CELLS);gx++)levels.add(terraceOffsets?terraceOffsets[gy*map.width+gx]:0);
+      for(const level of levels)allDescriptors.push(descriptor(cx,cy,level));
+    }
+    return allDescriptors;
+  }
+  const overlaps=(d,r)=>d.left<r.x+r.width&&d.left+d.width>r.x&&d.top<r.y+r.height&&d.top+d.height>r.y;
+  const gap=(d,r)=>Math.hypot(Math.max(0,r.x-d.left-d.width,d.left-r.x-r.width),Math.max(0,r.y-d.top-d.height,d.top-r.y-r.height));
   function flat(ctx,tile){const points=terrainTileCorners(map,tile.x,tile.y).map(p=>projectMap(map,p));ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=COLORS[tile.terrain];ctx.fill();}
   function drawFlatChunk(ctx,d){
     const q=d.quad;
@@ -96,13 +107,19 @@ export function createMapTerrainChunks(map,doc,art,fallback,{onUpdate,externalWo
   function trim(){
     if(pixels<=maxPixels)return;
     const protectedEntries=new Set();for(const d of plan){const shown=front(d);if(shown)protectedEntries.add(shown);const work=staging.get(d.id);if(work)protectedEntries.add(work);}
-    for(const entry of [...cache.values()])if(pixels>maxPixels&&!protectedEntries.has(entry))release(entry);
+    // Off-screen prefetch goes before anything visible, farthest first.
+    const ringEntries=[];for(const d of ring){const entry=cache.get(d.key);if(entry&&!protectedEntries.has(entry))ringEntries.push(entry);}
+    const ringSet=new Set(ringEntries);
+    for(const entry of [...cache.values()])if(pixels>maxPixels&&!protectedEntries.has(entry)&&!ringSet.has(entry))release(entry);
+    for(const entry of ringEntries.reverse())if(pixels>maxPixels)release(entry);
   }
-  function configure(tiles,scale,viewportPixels,view,freezeLod){
+  function configure(tiles,scale,viewportPixels,view,freezeLod,prefetch){
     const budget=Math.max(4*MIB,Math.min(12*MIB,Math.max(0,viewportPixels)*(scale>2.5?8:5)));
     let viewKey='',clip=null;if(view){const unit=64,x=Math.floor(view.x/unit)*unit,y=Math.floor(view.y/unit)*unit,right=Math.ceil((view.x+view.width)/unit)*unit,bottom=Math.ceil((view.y+view.height)/unit)*unit;clip={x,y,width:right-x,height:bottom-y};viewKey=`${x}:${y}:${right}:${bottom}`;}
     let listChanged=false;
-    if(lastTiles!==tiles||lastViewKey!==viewKey){
+    if(view&&prefetch){
+      if(lastViewKey!==viewKey||lastTiles!==null){lastList=everyDescriptor().filter(d=>overlaps(d,clip)).sort((a,b)=>a.depth-b.depth);lastViewKey=viewKey;lastTiles=null;listChanged=true;}
+    }else if(lastTiles!==tiles||lastViewKey!==viewKey){
       const wanted=new Map(),w=map.width;
       for(let i=0;i<tiles.length;i++){
         const tile=tiles[i],cx=tile.x>>3,cy=tile.y>>3,level=terraceOffsets?terraceOffsets[tile.y*w+tile.x]:0,key=cx|(cy<<8)|(level<<16);
@@ -111,8 +128,11 @@ export function createMapTerrainChunks(map,doc,art,fallback,{onUpdate,externalWo
       lastList=[...wanted.values()].filter(d=>!clip||d.left<clip.x+clip.width&&d.left+d.width>clip.x&&d.top<clip.y+clip.height&&d.top+d.height>clip.y).sort((a,b)=>a.depth-b.depth);
       lastTiles=tiles;lastViewKey=viewKey;listChanged=true;
     }
+    // Tier selection only counts what is on screen; prefetch fits around it.
     maxPixels=budget;
     const desired=chooseScale(scale,lastList);
+    const area=prefetch&&view?{x:Math.floor(prefetch.x/64)*64,y:Math.floor(prefetch.y/64)*64,right:Math.ceil((prefetch.x+prefetch.width)/64)*64,bottom:Math.ceil((prefetch.y+prefetch.height)/64)*64,focus:prefetch.focus,fx:Math.round(prefetch.focus.x/64),fy:Math.round(prefetch.focus.y/64)}:null;
+    const nextRingKey=area?`${area.x}:${area.y}:${area.right}:${area.bottom}:${area.fx}:${area.fy}`:'';
     let next=desired;
     if(freezeLod&&plan.length){
       deferredScale=desired!==rasterScale?desired:null;
@@ -120,44 +140,58 @@ export function createMapTerrainChunks(map,doc,art,fallback,{onUpdate,externalWo
     }else{
       deferredScale=null;
     }
-    if(!listChanged&&rasterScale===next&&plan.length===lastList.length){trim();return;}
+    if(!listChanged&&rasterScale===next&&plan.length===lastList.length&&ringKey===nextRingKey&&ringBase===budget){maxPixels=budget+ringPixels;trim();return;}
     rasterScale=next;plan=lastList.map(d=>({...d,key:`${d.id}@${rasterScale}`}));plan.requestedScale=scale;planPixels=plan.reduce((sum,d)=>sum+Math.ceil(d.width*rasterScale)*Math.ceil(d.height*rasterScale),0);
-    const visible=new Set(plan.map(d=>d.id));for(const [id,entry] of staging)if(!visible.has(id)||entry.scale!==rasterScale){destroy(entry);staging.delete(id);}
+    ringKey=nextRingKey;ringBase=budget;ring=[];ringPixels=0;ringStalled=false;
+    if(area){
+      // Chunks just outside the view are rendered ahead of time, nearest to the
+      // direction of travel first, so panning composites finished terrain.
+      const shown=new Set(plan.map(d=>d.id)),rect={x:area.x,y:area.y,width:area.right-area.x,height:area.bottom-area.y};
+      const ringBudget=Math.max(0,Math.min(Math.max(0,viewportPixels)*4,HARD_LIMIT-budget));
+      const near=everyDescriptor().filter(d=>!shown.has(d.id)&&overlaps(d,rect)).map(d=>({d,distance:gap(d,area.focus)})).sort((a,b)=>a.distance-b.distance);
+      for(const {d} of near){const cost=Math.ceil(d.width*rasterScale)*Math.ceil(d.height*rasterScale);if(ringPixels+cost>ringBudget)break;ringPixels+=cost;ring.push({...d,key:`${d.id}@${rasterScale}`});}
+    }
+    maxPixels=budget+ringPixels;
+    const kept=new Set([...plan,...ring].map(d=>d.id));for(const [id,entry] of staging)if(!kept.has(id)||entry.scale!==rasterScale){destroy(entry);staging.delete(id);}
     trim();
   }
-  function allocate(d){
+  function allocate(d,prefetching=false){
     const needed=Math.max(1,Math.ceil(d.width*rasterScale))*Math.max(1,Math.ceil(d.height*rasterScale));
     if(pixels+needed>maxPixels){
-      const fronts=new Set(plan.map(front).filter(Boolean));
-      for(const entry of [...cache.values()])if(pixels+needed>maxPixels&&!fronts.has(entry))release(entry);
+      const fronts=new Set(plan.map(front).filter(Boolean)),ahead=ring.map(d=>cache.get(d.key)).filter(Boolean),aheadSet=new Set(ahead);
+      for(const entry of [...cache.values()])if(pixels+needed>maxPixels&&!fronts.has(entry)&&!aheadSet.has(entry))release(entry);
+      if(!prefetching)for(const entry of ahead.reverse())if(pixels+needed>maxPixels&&!fronts.has(entry))release(entry);
       if(pixels+needed>maxPixels)return null;
     }
     const entry=surface(d,rasterScale);staging.set(d.id,entry);builds++;return entry;
   }
-  function needsWork(){return plan.some(d=>!cache.has(d.key));}
+  // Prefetch that no longer fits waits for the view to move instead of retrying.
+  function needsWork(){return plan.some(d=>!cache.has(d.key))||!ringStalled&&ring.some(d=>!cache.has(d.key));}
   function work(budgetMs=4){
     if(disposed||deferredScale!==null)return{visualProgress:false,pending};
     const started=performance.now();let visualProgress=false;painter.beginFrame(rasterScale,Math.min(targetViewportPixels,2*MIB));
-    const batch=[];
-    for(const d of plan){
+    const batch=[],shown=new Set(plan.map(d=>d.id)),visibleMissing=plan.some(d=>!cache.has(d.key));
+    // Visible chunks first; prefetch only once the view itself is complete.
+    for(const d of visibleMissing?plan:ring){
       if(cache.has(d.key))continue;
       if(performance.now()-started>=budgetMs)break;
       const old=candidates(d.id)[0];
-      if(old&&old.scale>rasterScale){resample(d,old,rasterScale);visualProgress=true;continue;}
-      let entry=staging.get(d.id);if(!entry)entry=allocate(d);if(!entry)continue;
+      if(old&&old.scale>rasterScale){resample(d,old,rasterScale);if(shown.has(d.id))visualProgress=true;continue;}
+      let entry=staging.get(d.id);if(!entry)entry=allocate(d,!shown.has(d.id));if(!entry){if(!visibleMissing){ringStalled=true;break;}continue;}
       batch.push(entry);
-      if(batch.length>=12)break;
+      if(batch.length>=(visibleMissing?12:2))break;
     }
     if(batch.length){
       painter.drawChunks(batch,budgetMs,started,fallback,terraceOffsets);
       for(const entry of batch){
-        if(entry.cursor===entry.tiles.length){entry.complete=true;staging.delete(entry.id);remember(entry);completed++;swaps++;visualProgress=true;}
+        if(entry.cursor===entry.tiles.length){entry.complete=true;staging.delete(entry.id);remember(entry);completed++;swaps++;if(shown.has(entry.id))visualProgress=true;else prefetched++;}
       }
     }
     if(visualProgress)trim();
     buildMs+=performance.now()-started;workSlices++;
     const missing=needsWork();
-    pending=missing||deferredScale!==null;
+    // `pending` describes the last drawn frame; finished chunks count once shown.
+    if(plan.some(d=>!cache.has(d.key))||deferredScale!==null)pending=true;
     if(!externalWork){
       if(visualProgress)pendingVisualUpdate=true;
       const now=performance.now();
@@ -173,8 +207,8 @@ export function createMapTerrainChunks(map,doc,art,fallback,{onUpdate,externalWo
     else workHandle=scheduler.setTimeout(()=>{workHandle=0;work(4);},0);
   }
   return{
-    draw(ctx,tiles,{scale=1,viewportPixels=0,view,freezeLod=false,budget,budgetMs}={}){
-      if(disposed)return false;configure(tiles,scale,viewportPixels,view,freezeLod);targetViewportPixels=Math.max(0,viewportPixels);
+    draw(ctx,tiles,{scale=1,viewportPixels=0,view,prefetch,freezeLod=false,budget,budgetMs}={}){
+      if(disposed)return false;configure(tiles,scale,viewportPixels,view,freezeLod,prefetch);targetViewportPixels=Math.max(0,viewportPixels);
       const started=performance.now();let syncOps=0;
       const hasTime=budget?()=>budget.hasTime():budgetMs!==undefined?()=>performance.now()-started<budgetMs:()=>syncOps<16;
       let synced=false;pending=false;
@@ -183,11 +217,12 @@ export function createMapTerrainChunks(map,doc,art,fallback,{onUpdate,externalWo
         if(!entry){
           const old=candidates(d.id)[0];
           if(!freezeLod&&old&&old.scale>rasterScale&&hasTime()){entry=resample(d,old,rasterScale);synced=true;syncOps++;}
-          else if(!old&&!freezeLod&&hasTime()){entry=texturedPreview(d);synced=true;syncOps++;}
+          // A textured preview is cheap; flat colour is only for zoom gestures.
+          else if(!old&&!freezeLod){entry=texturedPreview(d);synced=true;syncOps++;}
           else entry=old||null;
         }
-        if(entry)ctx.drawImage(entry.canvas,d.left,d.top,d.width,d.height);
-        else drawFlatChunk(ctx,d);
+        if(entry){ctx.drawImage(entry.canvas,d.left,d.top,d.width,d.height);if(entry.key!==d.key||entry.scale<PREVIEW_SCALE*1.01&&rasterScale>PREVIEW_SCALE)staleDraws++;}
+        else{drawFlatChunk(ctx,d);missingDraws++;}
         if(!cache.has(d.key))pending=true;
       }
       if(synced)trim();
@@ -198,8 +233,8 @@ export function createMapTerrainChunks(map,doc,art,fallback,{onUpdate,externalWo
     },
     work,
     needsBackgroundWork(){return !disposed&&deferredScale===null&&needsWork();},
-    stats(){const inner=painter.stats();return{tiles:cache.size,chunks:cache.size,pixels,materials:inner.materials,builds,completed,pending,maxPixels,rasterScale,tilePixels:inner.pixels,tileBuilds:inner.builds,visibleChunks:plan.length,workingSetPixels:planPixels,workSlices,buildMs,staging:staging.size,swaps,resamples,previewBuilds};},
-    clear(){cancelWork();for(const entry of cache.values())destroy(entry);for(const entry of staging.values())destroy(entry);cache.clear();byId.clear();staging.clear();descriptors.clear();plan=[];lastList=[];lastTiles=null;lastViewKey='';deferredScale=null;planPixels=0;pending=false;pendingVisualUpdate=false;painter.clear();},
+    stats(){const inner=painter.stats();return{tiles:cache.size,chunks:cache.size,pixels,materials:inner.materials,builds,completed,pending,maxPixels,rasterScale,tilePixels:inner.pixels,tileBuilds:inner.builds,visibleChunks:plan.length,workingSetPixels:planPixels,workSlices,buildMs,staging:staging.size,swaps,resamples,previewBuilds,prefetched,prefetchChunks:ring.length,prefetchPixels:ringPixels,staleDraws,missingDraws};},
+    clear(){cancelWork();for(const entry of cache.values())destroy(entry);for(const entry of staging.values())destroy(entry);cache.clear();byId.clear();staging.clear();descriptors.clear();allDescriptors=null;plan=[];ring=[];ringKey='';ringPixels=0;lastList=[];lastTiles=null;lastViewKey='';deferredScale=null;planPixels=0;pending=true;pendingVisualUpdate=false;painter.clear();},
     dispose(){if(disposed)return;this.clear();workChannel?.port1.close();workChannel?.port2.close();painter.dispose();disposed=true;}
   };
 }

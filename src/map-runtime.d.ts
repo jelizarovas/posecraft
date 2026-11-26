@@ -11,8 +11,12 @@ export class MapController {
  readonly isMoving:boolean;actorPosition(id:string):MapFrame['actors'][number];advance(dt:number):void;
  visibleFrame(rect:MapRect,props?:MapProp[],options?:{routeActor?:string|null}):MapFrame&{routeSegments:Array<{from:MapPoint;to:MapPoint;offset:number}>;candidateActors:number;candidateRouteSegments:number};
  subscribe(listener:(event:MapEvent)=>void):()=>void;
- actor(id:string):{moveTo(target:string|MapPoint,options?:MapMoveOptions):Promise<MapEvent>;faceTo(target:MapPoint,options?:{signal?:AbortSignal}):Promise<MapEvent>;cancel():void};
+ actor(id:string):{moveTo(target:string|MapPoint,options?:MapMoveOptions):Promise<MapEvent>;faceTo(target:MapPoint,options?:{signal?:AbortSignal}):Promise<MapEvent>;steer(direction:MapPoint|null,options?:{gait?:'walk'|'run'}):Promise<MapEvent|null>;jump():boolean;cancel():void};
  faceTo(actor:string,target:MapPoint,options?:{signal?:AbortSignal}):Promise<MapEvent>;
  moveTo(actor:string,target:string|MapPoint,options?:MapMoveOptions):Promise<MapEvent>;
+ /** Direct control along a map-space direction; `null` slows to a stop. */
+ steer(actor:string,direction:MapPoint|null,options?:{gait?:'walk'|'run'}):Promise<MapEvent|null>;
+ /** A hop in place or along the current motion. False while already airborne. */
+ jump(actor:string):boolean;
  cancel(actor:string):void;step(dt:number):MapFrame;frame():MapFrame;snapshot():MapState;restore(state:unknown):MapFrame;dispose():void;
 }
