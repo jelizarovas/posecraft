@@ -5,7 +5,24 @@ import cv2
 
 
 
-def turn_limb(front, degrees, thickness):
+def register_back(front, back):
+    """Fit reverse-side paint to the same finger cross sections as the palm."""
+    back = back[:, ::-1]
+    result = front.copy()
+    rows = np.flatnonzero((front[:, :, 3] > .025).any(axis=1))
+    back_rows = np.flatnonzero((back[:, :, 3] > .025).any(axis=1))
+    for y, by in zip(rows, np.interp(rows, [rows[0], rows[-1]], [0, len(back_rows)-1])):
+        paint = back[back_rows[round(by)]]
+        source = np.flatnonzero(paint[:, 3] > .025)
+        target = np.flatnonzero(front[y, :, 3] > .025)
+        locations = np.linspace(0, len(source)-1, len(target))
+        for channel in range(3):
+            color = paint[source, channel] / paint[source, 3]
+            result[y, target, channel] = np.interp(locations, np.arange(len(source)), color) * front[y, target, 3]
+    return result
+
+
+def turn_limb(front, degrees, thickness, back=None):
     # Cross sections follow the painted silhouette, including separate fingers.
     # Intersect each camera ray with an elliptical cross section, then transport
     # its painted surface coordinate and normal into the camera view.
@@ -25,19 +42,36 @@ def turn_limb(front, degrees, thickness):
             cx=(end+left-1)/2
             shift=(cx-(width-1)/2)*c+(width-1)/2
             rz=radius*thickness
+            if back is not None:
+                # A finger is nearly round. A whole palm is wider but flatter.
+                rz=min(.85*radius,.24*radius+.032*width)
             wide=math.hypot(radius*c,rz*s)
             u=(xx-shift)/max(.01,wide)
             v=np.sqrt(np.maximum(0,1-u*u))
             z=(rz*rz-radius*radius)*s*c/ wide*u+radius*rz/wide*v
-            keep=(abs(u)<1)&(z>depth)
+            camera_z=z-(cx-(width-1)/2)*s
+            keep=(abs(u)<1)&(camera_z>depth)
             if not keep.any():continue
             # Source X from the surface position, viewed straight on.
             sx=np.clip(cx+(xx[keep]-shift)*c-z[keep]*s,left,end-1)
+            if back is not None:
+                # At the edge-on bearing a ray can see the silhouette texel
+                # along an entire finger. Sample its opaque neighbor for paint;
+                # coverage comes from the projected cross section below.
+                alpha=front[y,left:end,3]
+                solid=np.flatnonzero(alpha>=.85*alpha.max())
+                sx=np.clip(sx,left+solid[0],left+solid[-1])
             low=sx.astype(int);f=(sx-low)[:,None]
             rgba=(1-f)*front[y,low]+f*front[y,np.minimum(end-1,low+1)]
+            if back is not None:
+                reverse=(1-f)*back[y,low]+f*back[y,np.minimum(end-1,low+1)]
+                surface_z=(xx[keep]-shift)*s+z[keep]*c
+                palm_weight=np.clip(.5+surface_z/(.25*rz),0,1)[:,None]
+                rgba=palm_weight*rgba+(1-palm_weight)*reverse
+                rgba*=1+abs(s)*(alpha.max()/np.maximum(rgba[:,3:],.001)-1)
             rgba[:,:3]*=(1-.11*abs(s)*(1-v[keep]))[:,None]
             rgba*=np.clip((1-abs(u[keep]))*wide+.5,0,1)[:,None]
-            out[y,keep]=rgba;depth[keep]=z[keep]
+            out[y,keep]=rgba;depth[keep]=camera_z[keep]
     return out
 
 
@@ -73,14 +107,12 @@ def rig_and_drawings(doc,tiles,dorsal):
                     soft=cv2.GaussianBlur(flipped,(0,0),2.5)
                     reverse=flipped.copy()
                     reverse[:,:,:3]=soft[:,:,:3]/np.maximum(soft[:,:,3:],.001)*flipped[:,:,3:]
+                back_paint=register_back(tiles[base],reverse) if hand else None
                 images=[]
                 for deg in angles:
                     key=base if deg==0 else f'{base}Bearing{deg}'
                     if deg:
-                        back=hand and abs(deg)>90
-                        paint=reverse if back else tiles[base]
-                        angle=deg-math.copysign(180,deg) if back else deg
-                        tiles[key]=turn_limb(paint,angle,.43 if name.endswith('Hand') else .85)
+                        tiles[key]=turn_limb(tiles[base],deg,.43 if hand else .85,back_paint)
                     images.append(key)
                 bearings[base]=images
             space['bearings']=dict(range=[angles[0],angles[-1]],images=bearings)
@@ -98,10 +130,12 @@ def rig_and_drawings(doc,tiles,dorsal):
         left=side=='left'
         elbow=parts[side+'Elbow']['space']
         # Zero is the palm-down stop; palm-up is a single mirrored half turn.
-        elbow['twist']=dict(to=side+'Hand',neutral=-180 if left else 180)
+        # Screen-left is the character's right. Its front drawing shows the palm;
+        # the counting hand's front drawing shows the knuckles.
+        elbow['twist']=dict(to=side+'Hand',neutral=180 if left else 0)
         elbow['limits']=dict(rotation=[0,145] if left else [-145,0],yaw=[0,0],pitch=[0,0],
-                             twist=[0,180] if left else [-180,0])
+                             twist=[-180,0] if left else [0,180])
         parts[side+'Hand']['space']['limits']=dict(rotation=[-25,25],pitch=[-65,65],yaw=[0,0])
         parts[side+'Knee']['space']['limits']=dict(rotation=[-135,0] if left else [0,135],yaw=[0,0],pitch=[0,0])
-    tracks['leftElbow.twist']=keys([(0,0),(.6,0),(1.55,147),(1.95,180),(2.3,157),(2.7,172),(3.2,180),(4.5,180),(5.8,0),(6.8,0)])
-    tracks['rightElbow.twist']=keys([(0,-140),(1.15,-180),(4.75,-180),(6.53,-140),(6.8,-140)])
+    tracks['leftElbow.twist']=keys([(0,0),(.6,0),(1.55,-147),(1.95,-180),(2.3,-157),(2.7,-172),(3.2,-180),(4.5,-180),(5.8,0),(6.8,0)])
+    tracks['rightElbow.twist']=keys([(0,40),(1.15,0),(4.75,0),(6.53,40),(6.8,40)])
