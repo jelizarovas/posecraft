@@ -20,18 +20,27 @@ export function mapPropShadowGeometry(map,prop){
  return{base,image,transform,contactX,contactY,bounds:{x:left,y:top,width:right-left,height:bottom-top}};
 }
 
-const stamps=new WeakMap();
+const stamps=new WeakMap(),STAMP=256;
+function stampSource(map,prop,art){
+ const selected=artPropSelection(map,prop),image=selected&&art?.image(selected.id);if(!image)return{image:null,ready:true};
+ return art.scaled?art.scaled(selected.id,Math.min(1,STAMP/Math.max(image.naturalWidth,image.naturalHeight))*image.naturalWidth):{image,ready:true};
+}
+/** Whether drawing this shadow can use already-decoded, reduced artwork. */
+export function mapPropShadowReady(map,prop,art){
+ if(prop.cliffFace||isMapFence(prop)||!mapPropShadowGeometry(map,prop))return true;
+ return stampSource(map,prop,art).ready;
+}
 export function drawMapPropShadow(ctx,map,prop,art){
  if(prop.cliffFace)return;
  const geometry=mapPropShadowGeometry(map,prop);if(!geometry)return;
  if(geometry.fence){drawMapFenceShadow(ctx,map,prop);return;}
- const selected=artPropSelection(map,prop),source=selected&&art?.image(selected.id);
+ const source=stampSource(map,prop,art).image;
  const {base,image,transform:t,contactX,contactY}=geometry;
  ctx.save();
  if(source){
   let stamp=stamps.get(source);
   if(!stamp){
-   stamp=ctx.canvas.ownerDocument.createElement('canvas');const ratio=Math.min(1,256/Math.max(source.width,source.height));
+   stamp=ctx.canvas.ownerDocument.createElement('canvas');const ratio=Math.min(1,STAMP/Math.max(source.width,source.height));
    stamp.width=Math.max(1,Math.round(source.width*ratio));stamp.height=Math.max(1,Math.round(source.height*ratio));
    const c=stamp.getContext('2d');c.drawImage(source,0,0,stamp.width,stamp.height);c.globalCompositeOperation='source-in';c.fillStyle='#243025';c.fillRect(0,0,stamp.width,stamp.height);stamps.set(source,stamp);
   }

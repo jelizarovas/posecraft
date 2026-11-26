@@ -29,6 +29,8 @@ const requestedRenderer=new URLSearchParams(location.search).get('renderer');
 if(['canvas2d','webgl2'].includes(requestedRenderer))settings.renderer=requestedRenderer;
 const view = mountMap(document.querySelector('#game'), map, {
   ...settings,
+  // The full-window game takes W A S D, Space and E wherever focus is.
+  keyboard:'document',
   onError(error) { if (error.name !== 'AbortError') console.error(error); },
 });
 const settingsMenu=mountPlaySettings(view,settings);

@@ -13,6 +13,8 @@ try{
   async function render(selected){
    window.view?.dispose();window.view=mountMap(document.querySelector('#map'),{...map,props:selected},{execution:'main',autoplay:false});view.zoomTo(3);view.panTo(54.5,65);
    await view.ready;await new Promise(resolve=>setTimeout(resolve,600));
+   // Compare finished scenery, not stand-ins drawn while artwork decodes.
+   for(let i=0;i<200&&(view.stats().sceneryCache?.pending||view.stats().terrainCache?.pending);i++)await new Promise(resolve=>setTimeout(resolve,50));
    return document.querySelector('#map canvas').getContext('2d').getImageData(0,0,700,650).data;
   }
   const bg=await render([]),barn=await render([props[0]]),tree=await render([props[1]]),cottage=await render([props[2]]),all=await render(props);
