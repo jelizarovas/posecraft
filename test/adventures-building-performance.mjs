@@ -111,6 +111,44 @@ try {
   if(headed)await page.bringToFront();
   const target=page.locator('[data-decoration-id="stress-0"]').first();
   await target.waitFor();
+  if(process.argv.includes('--first-editor')){
+    assert.ok(dance&&phone);
+    const cdp=await page.context().newCDPSession(page);
+    await page.waitForFunction(n=>[...document.querySelectorAll('[data-puppet=performing]')].filter(el=>el.getAnimations()[0]?.playState==='running').length===n,zombies);
+    await target.tap();
+    const opener=page.getByRole('button',{name:'Edit selected prop'});
+    await opener.tap({trial:true});
+    const bounds=await opener.boundingBox(),x=bounds.x+bounds.width/2,y=bounds.y+bounds.height/2;
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(t=>{
+      const roots=[...document.querySelectorAll('[data-puppet=performing]')];
+      const clocks=roots.map(e=>e.getAnimations()[0]),starts=clocks.map(a=>Number(a.currentTime));
+      window.firstEdit={frames:[],tap:null,visible:null,clocks,starts,start:t};
+      document.addEventListener('touchstart',event=>{window.firstEdit.tap=event.timeStamp;},{once:true,capture:true});
+      let last=t;
+      function tick(now){
+        window.firstEdit.frames.push([last,now-last]);last=now;
+        if(window.firstEdit.visible===null){
+          const panel=document.querySelector('.prop-editor-layer.open [role=dialog]');
+          if(panel&&getComputedStyle(panel).visibility==='visible'&&panel.getBoundingClientRect().top<innerHeight-16)window.firstEdit.visible=now;
+        }
+        window.firstEdit.raf=requestAnimationFrame(tick);
+      }
+      window.firstEdit.raf=requestAnimationFrame(tick);resolve();
+    })));
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    await page.getByRole('dialog',{name:'Edit decoration'}).waitFor();
+    await page.waitForTimeout(450);
+    const result=await page.evaluate(()=>{
+      const {frames,tap,visible,clocks,starts,raf,start}=window.firstEdit;cancelAnimationFrame(raf);
+      const d=frames.filter(([t,ms])=>t+ms>=tap).map(row=>row[1]);
+      if(visible===null||tap===null)throw Error('The first tap did not reveal the drawer');
+      return {fps:+(1000*d.length/d.reduce((a,b)=>a+b,0)).toFixed(1),worstMs:+Math.max(...d).toFixed(1),
+        over25:d.filter(ms=>ms>25).length,visibleMs:Math.round(visible-tap),
+        dancers:clocks.filter((a,i)=>a.playState==='running'&&Number(a.currentTime)-starts[i]>=frames.at(-1)[0]-start-18).length};
+    });
+    assert.ok(result.visibleMs>=0);assert.equal(result.dancers,zombies);assert.deepEqual(errors,[]);console.log('First editor tap',JSON.stringify(result));
+  }else{
   assert.equal(await page.locator('.placed-prop').count(),save.decorations.length);
   await page.evaluate(()=>Promise.all([...document.images].map(i=>i.decode().catch(()=>{}))));
   const bodies=page.locator('.placed-prop .decoration-body');
@@ -330,6 +368,7 @@ try {
   const {gpu}=await system.send('SystemInfo.getInfo');
   console.log(JSON.stringify({width,dpr:phone?2:1,channel,headed,browser:browser.version(),
     renderer:gpu.auxAttributes?.glRenderer||gpu.devices[0]?.deviceString,looseCount,zombies,dance,rows},null,2));
+  }
 } finally {
   await browser?.close();
   await new Promise(resolve=>server.close(resolve));

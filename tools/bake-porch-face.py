@@ -217,8 +217,45 @@ def lower_body_motion(doc):
         tracks[joint+'.rotation']=[[t,factor*value,'smooth'] for t,value in dip]
     for joint in ('leftHip','leftKnee','leftFoot'):
         tracks[joint+'.rotation']=[[0,0,'smooth']]
-    for joint,raised in [('leftShoulder',4.5),('leftElbow',7),('leftHand',9)]:
+    for joint,raised in [('leftShoulder',6),('leftElbow',7),('leftHand',9)]:
         tracks[joint+'.depth']=[[0,0,'step'],[.87,raised,'step'],[5.25,0,'step']]
+
+
+# Ends of the near and far cuff lips, measured on the three shirt drawings.
+# Coordinates are in body-tile pixels, in screen order along the lip.
+CUFFS={
+    'left': [[54,64,66,70],[15,61,24,69],[3,63,25,78]],
+    'right': [[46,66,80,80],[86,77,116,63],[106,78,126,63]]
+}
+
+
+def cuff(side,view):
+    half=(VIEWS-1)//2
+    segment=min(view//half,1);t=(view-segment*half)/half
+    a,b=np.array(CUFFS[side])[segment:segment+2]
+    ends=(a*(1-t)+b*t).reshape(2,2)
+    return ends.mean(axis=0),(ends[1]-ends[0])/2
+
+
+def shoulder_socket(side,view):
+    angle=math.radians(18 if side=='left' else -18)
+    return cuff(side,view)[0]-np.array([-math.sin(angle),math.cos(angle)])*2.3*TILE/9
+
+
+def open_far_cuff(shirt,view):
+    # The far arm really is behind the chest. Cut the painted back wall out
+    # of its lip so the fitted upper arm can show through, even when lowered.
+    if view==0:return shirt
+    center,lip=cuff('left',view)
+    axis=np.array([-.42,.9075])
+    dx,dy=X-center[0],Y-center[1]
+    cross=lip[0]*axis[1]-lip[1]*axis[0]
+    u=(dx*axis[1]-dy*axis[0])/cross
+    along=(lip[0]*dy-lip[1]*dx)/cross
+    arch=np.sqrt(np.maximum(0,1-u*u))
+    edge=np.clip((1-np.abs(u))*np.linalg.norm(lip),0,1)
+    opening=edge*np.clip(along+4.4*arch-.7,0,1)*np.clip(10+3*arch-along,0,1)
+    return shirt*(1-opening[:,:,None]*min(1,view/20))
 
 
 def fit_body(doc,tiles):
@@ -252,6 +289,28 @@ def fit_body(doc,tiles):
             return mask(leg,np.clip((sy-424+68*cap)/30,0,1)*np.clip((817-sy)/28,0,1))
         return mask(leg,np.clip((sy-761+30*cap)/22,0,1))
     tiles['trousers']=trousers(pelvis)
+    # Rotate the painted waistband around a vertical axis. The fly travels
+    # around the hips while the paint shared with the thigh sockets stays put.
+    cloth=tiles['trousers']
+    waist=np.clip((93-Y)/27,0,1)
+    waist=waist*waist*(3-2*waist)
+    occupied=cloth[:,:,3]>.025
+    edge_l=np.argmax(occupied,axis=1)[:,None]
+    edge_r=TILE-1-np.argmax(occupied[:,::-1],axis=1)[:,None]
+    mid=(edge_l+edge_r)/2
+    radius=np.maximum((edge_r-edge_l)/2,1)
+    for level,angle in enumerate(range(-14,6)):
+        name='trousers' if angle==0 else 'hipYaw'+str(level)
+        a=np.radians(angle)*waist
+        u=(X-mid)/(radius*np.cos(a))
+        # Monotone across the belt: the fly moves most, and both side seams
+        # stay at the edges of that row as the waist foreshortens.
+        sx=mid+radius*(u-np.sin(a)*(1-np.clip(u,-1,1)**2))
+        tiles[name]=sample(cloth,sx,Y)
+        pelvis['variants'].append(dict(image=name,when={'hipTurn':level}))
+    doc['channels']['hipTurn']=[str(a)+'°' for a in range(-14,6)]
+    doc['clip']['tracks']['hipTurn']=[[t,v,'smooth'] for t,v in
+        [(0,1),(.14,1),(1.13,14),(1.82,17),(2.46,14),(3.18,18),(4.08,15),(4.82,13),(5.58,14),(6.52,1),(6.8,1)]]
     def pivot(p):
         a=math.radians(p['rotation']);dy=p['pivot']*p['size']
         return np.array([p['x']-math.sin(a)*dy,p['y']+math.cos(a)*dy])
@@ -286,6 +345,28 @@ def fit_body(doc,tiles):
                 alpha*=np.clip((along-start)*8,0,1)
             skin=mask(sample(anatomy,sx,sy),alpha)
             tiles[p['image']]=skin
+            if suffix!='Shoulder':continue
+            # Register the painted upper-arm edge against the actual lip in
+            # each turn drawing. The rest of the arm eases back into its elbow.
+            # 'along' and 'across' use the same cuff-to-elbow axes as the skin.
+            arm_axis=(pivot(parts[side+end])-pivot(p))/length
+            normal=np.array([arm_axis[1],-arm_axis[0]])
+            core=np.interp(sy,[140,180,202,240,280,360,397],[1202,1195,1189.5,1192,1190,1187.5,1184])
+            radius=np.interp(sy,[140,180,202,240,280,360,397],[102.5,94,82.5,73,68,52.5,57])
+            for view in range(VIEWS):
+                center,lip=cuff(side,view)
+                u=across*TILE/9/np.dot(lip,normal)
+                downstream=along*TILE/9-u*np.dot(lip,arm_axis)
+                blend=np.clip(downstream/27,0,1);blend=blend*blend*(3-2*blend)
+                fitted=core+u*radius*(1 if side=='left' else -1)
+                source_x=fitted*(1-blend)+sx*blend
+                paint=mask(sample(anatomy,source_x,sy),(source_x>1050)&(source_x<1340))
+                dome=np.sqrt(np.maximum(0,1-u*u))
+                edge=downstream+4.4*dome-.7
+                paint[:,:,:3]*=(.80+.20*np.clip(edge/6,0,1))[:,:,None]
+                name=p['image'] if view==VIEWS-1 else p['image']+'Turn'+str(view)
+                tiles[name]=mask(paint,np.clip(edge+.5,0,1)*np.clip((length+.85*cap-along)*12,0,1))
+                p['variants'].append(dict(image=name,when={'view':view}))
     palm=parts['leftHand'];x,y=local(palm);along=y-palm['pivot']*palm['size']
     palm_paint=pixels(Image.open(folder/'wave.webp'))
     tiles['palm']=mask(sample(palm_paint,283-x/.014,132+along/.0113),(along+.42)*5)
@@ -300,19 +381,41 @@ def fit_body(doc,tiles):
         skin=(shirt[:,:,1]-shirt[:,:,0])/(shirt[:,:,3]+1e-6)
         shirts.append(mask(shirt,1-(sy>345)*np.clip((skin+.005)*30,0,1)))
     tracks=doc['clip']['tracks']
-    for side,inset in [('left',2.08),('right',-2.08)]:
-        for key in tracks[side+'Shoulder.x']:key[1]+=inset
-        tracks[side+'Shoulder.y']=[[0,-1.0]]
-        parts[side+'Shoulder']['pivot']=-3.1
-    # In profile the near arm emerges over the shirt, immediately inside its cuff.
-    tracks['rightShoulder.depth']=[[0,6,'step'],[.65,4.5,'step'],[5.99,6,'step']]
-    for key in tracks['rightShoulder.x']:
-        if key[0] in (0,6.8):key[1]-=.25
-    # Counter-rotate the pelvis. The support feet stay planted as the chest leans.
-    tracks['pelvis.rotation']=[[t,-angle] for t,angle in tracks['body.rotation']]
+    for side in ('left','right'):
+        p=parts[side+'Shoulder'];p['pivot']=-3.1
+        base=shoulder_socket(side,0)
+        xy=(base-64)*9/TILE-pivot(p)
+        tracks[p['id']+'.x']=[[0,xy[0]]];tracks[p['id']+'.y']=[[0,xy[1]]]
+        p['registration']=dict(channel='view',offsets=[
+            ((shoulder_socket(side,i)-base)*9/TILE).round(6).tolist() for i in range(VIEWS)])
+    tracks['rightShoulder.depth']=[[0,6,'step']]
+    # A little shoulder-to-hip weight transfer remains after the counter-tilt.
+    tracks['pelvis.rotation']=[[t,-.45*angle] for t,angle in tracks['body.rotation']]
     tracks['body.x']=[[t,pelvis['y']*math.sin(math.radians(angle))] for t,angle in tracks['body.rotation']]
     tracks['body.y']=[[t,pelvis['y']*(1-math.cos(math.radians(angle)))] for t,angle in tracks['body.rotation']]
     lower_body_motion(doc)
+    def smooth_at(keys,t):
+        for (start,a,*_),(end,b,*_) in zip(keys,keys[1:]):
+            if t<=end:
+                u=np.clip((t-start)/(end-start),0,1)
+                return a+(b-a)*u*u*(3-2*u)
+        return keys[-1][1]
+    for side in ('left','right'):
+        hip=parts[side+'Hip'];delta=pivot(hip)-pivot(pelvis)
+        rest=np.array([tracks.get(hip['id']+'.'+axis,[[0,0]])[0][1] for axis in ('x','y')])
+        bend=tracks[hip['id']+'.rotation']
+        # Preserve the existing knee dip and planted leg positions while the
+        # waistband rolls around them. Sample in the rotated pelvis frame.
+        keys={axis:[] for axis in ('x','y')}
+        for t,angle in tracks['body.rotation']:
+            tilt=.55*angle
+            a=math.radians(-tilt);c,s=math.cos(a),math.sin(a)
+            offset=np.array([[c,-s],[s,c]])@(delta+rest)-delta
+            for axis,value in zip(keys,offset):
+                keys[axis].append([t,round(float(value),6),'smooth'])
+        times=sorted(set(k[0] for k in bend+tracks['body.rotation']))
+        keys['rotation']=[[t,round(smooth_at(bend,t)-.55*smooth_at(tracks['body.rotation'],t),6),'smooth'] for t in times]
+        for axis,values in keys.items():tracks[hip['id']+'.'+axis]=values
     return shirts
 
 
@@ -330,7 +433,7 @@ def shirt_skin():
         def at(profile,quarter,front):
             return float(np.interp(view,[0,.5,1],[profile,quarter,front]))
         # Rest sockets are in the same tile coordinates as the arm joints.
-        pivots=[[at(70,50,29),36],[at(54,81,99),36]]
+        pivots=[shoulder_socket(side,index).tolist() for side in ('left','right')]
         # The sewn armhole curves outward at the armpit. Pin the chest-side
         # stitches below it; pulling them with the cuff smears the embroidery.
         curve=ramp((y-48)/33)*11
@@ -341,6 +444,13 @@ def shirt_skin():
         right=ramp((x-seam_right)/18+.48)*lower*top
         # The profile sleeve lies diagonally across the side of the chest.
         right*=ramp((at(91,125,154)-x)/14)
+        for side,weights in [('left',left),('right',right)]:
+            center,lip=cuff(side,index)
+            u=((x-center[0])*lip[0]+(y-center[1])*lip[1])/np.dot(lip,lip)
+            across=np.hypot(x-center[0]-np.clip(u,-1,1)*lip[0],y-center[1]-np.clip(u,-1,1)*lip[1])
+            # A sewn rim moves as one ring with the skin that emerges through it.
+            influence=ramp((10-across)/6)*ramp((1.1-np.abs(u))/.3)*(at(0,.85,1) if side=='left' else 1)
+            np.maximum(weights,influence,out=weights)
         weights=np.uint8(np.round(np.stack([left,right],axis=2)*255))
         views.append(dict(pivots=pivots,weights=base64.b64encode(weights.tobytes()).decode()))
     return dict(viewChannel='view',joints=['leftShoulder','rightShoulder'],intervals=intervals,views=views)
@@ -374,7 +484,7 @@ def bake(doc):
         face=np.clip(turns[0][pair](f),0,1)
         if pair==0:face=far_skin(face,f)
         for part,arr,key,rest in [(head,face,'headTurn',['profile','threeQuarter','front']),
-                                  (body,turns[1][pair](f),'shirtTurn',['torsoProfile','torsoQuarter','torso'])]:
+                                  (body,open_far_cuff(turns[1][pair](f),i),'shirtTurn',['torsoProfile','torsoQuarter','torso'])]:
             name=rest[i//half] if i%half==0 else key+str(i)
             tiles[name]=arr;part['variants'].append(dict(image=name,when={'view':i}))
         frames.append((face,[between(EYES[0]),between(EYES[1]),between(MOUTHS)]))
@@ -402,7 +512,7 @@ def bake(doc):
                 atlas.paste(picture(patch),(x+step*WIDTH,y))
     out=io.BytesIO();atlas.save(out,'WEBP',quality=93,method=5,alpha_quality=100)
     doc['atlas']=dict(tile=TILE,columns=COLUMNS,height=atlas.height,images=list(tiles),src='data:image/webp;base64,'+base64.b64encode(out.getvalue()).decode())
-    doc['interpolated']=['view',*slots];channels=doc['channels'];del channels['blink']
+    doc['interpolated']=['view','hipTurn',*slots];channels=doc['channels'];del channels['blink']
     channels['view']=['Profile',*[f'Angle {i+1} of {VIEWS}' for i in range(1,VIEWS-1)],'Front']
     channels['view'][(VIEWS-1)//2]='Three-quarter'
     for name in slots:

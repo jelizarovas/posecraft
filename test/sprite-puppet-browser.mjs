@@ -27,21 +27,52 @@ try{
   await page.getByText('Opened shirt-check.json').waitFor();
   for(let step=0;step<=20;step++){
     await scrub(step/10);
-    const check=await canvas.evaluate((c,step)=>{
+    const check=await canvas.evaluate((c,{step,pivots})=>{
       const ctx=c.getContext('2d'),fit=Math.min(c.width/14,c.height/12)*9/128;
       function pixel(x,y){return ctx.getImageData(Math.round(c.width/2+(x-64)*fit),Math.round(c.height/2+(y-64)*fit),1,1).data;}
-      const cuffs=[[29,12,Math.min(step,10)*8.4],[99,116,-Math.max(step-10,0)*7.4]];
-      for(const [pivot,rest,angle] of cuffs){
-        const a=angle*Math.PI/180,x=pivot+(rest-pivot)*Math.cos(a)-25*Math.sin(a);
-        const y=36+(rest-pivot)*Math.sin(a)+25*Math.cos(a);
+      const cuffs=[[0,14,Math.min(step,10)*8.4],[1,114,-Math.max(step-10,0)*7.4]];
+      for(const [side,rest,angle] of cuffs){
+        const [px,py]=pivots[side],a=angle*Math.PI/180;
+        const x=px+(rest-px)*Math.cos(a)-(60-py)*Math.sin(a);
+        const y=py+(rest-px)*Math.sin(a)+(60-py)*Math.cos(a);
         for(let n=0;n<=12;n++){
           const t=n/12,p=pixel(x+(64-x)*t,y+(53-y)*t);
           if(p[3]<190||p[0]<=p[1])return {step,x,y,n,rgba:[...p]};
         }
       }
       return null;
-    },step);
+    },{step,pivots:shirt.parts[0].skin.views[48].pivots});
     assert.equal(check,null,JSON.stringify(check));
+  }
+  // With the actual arms restored, skin must fill the width of the opening,
+  // including the inside corners where a narrow, offset arm leaves a dark hole.
+  const original=JSON.parse(await readFile(new URL('../examples/characters/porch-zombie.puppet.json',import.meta.url),'utf8'));
+  shirt.parts=original.parts.filter(p=>p.id==='body'||p.id.endsWith('Shoulder'));
+  shirt.clip={duration:1,loop:false,tracks:{view:[[0,0,'linear'],[1,48,'linear']]}};
+  for(const side of ['left','right'])for(const axis of ['x','y','depth']){
+    const key=side+'Shoulder.'+axis;
+    shirt.clip.tracks[key]=[original.clip.tracks[key][0]];
+  }
+  await page.locator('#open').setInputFiles({name:'cuff-fit.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(shirt))});
+  await page.getByText('Opened cuff-fit.json').waitFor();
+  for(const view of [0,8,16,24,32,40,48]){
+    await scrub(view/48);
+    const missing=await canvas.evaluate((c,view)=>{
+      const ctx=c.getContext('2d'),scale=Math.min(c.width/14,c.height/12)*9/128;
+      const lips=[[[46,66,80,80],[86,77,116,63],[106,78,126,63]]];
+      if(view>=24)lips.push([[54,64,66,70],[15,61,24,69],[3,63,25,78]]);
+      const i=view<24?0:1,f=(view-24*i)/24,missing=[];
+      for(const [side,samples] of lips.entries()){
+        const [x1,y1,x2,y2]=samples[i].map((a,j)=>a+(samples[i+1][j]-a)*f);
+        for(const u of [.2,.35,.5,.65,.8]){
+          const x=x1+(x2-x1)*u+(side?-1.2:1.2),y=y1+(y2-y1)*u+3;
+          const [r,g,,a]=ctx.getImageData(Math.round(c.width/2+(x-64)*scale),Math.round(c.height/2+(y-64)*scale),1,1).data;
+          if(a<220||g<=r)missing.push([side,u]);
+        }
+      }
+      return missing;
+    },view);
+    assert.deepEqual(missing,[],'painted arm fills the cuff at view '+view);
   }
   await page.reload();await page.locator('#track option').first().waitFor({state:'attached'});
   // A correct joint transform alone cannot prove that the painted pieces touch.
