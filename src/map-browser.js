@@ -110,15 +110,97 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   for(const id of [...sceneryArtIds]){const opened=map.art?.images[id]?.opened;if(opened)sceneryArtIds.add(opened);}
   const art=loadMapArt(map,{document:doc,onUpdate:id=>{artRevision++;if(terrainArtIds.has(id))terrain?.clear();if(sceneryArtIds.has(id))scenery?.clear();invalidate();},onError:report});
   function createLayers(){
-    terrain=gpu?createMapGpuTerrain(map,doc,art,{onUpdate:()=>invalidate()}):createMapTerrainChunks(map,doc,art,(ctx,t)=>tile(ctx,map,t,art),{onUpdate:()=>invalidate()});
+    terrain=gpu?createMapGpuTerrain(map,doc,art,{onUpdate:()=>invalidate()}):createMapTerrainChunks(map,doc,art,(ctx,t)=>tile(ctx,map,t,art),{onUpdate:()=>invalidate(),externalWork:true});
     scenery=createMapSceneryChunks(map,doc,{fixedScale:gpu?2:undefined,extraProps:cliffs,drawShadow:(ctx,p)=>{if(shadows)drawMapPropShadow(ctx,map,p,art);},drawProp:(ctx,p,state,fencePart)=>drawProp(ctx,map,p,state,{art,shadow:false,fencePart})});
   }
   createLayers();
   function useCanvasFallback(reason){
-    if(!gpu)return;rendererFallback=reason;gpu.dispose();gpu=null;gpuCanvas.remove();terrain.dispose();scenery.dispose();createLayers();invalidate();
+    if(!gpu)return;rendererFallback=reason;cancelBgWork();gpu.dispose();gpu=null;gpuCanvas.remove();terrain.dispose();scenery.dispose();createLayers();invalidate();
   }
   const drawList=scenery.drawList,cachedOcclusion=new MapOcclusionIndex(map,[...map.props,...cliffs],scenery.worldBounds);
-  let cachedView=null,cachedViewRect=null,latestRect=null,viewQueries=0,pickActors=[];
+  const terraceOffsets=map.terraces?.length?(()=>{const offsets=new Uint8Array(map.width*map.height);for(const t of map.terraces)for(let y=t.y;y<t.y+t.height;y++)for(let x=t.x;x<t.x+t.width;x++){const i=y*map.width+x;if(t.heightOffset>offsets[i])offsets[i]=t.heightOffset;}return offsets;})():null;
+  let cachedView=null,cachedViewRect=null,cachedRectArea=0,latestRect=null,viewQueries=0,pickActors=[],cachedCounts=null,cachedCountsFrame=-1;
+  let lodFrozen=false,zoomThawTimer=0,ambientTimer=0,ambientFrame=0,ambientActive=false,lastRenderStart=-Infinity;
+  let bgScheduled=false,bgVisualPending=false,lastBgPaintAt=0,bgTimer=0;
+  // Ambient-only redraws target ~30 Hz. The wake precedes the next vsync, so a
+  // full 33.3 ms delay would round up to every third 60 Hz frame (20 Hz).
+  const AMBIENT_INTERVAL_MS=29,ZOOM_THAW_MS=150,BG_COALESCE_MS=120;
+  const bgChannel=typeof win.MessageChannel==='function'?new win.MessageChannel():null;
+  function cancelBgWork(){bgScheduled=false;if(bgTimer){win.clearTimeout(bgTimer);bgTimer=0;}}
+  function cancelAmbient(){if(ambientTimer){win.clearTimeout(ambientTimer);ambientTimer=0;}if(ambientFrame){win.cancelAnimationFrame(ambientFrame);ambientFrame=0;}}
+  function scheduleAmbient(){
+    if(disposed||!visible||doc.hidden||!playing||!ambientActive||raf||ambientTimer||ambientFrame||bgScheduled)return;
+    if(!lodFrozen&&(terrain.needsBackgroundWork?.()||scenery.needsBackgroundWork?.()))return;
+    // Timers are coarse (~15.6 ms on Windows), so sleep until shortly before the
+    // next ambient frame and finish on vsync. A due check draws in that same
+    // callback instead of requesting one more frame.
+    const wait=AMBIENT_INTERVAL_MS-(performance.now()-lastRenderStart);
+    if(wait>24)ambientTimer=win.setTimeout(()=>{ambientTimer=0;ambientFrame=win.requestAnimationFrame(ambientDue);},wait-20);
+    else ambientFrame=win.requestAnimationFrame(ambientDue);
+  }
+  function ambientDue(now){
+    ambientFrame=0;
+    if(disposed||!visible||doc.hidden||!playing||!ambientActive||raf)return;
+    if(performance.now()-lastRenderStart<AMBIENT_INTERVAL_MS){ambientFrame=win.requestAnimationFrame(ambientDue);return;}
+    dirty=true;tick(now);
+  }
+  function markZoomGesture(){
+    if(drawnFrames===0)return;
+    lodFrozen=true;cancelBgWork();
+    win.clearTimeout(zoomThawTimer);
+    zoomThawTimer=win.setTimeout(()=>{zoomThawTimer=0;lodFrozen=false;if(!disposed)invalidate();},ZOOM_THAW_MS);
+  }
+  function runBgSlice(){
+    bgScheduled=false;
+    if(disposed||!visible||doc.hidden||lodFrozen)return;
+    const terrainNeeds=!!terrain.needsBackgroundWork?.(),sceneryNeeds=!!scenery.needsBackgroundWork?.();
+    if(!terrainNeeds&&!sceneryNeeds)return;
+    const sliceBudgetMs=following||pointers.size?3:10,started=performance.now();
+    let visual=false;
+    if(terrainNeeds){const res=terrain.work(sceneryNeeds?sliceBudgetMs*.65:sliceBudgetMs);if(res?.visualProgress)visual=true;}
+    if(sceneryNeeds){const res=scenery.work(Math.max(.5,sliceBudgetMs-(performance.now()-started)));if(res?.visualProgress)visual=true;}
+    const stillPending=!!terrain.needsBackgroundWork?.()||!!scenery.needsBackgroundWork?.();
+    if(visual)bgVisualPending=true;
+    const now=performance.now();
+    if(!stillPending){bgVisualPending=false;lastBgPaintAt=now;invalidate();return;}
+    if(bgVisualPending&&now-lastBgPaintAt>=BG_COALESCE_MS){bgVisualPending=false;lastBgPaintAt=now;invalidate();}
+    scheduleBgWork();
+  }
+  if(bgChannel)bgChannel.port1.onmessage=()=>{if(!bgScheduled)return;runBgSlice();};
+  function scheduleBgWork(){
+    if(disposed||!visible||doc.hidden||lodFrozen||bgScheduled)return;
+    if(!terrain.needsBackgroundWork?.()&&!scenery.needsBackgroundWork?.())return;
+    bgScheduled=true;
+    if(bgChannel)bgChannel.port2.postMessage(null);
+    else bgTimer=win.setTimeout(()=>{bgTimer=0;runBgSlice();},0);
+  }
+  function countVisible(rect,view){
+    const rx0=rect.x,ry0=rect.y,rx1=rect.x+rect.width,ry1=rect.y+rect.height;
+    const tw=map.tileSize.width,th=map.tileSize.height,halfW=tw/2,halfH=th/2;
+    const elev=map.elevations,stride=map.width+1,w=map.width,tiles=view.tiles;
+    let visibleTiles=0;
+    if(elev||terraceOffsets){
+      for(let i=0;i<tiles.length;i++){
+        const t=tiles[i],x=t.x,y=t.y,left=(x-y-1)*halfW,right=(x-y+1)*halfW;
+        if(right<rx0||left>rx1)continue;
+        const off=terraceOffsets?terraceOffsets[y*w+x]:0,base=(x+y)*halfH;
+        let a=base-off*th,b=a+halfH,c=a+th,d=b;
+        if(elev){const idx=y*stride+x;a-=elev[idx]*th;b-=elev[idx+1]*th;c-=elev[idx+stride+1]*th;d-=elev[idx+stride]*th;}
+        if(Math.max(a,b,c,d)>=ry0&&Math.min(a,b,c,d)<=ry1)visibleTiles++;
+      }
+    }else{
+      for(let i=0;i<tiles.length;i++){
+        const t=tiles[i],px=(t.x-t.y)*halfW,py=(t.x+t.y+1)*halfH;
+        if(px+halfW>=rx0&&px-halfW<=rx1&&py+halfH>=ry0&&py-halfH<=ry1)visibleTiles++;
+      }
+    }
+    let visibleProps=0;const props=view.props,artBounds=index.artBounds;
+    for(let i=0;i<props.length;i++){
+      const b=artBounds.get(props[i].id);
+      if(b&&b.x+b.width>=rx0&&b.y+b.height>=ry0&&b.x<=rx1&&b.y<=ry1)visibleProps++;
+    }
+    return{visibleTiles,visibleProps};
+  }
   const scratch=Array.from({length:4},()=>{const canvas=doc.createElement('canvas');canvas.width=canvas.height=1;return{canvas,ctx:canvas.getContext('2d')};});
   const [body,mask,silhouette,reveal]=scratch;
   const bodyOnly=[body,mask],withSilhouette=[body,mask,silhouette];
@@ -137,8 +219,8 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     const w=right-left,h=bottom-top;
     const scale=dpr*zoom,offsetX=dpr*(width/2-camera.x*zoom)-left,offsetY=dpr*(height/2-camera.y*zoom)-top;
     for(const buffer of buffers){
-      if(buffer.canvas.width!==w)buffer.canvas.width=w;
-      if(buffer.canvas.height!==h)buffer.canvas.height=h;
+      if(buffer.canvas.width<w||buffer.canvas.width>Math.max(w*2,256))buffer.canvas.width=Math.min(canvas.width,Math.max(1,Math.ceil(w/128)*128));
+      if(buffer.canvas.height<h||buffer.canvas.height>Math.max(h*2,256))buffer.canvas.height=Math.min(canvas.height,Math.max(1,Math.ceil(h/128)*128));
       buffer.ctx.setTransform(1,0,0,1,0,0);
       buffer.ctx.globalCompositeOperation='source-over';
       buffer.ctx.clearRect(0,0,w,h);
@@ -148,7 +230,7 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     if(showSilhouette)drawActor(silhouette.ctx,actor,{shadow:false});
     for(const prop of foreground.silhouetteProps)drawProp(mask.ctx,map,prop,objects?.[prop.id],{shadow:false,art});
     for(const buffer of buffers)buffer.ctx.setTransform(1,0,0,1,0,0);
-    if(splitMask)reveal.ctx.drawImage(mask.canvas,0,0);
+    if(splitMask)reveal.ctx.drawImage(mask.canvas,0,0,w,h,0,0,w,h);
     if(hasCrops){
       const definition=definitions.get(actor.id);
       const base=projectMap(map,actor).y-(actor.lift||0)*map.tileSize.height;
@@ -166,12 +248,12 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
         }
       }
     }
-    body.ctx.globalCompositeOperation='destination-out';body.ctx.drawImage(mask.canvas,0,0);
-    ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(body.canvas,left,top);
+    body.ctx.globalCompositeOperation='destination-out';body.ctx.drawImage(mask.canvas,0,0,w,h,0,0,w,h);
+    ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(body.canvas,0,0,w,h,left,top,w,h);
     if(showSilhouette){
       silhouette.ctx.globalCompositeOperation='source-in';silhouette.ctx.fillStyle='#e7f4c5';silhouette.ctx.fillRect(0,0,w,h);
-      silhouette.ctx.globalCompositeOperation='destination-in';silhouette.ctx.drawImage(splitMask?reveal.canvas:mask.canvas,0,0);
-      ctx.globalAlpha=.66;ctx.drawImage(silhouette.canvas,left,top);
+      silhouette.ctx.globalCompositeOperation='destination-in';silhouette.ctx.drawImage(splitMask?reveal.canvas:mask.canvas,0,0,w,h,0,0,w,h);
+      ctx.globalAlpha=.66;ctx.drawImage(silhouette.canvas,0,0,w,h,left,top,w,h);
     }
     ctx.restore();
     return scratch.reduce((pixels,buffer)=>pixels+buffer.canvas.width*buffer.canvas.height,0);
@@ -179,22 +261,24 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   function toWorld(x,y){return{x:(x-width/2)/zoom+camera.x,y:(y-height/2)/zoom+camera.y};}
   function screenToMap(x,y){return unprojectMap(map,toWorld(x,y));}
   function mapToScreen(point){const p=projectMap(map,point);return{x:(p.x-camera.x)*zoom+width/2,y:(p.y-camera.y)*zoom+height/2};}
-  function render(now=0){const paintStart=performance.now(),rect={x:camera.x-width/(2*zoom),y:camera.y-height/(2*zoom),width:width/zoom,height:height/zoom},dpr=pixelRatio();latestRect=rect;
-    const contains=cachedViewRect&&rect.x>=cachedViewRect.x&&rect.y>=cachedViewRect.y&&rect.x+rect.width<=cachedViewRect.x+cachedViewRect.width&&rect.y+rect.height<=cachedViewRect.y+cachedViewRect.height;
-    if(!contains){const padX=Math.max(48/zoom,rect.width*.35),padY=Math.max(48/zoom,rect.height*.35);cachedViewRect={x:rect.x-padX,y:rect.y-padY,width:rect.width+padX*2,height:rect.height+padY*2};cachedView=index.visible(cachedViewRect,0);viewQueries++;}
+  function render(now=0){const paintStart=performance.now(),rect={x:camera.x-width/(2*zoom),y:camera.y-height/(2*zoom),width:width/zoom,height:height/zoom},dpr=pixelRatio();latestRect=rect;lastRenderStart=paintStart;lastBgPaintAt=paintStart;
+    const rectArea=rect.width*rect.height;
+    const contains=cachedViewRect&&rect.x>=cachedViewRect.x&&rect.y>=cachedViewRect.y&&rect.x+rect.width<=cachedViewRect.x+cachedViewRect.width&&rect.y+rect.height<=cachedViewRect.y+cachedViewRect.height&&(rectArea>=cachedViewRect.width*cachedViewRect.height*.15||rectArea>=cachedRectArea*.5);
+    if(!contains){const padX=Math.max(48/zoom,rect.width*.35),padY=Math.max(48/zoom,rect.height*.35);cachedViewRect={x:rect.x-padX,y:rect.y-padY,width:rect.width+padX*2,height:rect.height+padY*2};cachedRectArea=rectArea;cachedView=index.visible(cachedViewRect,0);viewQueries++;}
     const view=cachedView,frame=controller.visibleFrame(rect,view.props,{routeActor:map.actors[0]?.id??null});
     ctx.setTransform(1,0,0,1,0,0);if(gpu)ctx.clearRect(0,0,canvas.width,canvas.height);else{ctx.fillStyle='#dae4d4';ctx.fillRect(0,0,canvas.width,canvas.height);}ctx.setTransform(dpr*zoom,0,0,dpr*zoom,dpr*(width/2-camera.x*zoom),dpr*(height/2-camera.y*zoom));
+    const prepDeadline=performance.now()+1,prepBudget={hasTime:()=>performance.now()<prepDeadline};
     let animatedRiver;
     if(gpu)try{
       gpu.begin({width,height,dpr,camera,zoom});
       terrain.draw(gpu,view.tiles,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height,view:rect});
       animatedRiver=drawGpuRiver(gpu,map,view.tiles,rect,now/1000,{reduced:reduced()});if(showRoute)drawGpuRoute(gpu,map,frame,rect,{zoom,time:now,reduced:reduced()});
-      scenery.draw(gpu,rect,frame.objects,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height});gpu.end();
+      scenery.draw(gpu,rect,frame.objects,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height,budget:prepBudget,freezeLod:false});gpu.end();
     }catch(error){useCanvasFallback(error.message);return render(now);}
     else{
-      terrain.draw(ctx,view.tiles,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height,view:rect});
+      terrain.draw(ctx,view.tiles,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height,view:rect,budget:prepBudget,freezeLod:lodFrozen});
       animatedRiver=drawRiverWater(ctx,map,view.tiles,rect,now/1000,{reduced:reduced()});if(showRoute)drawMapRoute(ctx,map,frame,rect,{zoom,time:now,reduced:reduced()});
-      scenery.draw(ctx,rect,frame.objects,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height});
+      scenery.draw(ctx,rect,frame.objects,{scale:dpr*zoom,viewportPixels:canvas.width*canvas.height,budget:prepBudget,freezeLod:lodFrozen});
     }
     animationTime=now/1000;
     const actors=frame.actors.filter(a=>{const bounds=actorBounds(a);return bounds.x<rect.x+rect.width&&bounds.x+bounds.width>rect.x&&bounds.y<rect.y+rect.height&&bounds.y+bounds.height>rect.y;});
@@ -210,21 +294,23 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     visibleNpcAnimation ||= !reduced()&&(animatedFalls>0||animatedRiver>0||animatedBirds);
     const terrainCache=terrain.stats(),sceneryCache=scenery.stats();drawnFrames++;lastStats={renderer:gpu?'webgl2':'canvas2d',rendererFallback,gpu:gpu?.stats()??null,visibleTiles:view.tiles.length,visibleProps:view.props.length,visibleActors:actors.length,candidateActors:frame.candidateActors,candidateRouteSegments:frame.candidateRouteSegments,occlusionCandidates,maskedActors,scratchPixels,art:art.stats(),totalTiles:map.width*map.height,totalProps:map.props.length,drawnFrames,terrainBuilds:terrainCache.builds,sceneryBuilds:sceneryCache.builds,viewQueries,terrainCache,sceneryCache,paintMs:performance.now()-paintStart,backingWidth:canvas.width,backingHeight:canvas.height,camera:{...camera,zoom,tracking:cameraTracking()},...view.stats};
     const statusText=`${view.tiles.length.toLocaleString()} / ${(map.width*map.height).toLocaleString()} tiles · ${view.props.length} / ${map.props.length} props in view`;if(status.textContent!==statusText)status.textContent=statusText;
-    // Terrain work schedules its own bounded tasks and invalidates on progress.
-    // Repainting an unchanged pending chunk only competes with that work.
-    dirty=sceneryCache.pending||(playing&&visibleNpcAnimation);
+    // Chunk preparation runs in shared background slices with coalesced repaints,
+    // and ambient-only animation is paced to ~30 Hz outside active interaction.
+    ambientActive=playing&&visibleNpcAnimation&&!reduced();
+    dirty=false;
+    if(!lodFrozen)scheduleBgWork();
   }
-  function schedule(){if(!disposed&&!raf&&visible&&!doc.hidden&&dirty)raf=win.requestAnimationFrame(tick);}
-  function tick(now){raf=0;if(disposed||!visible||doc.hidden){last=null;return;}const dt=last===null?0:Math.min((now-last)/1000,.05);last=now;if(playing&&controller.isMoving){controller.advance(dt);dirty=true;}const cameraMoving=updateCamera(dt||1/60);if(cameraMoving)dirty=true;if(dirty)render(now);if(playing&&controller.isMoving||cameraMoving)dirty=true;schedule();if(!raf)last=null;}
-  function invalidate(){dirty=true;schedule();}
+  function schedule(){if(!disposed&&!raf&&visible&&!doc.hidden&&dirty){cancelAmbient();raf=win.requestAnimationFrame(tick);}}
+  function tick(now){raf=0;if(disposed||!visible||doc.hidden){last=null;cancelAmbient();cancelBgWork();return;}const dt=last===null?0:Math.min((now-last)/1000,.05);last=now;if(playing&&controller.isMoving){controller.advance(dt);dirty=true;}const cameraMoving=updateCamera(dt||1/60);if(cameraMoving)dirty=true;if(dirty)render(now);if(playing&&controller.isMoving||cameraMoving){dirty=true;schedule();}else if(ambientActive&&!dirty)scheduleAmbient();if(!raf)last=null;}
+  function invalidate(){cancelAmbient();dirty=true;schedule();}
   function resize(){const r=element.getBoundingClientRect();width=Math.max(1,r.width);height=Math.max(1,r.height);const dpr=pixelRatio();const nextWidth=Math.round(width*dpr),nextHeight=Math.round(height*dpr);if(canvas.width!==nextWidth)canvas.width=nextWidth;if(canvas.height!==nextHeight)canvas.height=nextHeight;cachedViewRect=null;invalidate();}
-  const resizeObserver=new ResizeObserver(resize);resizeObserver.observe(element);const intersection=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;last=null;if(!visible){win.cancelAnimationFrame(raf);raf=0;}else invalidate();});intersection.observe(element);
-  const visibility=()=>{last=null;if(doc.hidden){win.cancelAnimationFrame(raf);raf=0;}else invalidate();};doc.addEventListener('visibilitychange',visibility);media?.addEventListener('change',invalidate);
+  const resizeObserver=new ResizeObserver(resize);resizeObserver.observe(element);const intersection=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;last=null;if(!visible){win.cancelAnimationFrame(raf);raf=0;cancelAmbient();cancelBgWork();win.clearTimeout(birdWakeTimer);birdWakeTimer=0;}else invalidate();});intersection.observe(element);
+  const visibility=()=>{last=null;if(doc.hidden){win.cancelAnimationFrame(raf);raf=0;cancelAmbient();cancelBgWork();win.clearTimeout(birdWakeTimer);birdWakeTimer=0;}else invalidate();};doc.addEventListener('visibilitychange',visibility);media?.addEventListener('change',invalidate);
   function moveTo(actorId,target,options){if(disposed)return Promise.reject(Error('Map view is disposed.'));dirty=true;schedule();try{return Promise.resolve(controller.moveTo(actorId,target,options)).finally(invalidate);}catch(error){return Promise.reject(error);}}
   const pointers=new Map();let gesture=null,lastTap=null;
   const local=e=>{const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};
   function pointerDown(e){if(e.button!==0&&e.pointerType!=='touch')return;canvas.focus({preventScroll:true});const p=local(e);pointers.set(e.pointerId,p);canvas.setPointerCapture(e.pointerId);gesture={time:performance.now(),point:p,start:p,camera:{...camera},moved:pointers.size>1};if(pointers.size===2){lastTap=null;const [a,b]=[...pointers.values()];gesture.pinch={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom,world:toWorld((a.x+b.x)/2,(a.y+b.y)/2)};}}
-  function pointerMove(e){if(!pointers.has(e.pointerId)||!gesture)return;const p=local(e);pointers.set(e.pointerId,p);if(pointers.size===2&&gesture.pinch){const[a,b]=[...pointers.values()],pinch=gesture.pinch;zoom=clamp(pinch.zoom*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.distance),.45,5);cachedViewRect=null;camera={x:pinch.world.x-((a.x+b.x)/2-width/2)/zoom,y:pinch.world.y-((a.y+b.y)/2-height/2)/zoom};gesture.moved=true;lastTap=null;stopFollowing();}else{const dx=p.x-gesture.start.x,dy=p.y-gesture.start.y;if(Math.hypot(dx,dy)>4){gesture.moved=true;lastTap=null;stopFollowing();}if(!gesture.moved)return;camera={x:gesture.camera.x-dx/zoom,y:gesture.camera.y-dy/zoom};}invalidate();}
+  function pointerMove(e){if(!pointers.has(e.pointerId)||!gesture)return;const p=local(e);pointers.set(e.pointerId,p);if(pointers.size===2&&gesture.pinch){const[a,b]=[...pointers.values()],pinch=gesture.pinch;const nextZoom=clamp(pinch.zoom*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.distance),.45,5);if(nextZoom!==zoom){zoom=nextZoom;markZoomGesture();}camera={x:pinch.world.x-((a.x+b.x)/2-width/2)/zoom,y:pinch.world.y-((a.y+b.y)/2-height/2)/zoom};gesture.moved=true;lastTap=null;stopFollowing();}else{const dx=p.x-gesture.start.x,dy=p.y-gesture.start.y;if(Math.hypot(dx,dy)>4){gesture.moved=true;lastTap=null;stopFollowing();}if(!gesture.moved)return;camera={x:gesture.camera.x-dx/zoom,y:gesture.camera.y-dy/zoom};}invalidate();}
   const hitCanvas=doc.createElement('canvas');hitCanvas.width=hitCanvas.height=1;const hitContext=hitCanvas.getContext('2d',{willReadFrequently:true});
   function hitsDrawing(world,draw){
     if(!hitContext)return false;
@@ -286,7 +372,7 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     return entry.item;
   }return null;}
   function pointerUp(e){if(!pointers.has(e.pointerId))return;if(e.type==='pointercancel'||e.type==='lostpointercapture')lastTap=null;const click=gesture&&!gesture.moved&&pointers.size===1&&e.type==='pointerup',p=local(e);pointers.delete(e.pointerId);if(click&&map.actors[0]){const actor=controller.actorPosition(map.actors[0].id),now=performance.now(),doubleTap=lastTap&&now-lastTap.time<340&&Math.hypot(p.x-lastTap.x,p.y-lastTap.y)<28,run=movementMode==='run'||movementMode==='auto'&&(e.shiftKey||doubleTap||actor.gait==='run');const animal=hitAnimal(p),prop=animal?null:hitProp(p),target=animal?animalApproach(animal,actor):screenToMap(p.x,p.y),destination=doubleTap&&movementMode==='auto'?lastTap.target:prop?.id||(map.navigation?.mode==='continuous'?target:{x:Math.floor(target.x),y:Math.floor(target.y)});lastTap=run?null:{...p,time:now,target:destination};const turn=e.altKey||now-gesture.time>=400||(!prop&&!run&&map.navigation?.mode==='continuous'&&Math.hypot(target.x-actor.x,target.y-actor.y)<.3);(turn?controller.faceTo(actor.id,target):moveTo(actor.id,destination,{gait:run?'run':'walk'})).catch(report);}if(pointers.size){const point=[...pointers.values()][0];gesture={point,start:point,camera:{...camera},moved:true};}else gesture=null;}
-  function wheel(e){e.preventDefault();const p=following?{x:width/2,y:height/2}:local(e),before=toWorld(p.x,p.y);zoom=clamp(zoom*Math.exp(-e.deltaY*.001),.45,5);cachedViewRect=null;camera={x:before.x-(p.x-width/2)/zoom,y:before.y-(p.y-height/2)/zoom};invalidate();}
+  function wheel(e){e.preventDefault();const p=following?{x:width/2,y:height/2}:local(e),before=toWorld(p.x,p.y);const nextZoom=clamp(zoom*Math.exp(-e.deltaY*.001),.45,5);if(nextZoom!==zoom){zoom=nextZoom;markZoomGesture();}camera={x:before.x-(p.x-width/2)/zoom,y:before.y-(p.y-height/2)/zoom};invalidate();}
   function notifyCamera(){try{onCameraChange?.(cameraTracking());}catch(error){report(error);}}
   function followActor(id){controller.actorPosition(id);trackedActor=id;following=true;notifyCamera();invalidate();}
   function stopFollowing(){if(!following)return;following=false;notifyCamera();invalidate();}
@@ -300,7 +386,7 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     camera={x:camera.x+dx*amount,y:camera.y+dy*amount};return true;
   }
   function focusActor(id){const actor=controller.actorPosition(id);if(!actor)throw Error(`Unknown map actor: ${id}`);stopFollowing();camera=projectMap(map,{x:actor.x,y:actor.y});invalidate();}
-  function keydown(e){if(e.key.startsWith('Arrow'))stopFollowing();const amount=(e.shiftKey?120:40)/zoom;if(e.key==='ArrowLeft')camera.x-=amount;else if(e.key==='ArrowRight')camera.x+=amount;else if(e.key==='ArrowUp')camera.y-=amount;else if(e.key==='ArrowDown')camera.y+=amount;else if(e.key==='Enter'&&map.actors[0])followActor(trackedActor||map.actors[0].id);else if(e.key==='+'||e.key==='='){zoom=clamp(zoom*1.15,.45,5);cachedViewRect=null;}else if(e.key==='-'){zoom=clamp(zoom/1.15,.45,5);cachedViewRect=null;}else return;e.preventDefault();invalidate();}
+  function keydown(e){if(e.key.startsWith('Arrow'))stopFollowing();const amount=(e.shiftKey?120:40)/zoom;if(e.key==='ArrowLeft')camera.x-=amount;else if(e.key==='ArrowRight')camera.x+=amount;else if(e.key==='ArrowUp')camera.y-=amount;else if(e.key==='ArrowDown')camera.y+=amount;else if(e.key==='Enter'&&map.actors[0])followActor(trackedActor||map.actors[0].id);else if(e.key==='+'||e.key==='='){const nextZoom=clamp(zoom*1.15,.45,5);if(nextZoom!==zoom){zoom=nextZoom;markZoomGesture();}}else if(e.key==='-'){const nextZoom=clamp(zoom/1.15,.45,5);if(nextZoom!==zoom){zoom=nextZoom;markZoomGesture();}}else return;e.preventDefault();invalidate();}
   function preferences(){return{movementMode,followOnMove,maxPixelRatio,shadows,showRoute,reducedMotion};}
   function setPreferences(options){
     if(disposed)throw Error('Map view is disposed.');
@@ -313,5 +399,5 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     resize();return preferences();
   }
   const listeners={pointerdown:pointerDown,pointermove:pointerMove,pointerup:pointerUp,pointercancel:pointerUp,lostpointercapture:pointerUp,keydown};for(const [name,listener]of Object.entries(listeners))canvas.addEventListener(name,listener);canvas.addEventListener('wheel',wheel,{passive:false});setPreferences({});
-  return{controller,preferences,setPreferences,ready:art.ready,setActorPresentation,moveTo,screenToMap,mapToScreen,panTo(x,y){if(!Number.isFinite(x)||!Number.isFinite(y))throw TypeError('Map coordinates must be finite.');stopFollowing();camera=projectMap(map,{x,y});invalidate();},zoomTo(value){if(!Number.isFinite(value))throw TypeError('Map zoom must be finite.');zoom=clamp(value,.45,5);cachedViewRect=null;invalidate();},focusActor,followActor,stopFollowing,cameraTracking,snapshot:()=>({format:'posecraft-map-view-state',version:1,camera:{...camera,zoom,tracking:cameraTracking()},scene:controller.snapshot()}),async restore(state){if(state?.format!=='posecraft-map-view-state'||state.version!==1||!state.camera||!Number.isFinite(state.camera.x)||!Number.isFinite(state.camera.y)||!Number.isFinite(state.camera.zoom)||state.camera.zoom<.45||state.camera.zoom>5)throw TypeError('Invalid map view snapshot.');const tracking=state.camera.tracking;if(tracking!==undefined&&(!tracking||typeof tracking.following!=='boolean'||tracking.actor!==null&&!definitions.has(tracking.actor)||tracking.following&&tracking.actor===null))throw TypeError('Invalid camera tracking state.');await controller.restore(state.scene);trackedActor=tracking?.actor??null;following=tracking?.following??false;notifyCamera();camera={x:state.camera.x,y:state.camera.y};zoom=state.camera.zoom;cachedViewRect=null;scenery.clear();invalidate();},play(){playing=true;last=null;invalidate();},pause(){playing=false;last=null;win.cancelAnimationFrame(raf);raf=0;if(dirty)schedule();},stats:()=>{const actual=latestRect&&index.visible(latestRect,0);if(!Object.hasOwn(lastStats,'scratchPixels'))return{scratchPixels:0,backingWidth:canvas.width,backingHeight:canvas.height,...actual?.stats};return{...lastStats,cachedTiles:lastStats.visibleTiles,cachedProps:lastStats.visibleProps,visibleTiles:actual.tiles.length,visibleProps:actual.props.length,...actual.stats};},dispose(){if(disposed)return;disposed=true;win.cancelAnimationFrame(raf);raf=0;resizeObserver.disconnect();intersection.disconnect();doc.removeEventListener('visibilitychange',visibility);media?.removeEventListener('change',invalidate);for(const[name,listener]of Object.entries(listeners))canvas.removeEventListener(name,listener);canvas.removeEventListener('wheel',wheel);win.clearTimeout(birdWakeTimer);gpu?.dispose();gpuCanvas.remove();controller.dispose();birds.dispose();art.dispose();terrain.dispose();scenery.dispose();for(const buffer of scratch)buffer.canvas.width=buffer.canvas.height=1;canvas.width=canvas.height=1;canvas.remove();status.remove();element.style.position=originalPosition;}};
+  return{controller,preferences,setPreferences,ready:art.ready,setActorPresentation,moveTo,screenToMap,mapToScreen,panTo(x,y){if(!Number.isFinite(x)||!Number.isFinite(y))throw TypeError('Map coordinates must be finite.');stopFollowing();camera=projectMap(map,{x,y});invalidate();},zoomTo(value){if(!Number.isFinite(value))throw TypeError('Map zoom must be finite.');const nextZoom=clamp(value,.45,5);if(nextZoom!==zoom){zoom=nextZoom;markZoomGesture();}invalidate();},focusActor,followActor,stopFollowing,cameraTracking,snapshot:()=>({format:'posecraft-map-view-state',version:1,camera:{...camera,zoom,tracking:cameraTracking()},scene:controller.snapshot()}),async restore(state){if(state?.format!=='posecraft-map-view-state'||state.version!==1||!state.camera||!Number.isFinite(state.camera.x)||!Number.isFinite(state.camera.y)||!Number.isFinite(state.camera.zoom)||state.camera.zoom<.45||state.camera.zoom>5)throw TypeError('Invalid map view snapshot.');const tracking=state.camera.tracking;if(tracking!==undefined&&(!tracking||typeof tracking.following!=='boolean'||tracking.actor!==null&&!definitions.has(tracking.actor)||tracking.following&&tracking.actor===null))throw TypeError('Invalid camera tracking state.');await controller.restore(state.scene);trackedActor=tracking?.actor??null;following=tracking?.following??false;notifyCamera();camera={x:state.camera.x,y:state.camera.y};zoom=state.camera.zoom;win.clearTimeout(zoomThawTimer);zoomThawTimer=0;lodFrozen=false;cancelBgWork();cachedViewRect=null;scenery.clear();invalidate();},play(){playing=true;last=null;invalidate();},pause(){playing=false;last=null;cancelAmbient();win.clearTimeout(birdWakeTimer);birdWakeTimer=0;win.cancelAnimationFrame(raf);raf=0;if(dirty)schedule();},stats(options){const exact=options?.exact===true;if(exact&&latestRect){const actual=index.visible(latestRect,0);if(!Object.hasOwn(lastStats,'scratchPixels'))return{scratchPixels:0,backingWidth:canvas.width,backingHeight:canvas.height,art:art.stats(),terrainCache:terrain.stats(),sceneryCache:scenery.stats(),...actual.stats};const tc=terrain.stats(),sc=scenery.stats();return{...lastStats,art:art.stats(),gpu:gpu?.stats()??null,terrainBuilds:tc.builds,sceneryBuilds:sc.builds,terrainCache:tc,sceneryCache:sc,cachedTiles:lastStats.visibleTiles,cachedProps:lastStats.visibleProps,visibleTiles:actual.tiles.length,visibleProps:actual.props.length,...actual.stats};}if(!Object.hasOwn(lastStats,'scratchPixels'))return{scratchPixels:0,backingWidth:canvas.width,backingHeight:canvas.height,art:art.stats(),terrainCache:terrain.stats(),sceneryCache:scenery.stats()};if(cachedCountsFrame!==drawnFrames&&latestRect&&cachedView){cachedCounts=countVisible(latestRect,cachedView);cachedCountsFrame=drawnFrames;}const tc=terrain.stats(),sc=scenery.stats();return{...lastStats,art:art.stats(),gpu:gpu?.stats()??null,terrainBuilds:tc.builds,sceneryBuilds:sc.builds,terrainCache:tc,sceneryCache:sc,cachedTiles:lastStats.visibleTiles,cachedProps:lastStats.visibleProps,visibleTiles:cachedCounts?cachedCounts.visibleTiles:lastStats.visibleTiles,visibleProps:cachedCounts?cachedCounts.visibleProps:lastStats.visibleProps};},dispose(){if(disposed)return;disposed=true;win.cancelAnimationFrame(raf);raf=0;cancelAmbient();cancelBgWork();bgChannel?.port1.close();bgChannel?.port2.close();win.clearTimeout(zoomThawTimer);zoomThawTimer=0;resizeObserver.disconnect();intersection.disconnect();doc.removeEventListener('visibilitychange',visibility);media?.removeEventListener('change',invalidate);for(const[name,listener]of Object.entries(listeners))canvas.removeEventListener(name,listener);canvas.removeEventListener('wheel',wheel);win.clearTimeout(birdWakeTimer);gpu?.dispose();gpuCanvas.remove();controller.dispose();birds.dispose();art.dispose();terrain.dispose();scenery.dispose();for(const buffer of scratch)buffer.canvas.width=buffer.canvas.height=1;canvas.width=canvas.height=1;canvas.remove();status.remove();element.style.position=originalPosition;}};
 }

@@ -1,8 +1,11 @@
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const cache=new WeakMap();
+// Maps without terraces share these values so the identity check below can hit.
+// A fresh `[]` per call made every lookup rebuild all cells and edges.
+const NO_TERRACES=Object.freeze([]),FLAT_LEVELS=Object.freeze([0]);
 
 function data(map){
- const terraces=map.terraces||[];
+ const terraces=map.terraces||NO_TERRACES;
  let value=cache.get(map);
  if(value?.terraces===terraces&&value.width===map.width&&value.height===map.height)return value;
  const offsets=new Uint8Array(map.width*map.height);
@@ -20,9 +23,10 @@ export function terrainHeightOffset(map,point){
  return data(map).offsets[y*map.width+x];
 }
 
-export function terraceLevels(map){return data(map).levels;}
+export function terraceLevels(map){return map.terraces?.length?data(map).levels:FLAT_LEVELS;}
 
-function smoothHeight(map,point){
+/** Elevation without terrace offsets. */
+export function smoothHeight(map,point){
  if(!map.elevations)return 0;
  const px=clamp(point.x,0,map.width),py=clamp(point.y,0,map.height),x=Math.min(map.width-1,Math.floor(px)),y=Math.min(map.height-1,Math.floor(py));
  const fx=px-x,fy=py-y,stride=map.width+1,i=y*stride+x,h=map.elevations;

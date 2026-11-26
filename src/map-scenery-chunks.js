@@ -3,19 +3,25 @@ import {mapPropArtBounds} from './map-depth.js';
 import {mapPropShadowGeometry} from './map-ground-shadow.js';
 import {orderMapScenery} from './map-scenery-depth.js';
 
-const CELL=128,MIB=1024*1024;
+const MIB=1024*1024;
 
 function intersects(a,b){return a.x<b.x+b.width&&a.x+a.width>b.x&&a.y<b.y+b.height&&a.y+a.height>b.y;}
-function rasterTier(scale){return scale>6?8:scale>3?4:scale>1.5?2:1;}
+function rasterTier(scale){return scale>6?8:scale>3?4:scale>1.5?2:scale>.55?1:.5;}
 function union(a,b){const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y);return{x,y,width:Math.max(a.x+a.width,b.x+b.width)-x,height:Math.max(a.y+a.height,b.y+b.height)-y};}
 function propBounds(map,prop){const art=mapPropArtBounds(map,prop),shadow=mapPropShadowGeometry(map,prop);return shadow?union(art,shadow.bounds):art;}
 
 /** Retained projected-world scenery. Camera movement only composites cached chunks. */
 export function createMapSceneryChunks(map,doc,{drawShadow,drawProp,extraProps=[],fixedScale}){
+  const CELL=fixedScale?128:256;
   const buckets=new Map(),descriptors=new Map(),cache=new Map(),latest=new Map(),coarse=new Map();
-  let pixels=0,coarsePixels=0,maxPixels=2*MIB,rasterScale=1,builds=0,pending=false,plan=[],planPixels=0,disposed=false,buildMs=0,fallbackDraws=0,lodReuses=0,coarseDraws=0;
-  const props=[...map.props,...extraProps].map((prop,order)=>({prop,order,bounds:prop.cliffBounds??propBounds(map,prop),depth:prop.x+prop.width+prop.y+prop.height})).sort((a,b)=>a.depth-b.depth||a.order-b.order);
-  const entries=orderMapScenery(props.flatMap(entry=>entry.prop.fence?[{...entry,shadow:true,draw:false},...fenceRenderParts(map,entry.prop).map(part=>({...entry,bounds:part.bounds,depth:part.depth,part,draw:true,shadow:false}))]:[{...entry,depth:entry.prop.kind==='tree'||entry.prop.occlusion?.mode==='low-foliage'?entry.prop.x+entry.prop.width/2+entry.prop.y+entry.prop.height/2:entry.depth,shadow:true,draw:true}]));
+  let pixels=0,coarsePixels=0,maxPixels=2*MIB,detailBudget=maxPixels-Math.min(MIB/2,maxPixels/8),rasterScale=1,deferredScale=null,builds=0,pending=false,plan=[],planPixels=0,disposed=false,buildMs=0,fallbackDraws=0,lodReuses=0,coarseDraws=0,lastObjects=Object.create(null);
+  const props=[...map.props,...extraProps].map((prop,order)=>{
+    const artBounds=prop.cliffBounds??mapPropArtBounds(map,prop);
+    const shadowBounds=prop.cliffBounds?null:mapPropShadowGeometry(map,prop)?.bounds??null;
+    const bounds=shadowBounds?union(artBounds,shadowBounds):artBounds;
+    return{prop,order,artBounds,shadowBounds,bounds,depth:prop.x+prop.width+prop.y+prop.height};
+  }).sort((a,b)=>a.depth-b.depth||a.order-b.order);
+  const entries=orderMapScenery(props.flatMap(entry=>entry.prop.fence?[{...entry,shadow:true,draw:false},...fenceRenderParts(map,entry.prop).map(part=>({...entry,artBounds:part.bounds,bounds:part.bounds,depth:part.depth,part,draw:true,shadow:false}))]:[{...entry,depth:entry.prop.kind==='tree'||entry.prop.occlusion?.mode==='low-foliage'?entry.prop.x+entry.prop.width/2+entry.prop.y+entry.prop.height/2:entry.depth,shadow:true,draw:true}]));
   let worldBounds=null;
   for(const entry of entries){
     const b=entry.bounds;worldBounds=worldBounds?{x:Math.min(worldBounds.x,b.x),y:Math.min(worldBounds.y,b.y),width:Math.max(worldBounds.x+worldBounds.width,b.x+b.width)-Math.min(worldBounds.x,b.x),height:Math.max(worldBounds.y+worldBounds.height,b.y+b.height)-Math.min(worldBounds.y,b.y)}:{...b};
@@ -24,7 +30,10 @@ export function createMapSceneryChunks(map,doc,{drawShadow,drawProp,extraProps=[
   }
   function descriptor(cx,cy){
     const id=`${cx}:${cy}`;if(descriptors.has(id))return descriptors.get(id);
-    const value={id,x:cx*CELL,y:cy*CELL,width:CELL,height:CELL,entries:buckets.get(id)||[]};descriptors.set(id,value);return value;
+    const x=cx*CELL,y=cy*CELL,rect={x,y,width:CELL,height:CELL},raw=buckets.get(id)||[];
+    const shadowEntries=raw.filter(e=>e.shadow&&e.shadowBounds&&intersects(e.shadowBounds,rect));
+    const drawEntries=raw.filter(e=>e.draw&&intersects(e.artBounds,rect));
+    const value={id,x,y,width:CELL,height:CELL,entries:raw,shadowEntries,drawEntries};descriptors.set(id,value);return value;
   }
   function stateKey(d,objects){let key='';for(const {prop}of d.entries)if(Object.hasOwn(objects,prop.id))key+=prop.id+':'+JSON.stringify(objects[prop.id])+';';return key;}
   function releaseCoarse(entry){coarsePixels-=entry.pixels;entry.canvas.width=entry.canvas.height=1;coarse.delete(entry.latestKey);}
@@ -40,53 +49,105 @@ export function createMapSceneryChunks(map,doc,{drawShadow,drawProp,extraProps=[
     saveCoarse(canvas,entry.latestKey);
   }
   function coldCoarse(d,objects){
-    const canvas=doc.createElement('canvas');canvas.width=canvas.height=CELL/4;
+    const w=CELL/4,canvas=doc.createElement('canvas');canvas.width=canvas.height=w;
     const ctx=canvas.getContext('2d');ctx.setTransform(.25,0,0,.25,-d.x*.25,-d.y*.25);
-    for(const entry of d.entries)if(entry.shadow)drawShadow(ctx,entry.prop);
-    for(const entry of d.entries)if(entry.draw)drawProp(ctx,entry.prop,objects[entry.prop.id],entry.part);
+    for(const entry of d.shadowEntries)drawShadow(ctx,entry.prop);
+    for(const entry of d.drawEntries)drawProp(ctx,entry.prop,objects[entry.prop.id],entry.part);
     return saveCoarse(canvas,d.latestKey);
   }
   function release(entry,keep=true){if(keep)preserve(entry);pixels-=entry.pixels;entry.canvas.width=entry.canvas.height=1;cache.delete(entry.key);if(latest.get(entry.latestKey)===entry)latest.delete(entry.latestKey);}
   function build(d,key,latestKey,objects){
-    const started=performance.now(),canvas=doc.createElement('canvas');canvas.width=Math.max(1,Math.ceil(d.width*rasterScale));canvas.height=Math.max(1,Math.ceil(d.height*rasterScale));
+    const started=performance.now(),w=Math.max(1,Math.ceil(d.width*rasterScale)),h=Math.max(1,Math.ceil(d.height*rasterScale));
+    const canvas=doc.createElement('canvas');canvas.width=w;canvas.height=h;
     const ctx=canvas.getContext('2d'),previous=latest.get(latestKey);
-    if(previous&&previous.canvas.width>=canvas.width){ctx.drawImage(previous.canvas,0,0,canvas.width,canvas.height);lodReuses++;}
+    if(previous&&previous.canvas.width>=w){ctx.drawImage(previous.canvas,0,0,w,h);lodReuses++;}
     else{ctx.setTransform(rasterScale,0,0,rasterScale,-d.x*rasterScale,-d.y*rasterScale);
-      for(const entry of d.entries)if(entry.shadow)drawShadow(ctx,entry.prop);
-      for(const entry of d.entries)if(entry.draw)drawProp(ctx,entry.prop,objects[entry.prop.id],entry.part);
+      for(const entry of d.shadowEntries)drawShadow(ctx,entry.prop);
+      for(const entry of d.drawEntries)drawProp(ctx,entry.prop,objects[entry.prop.id],entry.part);
     }
-    const value={...d,key,latestKey,canvas,pixels:canvas.width*canvas.height};cache.set(key,value);latest.set(latestKey,value);pixels+=value.pixels;builds++;buildMs+=performance.now()-started;return value;
+    const value={...d,key,latestKey,canvas,pixels:w*h};cache.set(key,value);latest.set(latestKey,value);pixels+=value.pixels;builds++;buildMs+=performance.now()-started;return value;
   }
-  function configure(rect,scale,viewportPixels,objects){
-    const list=[];for(let cy=Math.floor(rect.y/CELL);cy<=Math.floor((rect.y+rect.height-1e-6)/CELL);cy++)for(let cx=Math.floor(rect.x/CELL);cx<=Math.floor((rect.x+rect.width-1e-6)/CELL);cx++){const id=`${cx}:${cy}`;if(!buckets.has(id))continue;const d=descriptor(cx,cy);if(intersects(d,rect))list.push(d);}
-    maxPixels=fixedScale?12*MIB:Math.max(2*MIB,Math.min(8*MIB,Math.max(0,viewportPixels)*4));const detailBudget=maxPixels-Math.min(MIB/2,maxPixels/8);let next=fixedScale||rasterTier(scale);const cost=s=>list.length*CELL*CELL*s*s;while(next>1/8&&cost(next)>detailBudget)next/=2;
-    if(plan.length&&next>rasterScale&&cost(next)>detailBudget*.65)next=rasterScale;
-    rasterScale=next;planPixels=cost(next);
-    plan=list.map(d=>{const state=stateKey(d,objects),latestKey=`${d.id}@${state}`;return{...d,state,latestKey,key:`${latestKey}@${rasterScale}`};});
-    const pinned=new Set(plan.map(d=>d.key));
-    // Downsample completed detail before eviction. Zooming out never needs to
-    // reconstruct the same props just to display fewer pixels.
-    for(const d of plan)if(!cache.has(d.key)){const previous=latest.get(d.latestKey);if(previous&&previous.canvas.width>CELL*rasterScale){build(d,d.key,d.latestKey,objects);release(previous);}}
-    const missingPixels=plan.filter(d=>!cache.has(d.key)).length*CELL*CELL*rasterScale*rasterScale;
-    for(const entry of [...cache.values()])if(!pinned.has(entry.key)&&pixels+missingPixels>detailBudget)release(entry);
+  function chooseTier(scale){
+    if(fixedScale)return fixedScale;
+    let next=rasterTier(scale);
+    if(rasterScale===8&&scale>=5.4)next=8;
+    else if(rasterScale===4&&scale>=2.6&&scale<=6.6)next=4;
+    else if(rasterScale===2&&scale>=1.3&&scale<=3.3)next=2;
+    else if(rasterScale===1&&scale>=.5&&scale<=1.75)next=1;
+    else if(rasterScale===.5&&scale<=.72)next=.5;
+    return next;
+  }
+  function evict(pinned){
+    if(pixels>detailBudget){
+      const visibleLatest=new Set();
+      for(const d of plan){const prev=latest.get(d.latestKey);if(prev)visibleLatest.add(prev);}
+      for(const entry of [...cache.values()]){if(pixels<=detailBudget)break;if(!pinned.has(entry.key)&&!visibleLatest.has(entry))release(entry);}
+      for(const entry of [...cache.values()]){if(pixels<=detailBudget)break;if(!pinned.has(entry.key))release(entry);}
+    }
     while(coarsePixels>Math.min(MIB/2,maxPixels/8))releaseCoarse(coarse.values().next().value);
   }
+  function configure(rect,scale,viewportPixels,objects,freezeLod){
+    const list=[];for(let cy=Math.floor(rect.y/CELL);cy<=Math.floor((rect.y+rect.height-1e-6)/CELL);cy++)for(let cx=Math.floor(rect.x/CELL);cx<=Math.floor((rect.x+rect.width-1e-6)/CELL);cx++){const id=`${cx}:${cy}`;if(!buckets.has(id))continue;const d=descriptor(cx,cy);if(intersects(d,rect))list.push(d);}
+    maxPixels=fixedScale?12*MIB:Math.max(2*MIB,Math.min(8*MIB,Math.max(0,viewportPixels)*4));detailBudget=maxPixels-Math.min(MIB/2,maxPixels/8);
+    let desired=chooseTier(scale);const cost=s=>list.length*CELL*CELL*s*s;while(desired>1/8&&cost(desired)>detailBudget)desired/=2;
+    if(plan.length&&desired>rasterScale&&cost(desired)>detailBudget*.65)desired=rasterScale;
+    let next=desired;
+    if(!fixedScale&&freezeLod&&plan.length){
+      deferredScale=desired!==rasterScale?desired:null;
+      next=rasterScale;
+    }else{
+      deferredScale=null;
+    }
+    rasterScale=next;planPixels=cost(next);
+    plan=list.map(d=>{const state=stateKey(d,objects),latestKey=`${d.id}@${state}`;return{...d,state,latestKey,key:`${latestKey}@${rasterScale}`};});
+  }
+  function needsWork(){return plan.some(d=>!cache.has(d.key));}
+  function work(budgetMs=4){
+    if(disposed||deferredScale!==null)return{visualProgress:false,pending};
+    const started=performance.now();let visualProgress=false;
+    const pinned=new Set(plan.map(d=>d.key));
+    for(const d of plan){
+      if(cache.has(d.key))continue;
+      if(performance.now()-started>=budgetMs)break;
+      const previous=latest.get(d.latestKey);
+      build(d,d.key,d.latestKey,lastObjects);
+      if(previous&&previous.canvas.width>CELL*rasterScale)release(previous);
+      visualProgress=true;
+      if(pixels>detailBudget)evict(pinned);
+    }
+    if(visualProgress)evict(pinned);
+    const missing=needsWork();
+    pending=missing||deferredScale!==null;
+    return{visualProgress,pending:missing};
+  }
   return{
-    draw(ctx,rect,objects=Object.create(null),{scale=1,viewportPixels=0,budgetMs=3}={}){
-      if(disposed)return false;configure(rect,scale,viewportPixels,objects);const started=performance.now();pending=false;
+    draw(ctx,rect,objects=Object.create(null),{scale=1,viewportPixels=0,budgetMs=3,budget,freezeLod=false}={}){
+      if(disposed)return false;lastObjects=objects;configure(rect,scale,viewportPixels,objects,freezeLod);
+      const started=performance.now(),pinned=new Set(plan.map(d=>d.key));
+      const hasTime=budget?()=>budget.hasTime():()=>performance.now()-started<budgetMs;
+      const hasFallbackTime=budget?()=>budget.hasTime():()=>performance.now()-started<Math.max(4,budgetMs);
+      pending=false;
       for(const d of plan){
         let entry=cache.get(d.key);
-        if(!entry&&performance.now()-started<budgetMs)entry=build(d,d.key,d.latestKey,objects);
+        if(!entry){
+          const previous=latest.get(d.latestKey);
+          if(!freezeLod&&previous&&previous.canvas.width>CELL*rasterScale&&hasFallbackTime()){entry=build(d,d.key,d.latestKey,objects);release(previous);}
+          else if(!freezeLod&&hasTime())entry=build(d,d.key,d.latestKey,objects);
+        }
         if(!entry){entry=latest.get(d.latestKey)??coarse.get(d.latestKey);if(entry&&coarse.get(d.latestKey)===entry)coarseDraws++;pending=true;}
         if(entry){if(cache.has(entry.key)){cache.delete(entry.key);cache.set(entry.key,entry);}ctx.drawImage(entry.canvas,d.x,d.y,d.width,d.height);}
-        else{const preview=coldCoarse(d,objects);ctx.drawImage(preview.canvas,d.x,d.y,d.width,d.height);fallbackDraws++;}
+        else if(!freezeLod&&hasFallbackTime()){const preview=coldCoarse(d,objects);ctx.drawImage(preview.canvas,d.x,d.y,d.width,d.height);fallbackDraws++;}
       }
+      evict(pinned);
+      if(deferredScale!==null)pending=true;
       return true;
     },
+    work,
+    needsBackgroundWork(){return !disposed&&deferredScale===null&&needsWork();},
     drawList:props.map(entry=>({type:'prop',item:entry.prop,depth:entry.depth})),
     worldBounds:worldBounds||{x:0,y:0,width:1,height:1},
     stats(){return{chunks:cache.size,pixels:pixels+coarsePixels,detailPixels:pixels,coarsePixels,coarseChunks:coarse.size,maxPixels,rasterScale,builds,pending,visibleChunks:plan.length,workingSetPixels:planPixels,buildMs,fallbackDraws,lodReuses,coarseDraws};},
-    clear(){for(const entry of [...cache.values()])release(entry,false);for(const entry of [...coarse.values()])releaseCoarse(entry);descriptors.clear();plan=[];planPixels=0;pending=false;},
+    clear(){for(const entry of [...cache.values()])release(entry,false);for(const entry of [...coarse.values()])releaseCoarse(entry);descriptors.clear();plan=[];planPixels=0;deferredScale=null;pending=false;},
     dispose(){if(disposed)return;this.clear();disposed=true;}
   };
 }

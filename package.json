@@ -335,6 +335,7 @@
     "test:consumer": "node test/package-consumer.mjs",
     "test:types": "tsc --noEmit --strict --module nodenext --target es2022 test/types.ts",
     "test:map": "node --test test/map*.test.js",
+    "test:map-perf": "node test/map-perf-budget-browser.mjs",
     "test:map-browser": "node test/map-browser.mjs",
     "test:map-terrain": "node test/map-terrain-browser.mjs",
     "test:map-running": "node test/map-running-browser.mjs",
