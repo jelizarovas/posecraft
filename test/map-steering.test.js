@@ -21,8 +21,8 @@ test('steering accelerates along the held direction and stops after release',asy
  }finally{c.dispose();}
 });
 
-test('steering slides along walls and never enters water',()=>{
- const map=fixture();map.props=[{id:'wall',kind:'house',x:5,y:2,width:1,height:8}];map.terrain[5*16+2]=2;
+test('steering slides along walls',()=>{
+ const map=fixture();map.props=[{id:'wall',kind:'house',x:5,y:2,width:1,height:8}];
  const c=new MapController(map,{execution:'main'});
  try{
   c.steer('hero',{x:1,y:1});run(c,1.5);
@@ -63,4 +63,56 @@ test('steering into a low crossing vaults it; a click replaces steering',async()
   for(let i=0;i<600&&c.active.size;i++){c.advance(1/60);await new Promise(r=>setTimeout(r,0));}
   assert.equal((await move).type,'map.actor.arrived');
  }finally{c.dispose();}
+});
+
+test('steered people wade into water, swim slower, and save on the shore',async()=>{
+ const map=fixture();for(let y=0;y<16;y++)for(let x=7;x<16;x++)map.terrain[y*16+x]=2;
+ const events=[],c=new MapController(map,{execution:'main',onEvent:e=>events.push(e.type)});
+ try{
+  c.steer('hero',{x:1,y:0},{gait:'run'});run(c,1.5);
+  let hero=c.actorPosition('hero');assert.ok(hero.x>7.5,'enters the water');assert.ok(hero.swimming&&hero.swimDepth>0);
+  assert.ok(events.indexOf('map.dive.started')>=0&&events.indexOf('map.water.entered')>events.indexOf('map.dive.started'),'hops in with a splash');
+  assert.ok(Number.isFinite(hero.splashAt));
+  const shore=c.snapshot().actors[0];assert.ok(shore.x<7,'a save keeps the last dry position');
+  const from=hero.x;run(c,1);hero=c.actorPosition('hero');
+  assert.ok(hero.x-from<3.1&&hero.x-from>.8,`swimming is slower than walking (${(hero.x-from).toFixed(2)})`);
+  assert.equal(hero.running,false);assert.equal(hero.swimDepth,1);assert.equal(c.jump('hero'),false,'no jumping while swimming');
+  c.steer('hero',{x:-1,y:0});run(c,4);hero=c.actorPosition('hero');assert.equal(hero.swimming,false,'walks back out');assert.equal(hero.swimDepth,0);
+  c.steer('hero',null);run(c,1);
+  const restored=new MapController(map,{execution:'main'});restored.restore(c.snapshot());restored.dispose();
+ }finally{c.dispose();}
+});
+
+test('animals never swim and routed moves still refuse water',async()=>{
+ const map=fixture();for(let y=0;y<16;y++)for(let x=7;x<16;x++)map.terrain[y*16+x]=2;
+ map.actors.push({id:'cow',x:3.5,y:9.5,speed:2,appearance:{kind:'livestock',image:'cow'}});map.art={images:{cow:{src:'./cow.webp',width:64,height:48,anchorX:.5,anchorY:.9}}};
+ const c=new MapController(map,{execution:'main'});
+ try{
+  c.steer('cow',{x:1,y:0});run(c,4);const cow=c.actorPosition('cow');assert.ok(cow.x<7&&!cow.swimming);
+  await assert.rejects(c.moveTo('hero',{x:10.5,y:5.5}),/blocked/);
+ }finally{c.dispose();}
+});
+
+test('jumping at a reachable cliff grabs the ledge, climbs on a second jump, and lets go on release',()=>{
+ const map=fixture();map.terraces=[{id:'shelf',x:6,y:0,width:10,height:16,heightOffset:1}];
+ const events=[],c=new MapController(map,{execution:'main',onEvent:e=>events.push(e.type)});
+ try{
+  c.steer('hero',{x:1,y:0});run(c,.7);c.steer('hero',null);run(c,.4);
+  let hero=c.actorPosition('hero');assert.ok(hero.x<6,'the cliff blocks walking');
+  assert.equal(c.jump('hero'),true);run(c,.5);hero=c.actorPosition('hero');
+  assert.equal(hero.traversalAction,'hang');assert.ok(Math.abs(Math.cos(hero.facing)-1)<1e-6,'faces the wall');assert.ok(hero.x<6&&hero.x>5.7);
+  assert.equal(c.release('hero'),true);run(c,.5);hero=c.actorPosition('hero');assert.equal(hero.lift,0);assert.equal(hero.traversalAction,null);assert.ok(hero.x<6);
+  c.jump('hero');run(c,.5);assert.equal(c.actorPosition('hero').traversalAction,'hang');
+  const saved=c.snapshot().actors[0];assert.ok(saved.x<6,'a save while hanging keeps the ground below');
+  assert.equal(c.jump('hero'),true);run(c,1.2);hero=c.actorPosition('hero');
+  assert.ok(hero.x>6.2,'climbs onto the top');assert.equal(hero.lift,0);assert.equal(hero.traversalAction,null);
+  assert.deepEqual(events.filter(type=>type.startsWith('map.ledge')),['map.ledge.grab','map.ledge.hang','map.ledge.release','map.ledge.dropped','map.ledge.grab','map.ledge.hang','map.ledge.climb','map.ledge.climbed']);
+  run(c,1);assert.equal(c.isMoving,false);
+ }finally{c.dispose();}
+});
+
+test('walls beyond reach cannot be grabbed',()=>{
+ const map=fixture();map.terraces=[{id:'crag',x:6,y:0,width:10,height:16,heightOffset:9}];
+ const c=new MapController(map,{execution:'main'});
+ try{c.steer('hero',{x:1,y:0});run(c,1);c.steer('hero',null);run(c,.5);c.jump('hero');run(c,.3);assert.notEqual(c.actorPosition('hero').traversalAction,'hang');run(c,1);}finally{c.dispose();}
 });

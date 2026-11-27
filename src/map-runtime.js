@@ -1,14 +1,16 @@
 import {MapNavigationJob} from './map-navigation.js';
-import {continuousSegmentClear} from './map-collision.js';
+import {continuousSegmentClear,mapWaterDepth} from './map-collision.js';
 import {planMapVault} from './map-vault.js';
 import {manualTraversalPlan} from './map-traversal.js';
 import {groundHeight} from './map-art-layout.js';
+import {terrainHeightOffset} from './map-cliffs.js';
 import {MapRoutePreparation,routeHeading,angleDelta,brakeMapMotion} from './map-motion.js';
 import {assertMap,MapIndex,MapPathJob,approachTiles,projectMap,unprojectMap} from './map.js';
 
 const abortError=message=>Object.assign(new Error(message),{name:'AbortError'});
 const point=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y);
 const cell=p=>({x:Math.floor(p.x)+.5,y:Math.floor(p.y)+.5});
+const now=()=>(globalThis.performance?.now()??Date.now())/1000;
 const movementDestination=job=>job?(job.manualTraversal?.landing??job.route?.at(-1)??job.goals?.[0]??null):null;
 function signature(map){let hash=2166136261;const fields=[map.width,map.height,map.tileSize,map.terrain,map.props,map.actors];if(map.navigation)fields.push(map.navigation);if(map.elevations!==undefined)fields.push(map.elevations);if(map.terraces!==undefined)fields.push(map.terraces);const text=JSON.stringify(fields);for(let i=0;i<text.length;i++)hash=Math.imul(hash^text.charCodeAt(i),16777619);return `map1-${map.id}-${(hash>>>0).toString(16)}-${text.length}`;}
 
@@ -17,7 +19,7 @@ export class MapController {
  constructor(document,{execution='worker',onEvent,onError}={}){
   this.map=structuredClone(assertMap(document));this.index=new MapIndex(this.map);this.signature=signature(this.map);
   this.actorPadding=this.map.actors.reduce((pad,actor)=>{const look=actor.appearance,spec=look?.image&&this.map.art?.images?.[look.image];return Math.max(pad,(Math.max(spec?.width??64,spec?.height??94)+36)*(look?.scale??1)*this.map.tileSize.width/64);},64);
-  this.actors=new Map(this.map.actors.map(a=>[a.id,{...a,facing:Math.PI/4,travelFacing:Math.PI/4,gaitWeight:0,gait:'walk',running:false,walking:false,skidding:false,jumping:false,jumpProgress:0,rolling:false,rollProgress:0,phase:0,turning:false,lift:0,traversalAction:null,traversalProgress:0,supportContact:null,lastGround:{x:a.x,y:a.y}}]));
+  this.actors=new Map(this.map.actors.map(a=>[a.id,{...a,facing:Math.PI/4,travelFacing:Math.PI/4,gaitWeight:0,gait:'walk',running:false,walking:false,skidding:false,jumping:false,jumpProgress:0,rolling:false,rollProgress:0,phase:0,turning:false,lift:0,traversalAction:null,traversalProgress:0,supportContact:null,swimming:false,swimDepth:0,lastGround:{x:a.x,y:a.y}}]));
   this.actorChunks=new Map();this.actorChunkKeys=new Map();for(const actor of this.actors.values())this.indexActor(actor);
   this.objects=Object.create(null);this.active=new Map();this.listeners=new Set();this.serial=0;this.disposed=false;this.timer=null;this.onError=onError;if(onEvent)this.listeners.add(onEvent);
   this.afterVault=new Map();
@@ -49,7 +51,8 @@ export class MapController {
   if(direction!==null&&!point(direction))throw TypeError('Steering direction must be null or a finite map vector.');
   const length=direction?Math.hypot(direction.x,direction.y):0,input=length>1e-9?{x:direction.x/length,y:direction.y/length}:null;
   let job=this.active.get(id);
-  if(job?.kind==='steer'){job.input=input;job.gait=gait;return job.promise;}
+  // Held keys take over from a swim to the shore, dropping the queued route.
+  if(job?.kind==='steer'&&!job.goal){job.input=input;job.gait=gait;return job.promise;}
   if(!input)return Promise.resolve(null);
   if(actor.jumping||actor.rolling)return this.deferVault(id,()=>this.steer(id,direction,{gait}),undefined);
   if(this.active.size>=16&&!job)return Promise.reject(Error('At most 16 map movements may be active.'));
@@ -57,7 +60,9 @@ export class MapController {
  }
  startSteer(id,input,gait){
   const previous=this.active.get(id),request='map-'+(++this.serial),momentum=previous?.skid?.velocity??previous?.motion;let job;
-  const promise=new Promise((resolve,reject)=>{job={kind:'steer',actor:id,request,gait,input,velocity:momentum?{x:momentum.x,y:momentum.y}:{x:0,y:0},route:[],resolve,reject};this.active.set(id,job);});
+  // Steered people can wade and swim in open water; animals stay ashore.
+  const swims=this.actors.get(id).appearance?.kind!=='livestock';
+  const promise=new Promise((resolve,reject)=>{job={kind:'steer',actor:id,request,gait,input,swims,velocity:momentum?{x:momentum.x,y:momentum.y}:{x:0,y:0},route:[],resolve,reject};this.active.set(id,job);});
   promise.catch(()=>{});job.promise=promise;
   this.clearDeferred(id);if(previous)this.finish(previous,abortError('Movement replaced.'));this.active.set(id,job);
   Object.assign(this.actors.get(id),{turning:false,skidding:false,gait});
@@ -66,12 +71,17 @@ export class MapController {
  /** A hop in place or along the current motion. False while already airborne. */
  jump(id){
   this.check();const actor=this.actors.get(id);if(!actor)throw Error('Unknown map actor.');
-  if(actor.jumping||actor.rolling)return false;
-  let job=this.active.get(id);if(job?.kind!=='steer'){if(this.active.size>=16&&!job)return false;job=this.startSteer(id,null,job?.gait??'walk');}
+  if(actor.jumping||actor.rolling||actor.swimDepth>0)return false;
+  let job=this.active.get(id);
+  if(job?.ledge){if(job.ledge.phase!=='hang')return false;job.ledge.phase='climb';job.ledge.elapsed=0;actor.traversalAction='climb-ledge';actor.traversalProgress=0;this.emit({type:'map.ledge.climb',actor:id,request:job.request});return true;}
+  const facing=job?.kind==='steer'&&job.input?job.input:{x:Math.cos(actor.facing),y:Math.sin(actor.facing)},ledge=this.findLedge(actor,facing);
+  if(ledge){if(!job||job.kind!=='steer'){if(this.active.size>=16&&!job)return false;job=this.startSteer(id,null,job?.gait??'walk');}this.grabLedge(job,actor,ledge);return true;}
+  if(job?.kind!=='steer'){if(this.active.size>=16&&!job)return false;job=this.startSteer(id,null,job?.gait??'walk');}
   const v=job.velocity,speed=Math.hypot(v.x,v.y),duration=job.gait==='run'?.62:.56,heading=speed>.05?Math.atan2(v.y,v.x):actor.facing;
   const radius=this.map.navigation?.radius??0,start={x:actor.x,y:actor.y},reach={x:start.x+v.x*duration*.8,y:start.y+v.y*duration*.8};
   // Land at the farthest clear point along the hop. Low crossings can be cleared.
-  const clear=to=>this.steerClear(start,to,radius,{allowVault:true})&&this.steerClear(to,to,radius);
+  // Hops may land in water when the actor can swim.
+  const clear=to=>this.steerClear(start,to,radius,{allowVault:true,allowWater:job.swims})&&this.steerClear(to,to,radius,{allowWater:job.swims});
   let landing=start;
   if(clear(reach))landing=reach;
   else{let low=0,high=1;for(let n=0;n<10;n++){const t=(low+high)/2,to={x:start.x+(reach.x-start.x)*t,y:start.y+(reach.y-start.y)*t};if(clear(to))low=t;else high=t;}landing={x:start.x+(reach.x-start.x)*low,y:start.y+(reach.y-start.y)*low};}
@@ -79,13 +89,110 @@ export class MapController {
   Object.assign(actor,{jumping:true,jumpProgress:0,vaultId:null,traversalAction:null,traversalProgress:0,supportContact:null,facing:heading,travelFacing:heading,walking:false,running:false});
   this.emit({type:'map.jump.started',actor:id,request:job.request,x:actor.x,y:actor.y});return true;
  }
- steerClear(from,to,radius,{allowVault=false}={}){
-  if(this.map.navigation?.mode==='continuous')return continuousSegmentClear(this.index,from,to,radius,{allowVault});
-  return to.x>=0&&to.y>=0&&to.x<this.map.width&&to.y<this.map.height&&!this.index.isBlocked(Math.floor(to.x),Math.floor(to.y));
+ /**
+  * A cliff edge straight ahead that the actor can reach by jumping: the wall
+  * must rise within reach and the top must have room to stand.
+  */
+ findLedge(actor,direction){
+  if(!this.map.terraces?.length)return null;
+  const length=Math.hypot(direction.x,direction.y);if(length<1e-9)return null;
+  const ux=direction.x/length,uy=direction.y/length,here=terrainHeightOffset(this.map,actor),radius=this.map.navigation?.radius??0;
+  for(let s=.02;s<=.7;s+=.02){
+   const p={x:actor.x+ux*s,y:actor.y+uy*s},level=terrainHeightOffset(this.map,p);if(level===here)continue;
+   if(level<here)return null;
+   // Snap to the crossed cell edge so the hands meet the wall square-on.
+   const fx=Math.floor(p.x)!==Math.floor(actor.x+ux*(s-.02)),normal=fx?{x:Math.sign(ux),y:0}:{x:0,y:Math.sign(uy)};
+   const edge=fx?{x:Math.round(p.x),y:p.y}:{x:p.x,y:Math.round(p.y)};
+   const base={x:edge.x-normal.x*(radius+.06),y:edge.y-normal.y*(radius+.06)},top={x:edge.x+normal.x*.42,y:edge.y+normal.y*.42};
+   const tile=this.map.tileSize.height,clip=this.map.art?.actors?.[actor.id]?.idle,spec=clip&&this.map.art.images[clip.image];
+   const reach=(spec?spec.height*spec.anchorY:50)*1.12*this.map.tileSize.width/64/tile,wall=groundHeight(this.map,top)-groundHeight(this.map,base);
+   if(wall>reach*1.75||wall<=.2)return null;
+   if(!continuousSegmentClear(this.index,top,top,radius,{ignoreCliffs:true})||!continuousSegmentClear(this.index,actor,base,radius))return null;
+   const lip={x:edge.x+normal.x*.02,y:edge.y+normal.y*.02,z:groundHeight(this.map,top)};
+   return{base,top,lip,heading:Math.atan2(normal.y,normal.x),hang:Math.max(0,wall-reach),wall};
+  }
+  return null;
+ }
+ grabLedge(job,actor,ledge){
+  job.ledge={...ledge,phase:'grab',elapsed:0,from:{x:actor.x,y:actor.y}};job.velocity={x:0,y:0};job.motion={x:0,y:0};
+  Object.assign(actor,{walking:false,running:false,jumping:true,jumpProgress:0,vaultId:null,traversalAction:null,traversalProgress:0,supportContact:null,facing:ledge.heading,travelFacing:ledge.heading});
+  this.emit({type:'map.ledge.grab',actor:actor.id,request:job.request,x:actor.x,y:actor.y});
+ }
+ /** Let go of a ledge and drop back to the foot of the wall. */
+ release(id){
+  this.check();const job=this.active.get(id);if(!job?.ledge||job.ledge.phase!=='hang')return false;
+  job.ledge.phase='drop';job.ledge.elapsed=0;job.ledge.dropFrom=this.actors.get(id).lift;
+  Object.assign(this.actors.get(id),{traversalAction:null,ledgeContact:null,jumping:true,jumpProgress:.6});this.emit({type:'map.ledge.release',actor:id,request:job.request});return true;
+ }
+ advanceLedge(job,dt){
+  const actor=this.actors.get(job.actor),ledge=job.ledge;ledge.elapsed+=dt;
+  const ground=()=>groundHeight(this.map,actor);
+  if(ledge.phase==='grab'){
+   // Jump up the wall: settle against it, then rise until the hands catch the edge.
+   const p=Math.min(1,ledge.elapsed/.32),ease=1-(1-p)*(1-p);
+   actor.x=ledge.from.x+(ledge.base.x-ledge.from.x)*Math.min(1,p*2);actor.y=ledge.from.y+(ledge.base.y-ledge.from.y)*Math.min(1,p*2);
+   actor.lift=ledge.hang*ease+Math.sin(p*Math.PI)*.12;actor.jumpProgress=p*.5;this.indexActor(actor);
+   if(p>=1){ledge.phase='hang';ledge.elapsed=0;Object.assign(actor,{jumping:false,jumpProgress:0,traversalAction:'hang',traversalProgress:0,lift:ledge.hang,ledgeContact:{...ledge.lip}});this.emit({type:'map.ledge.hang',actor:actor.id,request:job.request});}
+   return;
+  }
+  if(ledge.phase==='hang'){actor.traversalProgress=(ledge.elapsed/1.2)%1;return;}
+  if(ledge.phase==='climb'){
+   // The pull-up hangs from the hands (pinned by the renderer) until frame 8 of
+   // 12, when the feet take over on the lip and the climber steps onto the top.
+   const p=Math.min(1,ledge.elapsed/1),handover=8/12;
+   if(p<handover){const rise=p/handover;actor.x=ledge.base.x;actor.y=ledge.base.y;actor.lift=ledge.hang+(ledge.wall-ledge.hang)*rise*rise;}
+   else{const step=(p-handover)/(1-handover),from={x:ledge.lip.x+(ledge.top.x-ledge.lip.x)*.12,y:ledge.lip.y+(ledge.top.y-ledge.lip.y)*.12};actor.x=from.x+(ledge.top.x-from.x)*step*step;actor.y=from.y+(ledge.top.y-from.y)*step*step;actor.lift=0;}
+   actor.traversalProgress=p;this.indexActor(actor);
+   if(p>=1){Object.assign(actor,{x:ledge.top.x,y:ledge.top.y,lift:0,traversalAction:null,traversalProgress:0,ledgeContact:null,lastGround:{...ledge.top}});this.indexActor(actor);job.ledge=null;this.emit({type:'map.ledge.climbed',actor:actor.id,request:job.request,x:actor.x,y:actor.y});}
+   return;
+  }
+  // Drop: fall back down the wall and land.
+  const p=Math.min(1,ledge.elapsed/.28);actor.lift=Math.max(0,ledge.dropFrom*(1-p*p));actor.jumpProgress=.6+p*.4;
+  if(p>=1){Object.assign(actor,{lift:0,jumping:false,jumpProgress:0,lastGround:{x:actor.x,y:actor.y}});job.ledge=null;this.emit({type:'map.ledge.dropped',actor:actor.id,request:job.request,x:actor.x,y:actor.y});}
+ }
+ swimAshore(id,toward,signal){
+  const actor=this.actors.get(id),radius=this.map.navigation?.radius??0;let best=null;
+  for(let r=.5;r<=8&&!best;r+=.5)for(let i=0;i<32;i++){
+   const angle=i/32*Math.PI*2,p={x:actor.x+Math.cos(angle)*r,y:actor.y+Math.sin(angle)*r};
+   if(mapWaterDepth(this.map,p.x,p.y)>0||this.index.isPointBlocked(p.x,p.y,radius)||!continuousSegmentClear(this.index,actor,p,radius,{allowWater:true}))continue;
+   const score=r+.35*Math.hypot(toward.x-p.x,toward.y-p.y);if(!best||score<best.score)best={score,p};
+  }
+  if(!best)return Promise.reject(Error('No reachable shore.'));
+  const job=this.startSteer(id,null,'walk');job.goal=best.p;
+  if(signal){const abort=()=>this.cancelRequest(id,job.request);signal.addEventListener('abort',abort,{once:true});job.promise.finally(()=>signal.removeEventListener('abort',abort)).catch(()=>{});}
+  return job.promise;
+ }
+ /** A short hop from the bank into open water. */
+ dive(job,actor,input){
+  const radius=this.map.navigation?.radius??0,start={x:actor.x,y:actor.y};
+  for(const distance of [.95,.75,.55]){
+   const landing={x:start.x+input.x*distance,y:start.y+input.y*distance};
+   if(mapWaterDepth(this.map,landing.x,landing.y)<=0||!this.steerClear(start,landing,radius,{allowWater:true}))continue;
+   const heading=Math.atan2(input.y,input.x);
+   job.jump={hop:true,dive:true,start,landing,startZ:groundHeight(this.map,actor),endZ:groundHeight(this.map,landing),height:.34,duration:.42,elapsed:0,heading,style:'hop',action:null,object:null};
+   Object.assign(actor,{jumping:true,jumpProgress:0,vaultId:null,traversalAction:null,traversalProgress:0,supportContact:null,facing:heading,travelFacing:heading,walking:false,running:false});
+   this.emit({type:'map.dive.started',actor:actor.id,request:job.request,x:actor.x,y:actor.y});return true;
+  }
+  return false;
+ }
+ steerClear(from,to,radius,{allowVault=false,allowWater=false}={}){
+  if(this.map.navigation?.mode==='continuous')return continuousSegmentClear(this.index,from,to,radius,{allowVault,allowWater});
+  if(!(to.x>=0&&to.y>=0&&to.x<this.map.width&&to.y<this.map.height))return false;
+  const x=Math.floor(to.x),y=Math.floor(to.y);
+  return !this.index.isBlocked(x,y)||allowWater&&this.map.terrain[y*this.map.width+x]===2&&!this.index.propsAt(x,y).length;
  }
  advanceSteer(job,dt){
-  const actor=this.actors.get(job.actor),speed=(actor.speed??3.5)*(job.gait==='run'?1.8:1),radius=this.map.navigation?.radius??0,v=job.velocity,input=job.input;
-  if(this.map.navigation?.mode==='continuous'&&input&&Math.hypot(v.x,v.y)>speed*.4&&job.allowVault!==false&&actor.appearance?.kind!=='livestock'){
+  const actor=this.actors.get(job.actor),radius=this.map.navigation?.radius??0,v=job.velocity;
+  if(job.goal){
+   const dx=job.goal.x-actor.x,dy=job.goal.y-actor.y,distance=Math.hypot(dx,dy);
+   if(distance<.06){this.finish(job,null,{type:'map.swim.ashore',actor:job.actor,request:job.request,x:actor.x,y:actor.y});return;}
+   job.input={x:dx/distance,y:dy/distance};
+  }
+  const input=job.input;
+  // Swimming is slower than walking and never runs; wading eases between them.
+  const depth=mapWaterDepth(this.map,actor.x,actor.y),gait=depth>0?'walk':job.gait,speed=(actor.speed??3.5)*(gait==='run'?1.8:1)*(1-.45*depth);
+  if(depth===0&&input&&job.swims&&Math.hypot(v.x,v.y)>speed*.35&&mapWaterDepth(this.map,actor.x+input.x*.32,actor.y+input.y*.32)>0&&this.dive(job,actor,input))return;
+  if(depth===0&&this.map.navigation?.mode==='continuous'&&input&&Math.hypot(v.x,v.y)>speed*.4&&job.allowVault!==false&&actor.appearance?.kind!=='livestock'){
    // Walking into a low crossing vaults it, exactly as routed movement does.
    const jump=planMapVault(this.index,actor,[{x:actor.x,y:actor.y},{x:actor.x+input.x*2.5,y:actor.y+input.y*2.5}],1,job.gait);
    if(jump&&Math.abs(angleDelta(actor.facing,jump.heading))<.6){
@@ -104,16 +211,18 @@ export class MapController {
    const from={x:actor.x,y:actor.y};let moved=null;
    for(const [ax,ay] of [[mx,my],[mx,0],[0,my]]){
     if(!ax&&!ay)continue;const to={x:from.x+ax,y:from.y+ay};
-    if(this.steerClear(from,to,radius)){moved=to;if(ax!==mx)v.x=0;if(ay!==my)v.y=0;break;}
+    if(this.steerClear(from,to,radius,{allowWater:job.swims})){moved=to;if(ax!==mx)v.x=0;if(ay!==my)v.y=0;break;}
    }
    if(!moved){v.x=0;v.y=0;break;}
    const length=Math.hypot(moved.x-from.x,moved.y-from.y);actor.x=moved.x;actor.y=moved.y;travelled+=length;
    actor.travelFacing=Math.atan2(moved.y-from.y,moved.x-from.x);
-   actor.phase=(actor.phase+length*Math.PI*2/((actor.stride??1)*(job.gait==='run'?1.4:1)))%(Math.PI*2);
+   actor.phase=(actor.phase+length*Math.PI*2/((actor.stride??1)*(gait==='run'?1.4:1)*(1-.45*depth)))%(Math.PI*2);
   }
+  const entering=!(actor.swimDepth>0);actor.swimDepth=mapWaterDepth(this.map,actor.x,actor.y);actor.swimming=actor.swimDepth>0;
+  if(entering&&actor.swimming){actor.splashAt=now();this.emit({type:'map.water.entered',actor:actor.id,x:actor.x,y:actor.y});}
   if(input){const error=angleDelta(actor.facing,Math.atan2(input.y,input.x)),turn=12*dt;actor.facing+=Math.max(-turn,Math.min(turn,error));}
   const moving=Math.hypot(v.x,v.y)>.05;
-  actor.walking=moving;actor.running=moving&&job.gait==='run';actor.gait=job.gait;actor.gaitWeight=dt>0?Math.min(1,travelled/(dt*speed)):0;
+  actor.walking=moving;actor.running=moving&&gait==='run';actor.gait=gait;actor.gaitWeight=dt>0?Math.min(1,travelled/(dt*speed)):0;
   job.motion={x:v.x,y:v.y};
   if(!this.index.isPointBlocked(actor.x,actor.y,radius))actor.lastGround={x:actor.x,y:actor.y};
   this.indexActor(actor);
@@ -151,6 +260,8 @@ export class MapController {
   const goals=manual?[manual.entry]:prop?approachTiles(this.map,this.index,prop):[destination];
   if(!goals.length||goals.every(p=>continuous?this.index.isPointBlocked(p.x,p.y):this.index.isBlocked(p.x,p.y)))return Promise.reject(Error('Destination is blocked or has no accessible approach.'));
   if(signal?.aborted)return Promise.reject(abortError('Movement cancelled.'));
+  // Routes start on land: a swimmer first swims to the shore nearest the way.
+  if(continuous&&actor.swimDepth>0&&!actor.jumping)return this.swimAshore(id,goals[0],signal).then(()=>this.moveTo(id,target,{signal,gait,allowVault}));
   if(actor.jumping||actor.rolling){
    const active=this.active.get(id),heading=Math.atan2(goals[0].y-actor.y,goals[0].x-actor.x);
    if(active?.jump&&active.gait==='run'&&Math.abs(angleDelta(active.jump.heading,heading))>.35)active.rollOnLand=true;
@@ -195,7 +306,11 @@ export class MapController {
   actor.supportContact=jump.style==='branch'&&p>=.2&&p<=.62&&jump.supportPoint?{...jump.supportPoint}:null;
   this.indexActor(actor);
   if(p<1)return;
-  actor.lift=0;actor.jumping=false;actor.vaultId=null;actor.traversalAction=null;actor.traversalProgress=0;actor.supportContact=null;actor.lastGround={x:actor.x,y:actor.y};
+  actor.lift=0;actor.jumping=false;actor.vaultId=null;actor.traversalAction=null;actor.traversalProgress=0;actor.supportContact=null;
+  if(!this.index.isPointBlocked(actor.x,actor.y,this.map.navigation?.radius??0))actor.lastGround={x:actor.x,y:actor.y};
+  const wasDry=!(actor.swimDepth>0);actor.swimDepth=mapWaterDepth(this.map,actor.x,actor.y);actor.swimming=actor.swimDepth>0;
+  // Landing in water throws up a splash; the renderer animates it from this time.
+  if(actor.swimming&&wasDry){actor.splashAt=now();this.emit({type:'map.water.entered',actor:actor.id,x:actor.x,y:actor.y});}
   if(job.kind==='steer'){
    // Steering keeps its momentum through a hop or vault and carries on.
    job.jump=null;this.emit(jump.hop?{type:'map.jump.landed',actor:actor.id,request:job.request,x:actor.x,y:actor.y}:{type:'map.vault.landed',actor:actor.id,object:jump.object,x:actor.x,y:actor.y});
@@ -280,12 +395,13 @@ export class MapController {
 
  cancelRequest(id,request){const job=this.active.get(id);if(job?.request===request){if(this.actors.get(id).jumping||this.actors.get(id).rolling)job.stopAfterVault=true;else this.finish(job,abortError('Movement cancelled.'));}}
  cancel(id){this.clearDeferred(id);const job=this.active.get(id);if(job)this.cancelRequest(id,job.request);}
- finish(job,error,event){if(job.done)return;job.done=true;if(this.active.get(job.actor)===job){this.active.delete(job.actor);Object.assign(this.actors.get(job.actor),{walking:false,running:false,skidding:false,jumping:false,jumpProgress:0,rolling:false,rollProgress:0,gait:'walk',gaitWeight:0,turning:false,lift:0,vaultId:null,traversalAction:null,traversalProgress:0,supportContact:null});}job.signal?.removeEventListener('abort',job.abort);if(error){this.worker?.postMessage({type:'cancel',request:job.request});job.reject(error);this.emit({type:error.name==='AbortError'?'map.command.cancelled':'map.command.failed',actor:job.actor,request:job.request,message:error.message});}else{job.resolve(event);this.emit(event);}}
+ finish(job,error,event){if(job.done)return;job.done=true;if(this.active.get(job.actor)===job){this.active.delete(job.actor);Object.assign(this.actors.get(job.actor),{walking:false,running:false,skidding:false,jumping:false,jumpProgress:0,rolling:false,rollProgress:0,gait:'walk',gaitWeight:0,turning:false,lift:0,vaultId:null,traversalAction:null,traversalProgress:0,supportContact:null,ledgeContact:null});}job.signal?.removeEventListener('abort',job.abort);if(error){this.worker?.postMessage({type:'cancel',request:job.request});job.reject(error);this.emit({type:error.name==='AbortError'?'map.command.cancelled':'map.command.failed',actor:job.actor,request:job.request,message:error.message});}else{job.resolve(event);this.emit(event);}}
  arrive(job){const actor=this.actors.get(job.actor),event={type:'map.actor.arrived',actor:job.actor,request:job.request,target:job.target,x:actor.x,y:actor.y,gait:job.gait};if(job.prop?.kind==='chest')Object.defineProperty(this.objects,job.prop.id,{value:{opened:true},enumerable:true,configurable:true,writable:true});this.finish(job,null,event);if(job.prop&&!this.disposed)this.emit({type:'map.object.interacted',actor:job.actor,object:job.prop.id,kind:job.prop.kind,request:job.request});}
  advance(dt){
   this.check();if(!Number.isFinite(dt)||dt<0)throw Error('Map step must be finite and nonnegative.');dt=Math.min(dt,.1);
   for(const job of [...this.active.values()]){
    if(this.active.get(job.actor)!==job)continue;
+   if(job.ledge){this.advanceLedge(job,dt);continue;}
    if(job.jump){this.advanceJump(job,dt);continue;}
    if(job.roll){this.advanceRoll(job,dt);continue;}
    if(job.skid){this.advanceSkid(job,dt);continue;}
@@ -360,7 +476,7 @@ export class MapController {
   return {actors,objects,route:null,routeSegments,destination:movementDestination(job),pending:jobs.filter(j=>!j.route&&!j.jump).length,candidateActors,candidateRouteSegments:segments.size};
  }
  frame(){const jobs=[...this.active.values()],job=jobs.find(j=>j.kind!=='face');this.stats.pending=jobs.filter(j=>!j.route&&!j.jump).length;return {actors:[...this.actors.values()].map(a=>({...a,supportContact:a.supportContact?{...a.supportContact}:null})),objects:structuredClone(this.objects),route:job?.route?.map(p=>({...p}))??null,destination:movementDestination(job),pending:this.stats.pending};}
- snapshot(){this.check();return {format:'posecraft-map-state',version:1,map:this.signature,actors:[...this.actors.values()].map(a=>({id:a.id,x:(a.jumping||a.lift>0?a.lastGround:null)?.x??a.x,y:(a.jumping||a.lift>0?a.lastGround:null)?.y??a.y,facing:a.facing})),objects:structuredClone(this.objects)};}
+ snapshot(){this.check();return {format:'posecraft-map-state',version:1,map:this.signature,actors:[...this.actors.values()].map(a=>({id:a.id,x:(a.jumping||a.lift>0||a.swimDepth>0?a.lastGround:null)?.x??a.x,y:(a.jumping||a.lift>0||a.swimDepth>0?a.lastGround:null)?.y??a.y,facing:a.facing})),objects:structuredClone(this.objects)};}
  restore(input){
   this.check();const state=structuredClone(input);
   if(state?.format!=='posecraft-map-state'||state.version!==1||state.map!==this.signature||!Array.isArray(state.actors)||state.actors.length!==this.actors.size||!state.objects||typeof state.objects!=='object'||Array.isArray(state.objects))throw Error('Incompatible map save.');
@@ -370,7 +486,7 @@ export class MapController {
   this.restoring=true;
   try{
    for(const id of this.afterVault.keys())this.clearDeferred(id);for(const job of [...this.active.values()])this.finish(job,abortError('Map restored.'));
-   for(const a of state.actors){Object.assign(this.actors.get(a.id),{x:a.x,y:a.y,facing:a.facing,travelFacing:a.facing,gaitWeight:0,gait:'walk',running:false,walking:false,skidding:false,jumping:false,jumpProgress:0,rolling:false,rollProgress:0,phase:0,turning:false,lift:0,vaultId:null,traversalAction:null,traversalProgress:0,supportContact:null,lastGround:{x:a.x,y:a.y}});this.indexActor(this.actors.get(a.id));}
+   for(const a of state.actors){Object.assign(this.actors.get(a.id),{x:a.x,y:a.y,facing:a.facing,travelFacing:a.facing,gaitWeight:0,gait:'walk',running:false,walking:false,skidding:false,jumping:false,jumpProgress:0,rolling:false,rollProgress:0,phase:0,turning:false,lift:0,vaultId:null,traversalAction:null,traversalProgress:0,supportContact:null,swimming:false,swimDepth:0,lastGround:{x:a.x,y:a.y}});this.indexActor(this.actors.get(a.id));}
    this.objects=Object.assign(Object.create(null),state.objects);
   }finally{this.restoring=false;}
   this.emit({type:'map.restored'});return this.frame();

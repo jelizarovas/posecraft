@@ -1,10 +1,12 @@
 import {generateMap} from '../src/map.js';
 import {vaultSupportAnchors} from './adventurer-crossing-anchors.js';
+import {ledgeHandAnchors} from './adventurer-ledge-anchors.js';
 
 // URLs are relative to the host page. Copy assets/map with exported map JSON.
-const adventurerFrames={idle:1,walk:12,run:12,jump:8,roll:16,vault:14,climbUp:12,climbDown:12};
+const adventurerFrames={idle:1,walk:12,run:12,jump:8,roll:16,vault:14,climbUp:12,climbDown:12,hang:6,climbLedge:12};
 const adventurerSource=name=>name==='climbDown'?'climbUp':name;
-const adventurerClip=name=>{const compact=['vault','climbUp','climbDown'].includes(name),clip={image:'adventurer-'+adventurerSource(name),frames:adventurerFrames[name],directions:16,frameWidth:compact?96:128,frameHeight:compact?132:176};return name==='vault'?{...clip,supportAnchors:vaultSupportAnchors,supportWindow:[.2,.62]}:clip;};
+const adventurerClip=name=>{const compact=['vault','climbUp','climbDown','hang','climbLedge'].includes(name),clip={image:'adventurer-'+adventurerSource(name),frames:adventurerFrames[name],directions:16,frameWidth:compact?96:128,frameHeight:compact?132:176};if(name==='hang'||name==='climbLedge')return{...clip,handAnchors:ledgeHandAnchors[name],handRelease:name==='climbLedge'?8:null};
+ return name==='vault'?{...clip,supportAnchors:vaultSupportAnchors,supportWindow:[.2,.62]}:clip;};
 const adventurerImage=name=>({src:`./assets/map/characters/adventurer-${adventurerSource(name)}.webp`,width:60,height:82.5,anchorX:.5,anchorY:.7997777105572947});
 
 export const woodlandArt={
