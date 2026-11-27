@@ -229,3 +229,25 @@ function mapTypes(host:HTMLElement){
  view.dispose();controller.dispose();
 }
 void mapTypes;
+
+import {MapAudio, mountMapAudio, footContactsCrossed, soundForMapEvent, FOOT_CONTACTS, mapAudioMemory, type MapAudioActor, type MapAudioEvent, type MapAudioMountView} from 'posecraft/map-audio';
+function mapAudioTypes(view: MapAudioMountView, map: ReturnType<typeof generateMap>){
+  const crossed: number = footContactsCrossed(0, Math.PI, FOOT_CONTACTS.walk);
+  const name: string | null = soundForMapEvent({type: 'map.jump.started', action: 'vault'});
+  const bytes: number = mapAudioMemory(48000).bytes;
+  const actor: MapAudioActor = {x: 1, y: 1, phase: 0, gait: 'walk', gaitWeight: 1, walking: true, running: false, skidding: false, jumping: false, rolling: false, traversalAction: null};
+  const audio = new MapAudio({volume: 0.4});
+  audio.handle({type: 'map.vault.landed', actor: 'hero'}, 'hero');
+  audio.poll(actor, map, FOOT_CONTACTS.procedural);
+  const heard = mountMapAudio(view, map, {volume: 0.4, muted: false});
+  heard.setVolume(0.2);
+  heard.setMuted(true);
+  const cues = heard.recentCues();
+  void cues[0]?.placeholder;
+  heard.dispose();
+  audio.dispose();
+  void crossed; void name; void bytes;
+  const event: MapAudioEvent = {type: 'map.traversal.started', action: 'climb-up'};
+  void soundForMapEvent(event);
+}
+void mapAudioTypes;

@@ -6,6 +6,7 @@ import {mountMap} from '../src/map-browser.js';
 import {assertMap} from '../src/map.js';
 import {upgradeStockBranches} from './map-editor-catalog.js';
 import {readPlaySettings,mountPlaySettings,rendererResumeKey} from './map-play-settings.js';
+import {mountMapAudio} from '../src/map-audio.js';
 
 const draftKey='posecraft-map-editor-draft-v1';
 /** Add new visual-only wheat behavior to the bundled town artwork in old drafts. */
@@ -33,7 +34,8 @@ const view = mountMap(document.querySelector('#game'), map, {
   keyboard:'document',
   onError(error) { if (error.name !== 'AbortError') console.error(error); },
 });
-const settingsMenu=mountPlaySettings(view,settings);
+const audio=mountMapAudio(view,map,{volume:settings.volume,muted:!settings.sound});
+const settingsMenu=mountPlaySettings(view,settings,{onAudio(next){audio.setVolume(next.volume);audio.setMuted(!next.sound);}});
 const loading=showLoading(view);
 view.zoomTo(2.5);
 view.focusActor(map.actors[0].id);
@@ -86,10 +88,11 @@ const fpsTimer=setInterval(()=>{
 document.addEventListener('visibilitychange',resetFPS);
 
 // Console access for local scene inspection without adding controls to the game.
-window.mapPlay = {map, view,townLife};
+window.mapPlay = {map, view,townLife,audio};
 if (import.meta.hot) import.meta.hot.dispose(() => {
   clearInterval(fpsTimer);loading.dispose();
   settingsMenu.dispose();
+  audio.dispose();
   document.removeEventListener('visibilitychange',resetFPS);
   townLife?.dispose();view.dispose();
   delete window.mapPlay;

@@ -1,6 +1,6 @@
 export const settingsKey='posecraft-map-play-settings-v1';
 export const rendererResumeKey='posecraft-map-renderer-resume-v1';
-const defaults={renderer:'canvas2d',movementMode:'auto',followOnMove:true,maxPixelRatio:2,shadows:true,showRoute:true,reducedMotion:'system',showFPS:true,fullscreen:false};
+const defaults={renderer:'canvas2d',movementMode:'auto',followOnMove:true,maxPixelRatio:2,shadows:true,showRoute:true,reducedMotion:'system',showFPS:true,fullscreen:false,sound:true,volume:0.45};
 
 export function readPlaySettings(storage){
   let saved;try{saved=JSON.parse((storage??globalThis.localStorage).getItem(settingsKey));}catch{}
@@ -11,11 +11,13 @@ export function readPlaySettings(storage){
   if(['canvas2d','webgl2'].includes(saved.renderer))result.renderer=saved.renderer;
   if([1,1.5,2].includes(saved.maxPixelRatio))result.maxPixelRatio=saved.maxPixelRatio;
   if(typeof saved.reducedMotion==='boolean'||saved.reducedMotion==='system')result.reducedMotion=saved.reducedMotion;
+  if(typeof saved.sound==='boolean')result.sound=saved.sound;
+  if(typeof saved.volume==='number'&&Number.isFinite(saved.volume))result.volume=Math.max(0,Math.min(1,saved.volume));
   return result;
 }
 
 /** The dialog lives inside the fullscreen root, so its exit control stays available. */
-export function mountPlaySettings(view,initial){
+export function mountPlaySettings(view,initial,{onAudio}={}){
   const settings={...initial},button=document.querySelector('#settings-toggle'),dialog=document.querySelector('#play-settings'),fps=document.querySelector('#fps'),message=dialog.querySelector('[data-settings-message]');
   const controls=[...dialog.querySelectorAll('[data-setting]')],fullscreen=dialog.querySelector('[data-fullscreen]');
   const supported=!!document.documentElement.requestFullscreen;
@@ -45,9 +47,27 @@ export function mountPlaySettings(view,initial){
       settings.renderer=input.value;save();
       const url=new URL(location.href);url.searchParams.set('renderer',settings.renderer);location.replace(url.href);return;
     }
+    if(key==='volume'||key==='sound'){
+      if(key==='volume'){
+        const value=Number(input.value);
+        if(!Number.isFinite(value))return;
+        settings.volume=Math.max(0,Math.min(1,value));
+      }else settings.sound=!!input.checked;
+      onAudio?.({volume:settings.volume,sound:settings.sound});
+      save();
+      return;
+    }
     settings[key]=input.type==='checkbox'?input.checked:key==='maxPixelRatio'?Number(input.value):key==='reducedMotion'&&input.value!=='system'?input.value==='true':input.value;
-    const {showFPS,fullscreen:unused,renderer:unusedRenderer,...preferences}=settings;
+    const {showFPS,fullscreen:unusedFullscreen,renderer:unusedRenderer,sound:unusedSound,volume:unusedVolume,...preferences}=settings;
     view.setPreferences(preferences);fps.hidden=!showFPS;save();
+  };
+  const volumeInput=event=>{
+    const input=event.target;
+    if(input?.dataset?.setting!=='volume')return;
+    const value=Number(input.value);
+    if(!Number.isFinite(value))return;
+    settings.volume=Math.max(0,Math.min(1,value));
+    onAudio?.({volume:settings.volume,sound:settings.sound});
   };
   const toggleFullscreen=async()=>{
     try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}
@@ -59,7 +79,7 @@ export function mountPlaySettings(view,initial){
   const resumeFullscreen=()=>{if(settings.fullscreen&&supported&&!document.fullscreenElement&&!disposed)document.documentElement.requestFullscreen().catch(()=>{});};
   const game=document.querySelector('#game');game.addEventListener('pointerdown',resumeFullscreen,{once:true});
   button.addEventListener('click',open);dialog.querySelector('[data-close]').addEventListener('click',close);
-  dialog.addEventListener('click',clickaway);dialog.addEventListener('close',closed);dialog.addEventListener('change',change);
+  dialog.addEventListener('click',clickaway);dialog.addEventListener('close',closed);dialog.addEventListener('change',change);dialog.addEventListener('input',volumeInput);
   fullscreen.addEventListener('click',toggleFullscreen);document.addEventListener('fullscreenchange',fullscreenChanged);refresh();
-  return{dispose(){disposed=true;game.removeEventListener('pointerdown',resumeFullscreen);button.removeEventListener('click',open);dialog.querySelector('[data-close]').removeEventListener('click',close);dialog.removeEventListener('click',clickaway);dialog.removeEventListener('close',closed);dialog.removeEventListener('change',change);fullscreen.removeEventListener('click',toggleFullscreen);document.removeEventListener('fullscreenchange',fullscreenChanged);if(dialog.open)dialog.close();}};
+  return{dispose(){disposed=true;game.removeEventListener('pointerdown',resumeFullscreen);button.removeEventListener('click',open);dialog.querySelector('[data-close]').removeEventListener('click',close);dialog.removeEventListener('click',clickaway);dialog.removeEventListener('close',closed);dialog.removeEventListener('change',change);dialog.removeEventListener('input',volumeInput);fullscreen.removeEventListener('click',toggleFullscreen);document.removeEventListener('fullscreenchange',fullscreenChanged);if(dialog.open)dialog.close();}};
 }
