@@ -9,6 +9,7 @@
     "./map": {"types":"./src/map.d.ts","default":"./src/map.js"},
     "./map-runtime": {"types":"./src/map-runtime.d.ts","default":"./src/map-runtime.js"},
     "./map-browser": {"types":"./src/map-browser.d.ts","default":"./src/map-browser.js"},
+    "./map-audio": {"types":"./src/map-audio.d.ts","default":"./src/map-audio.js"},
     ".": {
       "types": "./src/index.d.ts",
       "default": "./src/index.js"
@@ -334,6 +335,7 @@
     "test:map-camera": "node test/map-camera-browser.mjs",
     "test:map-picking": "node test/map-picking-browser.mjs",
     "test:map-settings": "node test/map-play-settings-browser.mjs",
+    "test:map-audio": "node test/map-audio-browser.mjs",
     "test:map-renderer-settings": "node test/map-renderer-settings-browser.mjs",
     "test:map-polish": "node test/map-polish-browser.mjs",
     "test:map-package": "node test/map-package.mjs",
