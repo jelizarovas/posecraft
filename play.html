@@ -23,10 +23,32 @@
       #play-settings [data-fullscreen] { width: 100%; margin-bottom: 12px; }
       #play-settings [data-settings-message] { font-size: 12px; color: #d3dec9; margin: 10px 0 0; }
       #play-settings :focus-visible, #settings-toggle:focus-visible { outline: 2px solid #d6eda8; outline-offset: 3px; }
+      #loading { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: radial-gradient(120% 90% at 50% 40%, #2f4a35 0%, #1d2e23 62%, #142019 100%); color: #f3f5ec; font: 15px/1.5 system-ui, sans-serif; transition: opacity .45s ease, visibility 0s linear .45s; }
+      #loading.done { opacity: 0; visibility: hidden; pointer-events: none; }
+      #loading .card { width: min(360px, calc(100vw - 48px)); text-align: center; }
+      #loading h1 { margin: 0 0 4px; font: 600 30px/1.2 Georgia, 'Times New Roman', serif; letter-spacing: .02em; color: #f6efd8; }
+      #loading .tagline { margin: 0 0 22px; color: #c9d6c2; font-size: 14px; }
+      #loading .track { height: 6px; border-radius: 999px; background: #0f1913a8; box-shadow: inset 0 0 0 1px #d9e6d722; overflow: hidden; }
+      #loading .bar { height: 100%; width: 100%; transform-origin: left; transform: scaleX(.04); border-radius: inherit; background: linear-gradient(90deg, #a7c278, #e3d58f); transition: transform .3s ease; }
+      #loading .status { margin: 10px 0 0; min-height: 1.5em; color: #b9c8b3; font-size: 12px; font-variant-numeric: tabular-nums; }
+      #loading .keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; margin: 26px 0 0; color: #9fb19a; font-size: 12px; }
+      #loading .keys span { white-space: nowrap; }
+      #loading kbd { display: inline-block; min-width: 1.3em; padding: 1px 5px; margin: 0 1px; border: 1px solid #d9e6d755; border-bottom-width: 2px; border-radius: 4px; background: #ffffff0d; color: #eef3e6; font: 600 11px/1.4 ui-monospace, monospace; }
+      @media (hover: none) { #loading .keys { display: none; } }
+      @media (prefers-reduced-motion: reduce) { #loading, #loading .bar { transition: none; } }
     </style>
   </head>
   <body>
     <main id="game" aria-label="Littlelands game"></main>
+    <div id="loading" role="progressbar" aria-label="Loading Littlelands" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="card">
+        <h1>Littlelands</h1>
+        <p class="tagline">Preparing the village…</p>
+        <div class="track"><div class="bar"></div></div>
+        <p class="status" aria-live="polite">Loading the game</p>
+        <p class="keys"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk</span> <span><kbd>Shift</kbd> run</span> <span><kbd>Space</kbd> jump</span> <span><kbd>E</kbd> interact</span></p>
+      </div>
+    </div>
     <output id="fps" title="Actual map frames drawn per second. Idle maps stop redrawing to save power.">— FPS</output>
     <button id="settings-toggle" type="button" aria-label="Open game settings" aria-haspopup="dialog" aria-controls="play-settings" aria-expanded="false">☰</button>
     <dialog id="play-settings" aria-labelledby="settings-title">

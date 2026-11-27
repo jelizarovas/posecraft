@@ -36,6 +36,7 @@ const view = mountMap(document.querySelector('#game'), map, {
 });
 const audio=mountMapAudio(view,map,{volume:settings.volume,muted:!settings.sound});
 const settingsMenu=mountPlaySettings(view,settings,{onAudio(next){audio.setVolume(next.volume);audio.setMuted(!next.sound);}});
+const loading=showLoading(view);
 view.zoomTo(2.5);
 view.focusActor(map.actors[0].id);
 // A local review link opens directly at the waterfall valley, with no extra UI.
@@ -50,6 +51,29 @@ try{
 const routes=townNpcRoutes(map);
 const townLife=map.actors.some(actor=>actor.npc)?startVillageLife(view,{seed:map.seed,onError:error=>console.warn('Village routine:',error.message)}):map.id.startsWith('town-')&&Object.keys(routes).every(id=>map.actors.some(a=>a.id===id))
   ?startTownLife(view,{routes,onError:error=>console.warn('Town resident:',error.message)}):null;
+
+/**
+ * Cover the map until its artwork has decoded and the first view is drawn
+ * complete, so the village never assembles itself piece by piece on screen.
+ */
+function showLoading(view,{timeoutMs=20000}={}){
+  const screen=document.querySelector('#loading');if(!screen)return{dispose(){}};
+  const bar=screen.querySelector('.bar'),status=screen.querySelector('.status'),started=performance.now();let shown=0,finished=false;
+  const finish=()=>{if(finished)return;finished=true;clearInterval(timer);bar.style.transform='scaleX(1)';screen.setAttribute('aria-valuenow','100');screen.classList.add('done');screen.setAttribute('aria-hidden','true');};
+  const timer=setInterval(()=>{
+    // A replaced or disposed view has nothing left to wait for.
+    let stats;try{stats=view.stats();}catch{finish();return;}
+    const art=stats.art||{requested:0,loaded:0,failed:0},settled=art.loaded+art.failed;
+    // Maps without artwork (or a disposed view) only wait for a drawn frame.
+    const artDone=settled===art.requested,drawn=(stats.drawnFrames||0)>0&&!stats.terrainCache?.pending&&!stats.sceneryCache?.pending;
+    // Artwork is most of the wait; the last part is the first complete frame.
+    const target=art.requested?.85*settled/art.requested+(artDone&&drawn?.15:0):0;
+    shown=Math.max(shown,Math.min(1,target));bar.style.transform=`scaleX(${Math.max(.04,shown)})`;screen.setAttribute('aria-valuenow',String(Math.round(shown*100)));
+    status.textContent=artDone?'Drawing the map':`Loading artwork ${settled} of ${art.requested||'…'}`;
+    if(artDone&&drawn||performance.now()-started>timeoutMs)finish();
+  },100);
+  return{dispose(){clearInterval(timer);finish();}};
+}
 
 // Count real map draws, without keeping an otherwise idle render loop awake.
 const fps=document.querySelector('#fps');
@@ -66,7 +90,7 @@ document.addEventListener('visibilitychange',resetFPS);
 // Console access for local scene inspection without adding controls to the game.
 window.mapPlay = {map, view,townLife,audio};
 if (import.meta.hot) import.meta.hot.dispose(() => {
-  clearInterval(fpsTimer);
+  clearInterval(fpsTimer);loading.dispose();
   settingsMenu.dispose();
   audio.dispose();
   document.removeEventListener('visibilitychange',resetFPS);
