@@ -51,8 +51,7 @@ export class MapController {
   if(direction!==null&&!point(direction))throw TypeError('Steering direction must be null or a finite map vector.');
   const length=direction?Math.hypot(direction.x,direction.y):0,input=length>1e-9?{x:direction.x/length,y:direction.y/length}:null;
   let job=this.active.get(id);
-  // Held keys take over from a swim to the shore, dropping the queued route.
-  if(job?.kind==='steer'&&!job.goal){job.input=input;job.gait=gait;return job.promise;}
+  if(job?.kind==='steer'){job.input=input;job.gait=gait;return job.promise;}
   if(!input)return Promise.resolve(null);
   if(actor.jumping||actor.rolling)return this.deferVault(id,()=>this.steer(id,direction,{gait}),undefined);
   if(this.active.size>=16&&!job)return Promise.reject(Error('At most 16 map movements may be active.'));
@@ -150,18 +149,6 @@ export class MapController {
   const p=Math.min(1,ledge.elapsed/.28);actor.lift=Math.max(0,ledge.dropFrom*(1-p*p));actor.jumpProgress=.6+p*.4;
   if(p>=1){Object.assign(actor,{lift:0,jumping:false,jumpProgress:0,lastGround:{x:actor.x,y:actor.y}});job.ledge=null;this.emit({type:'map.ledge.dropped',actor:actor.id,request:job.request,x:actor.x,y:actor.y});}
  }
- swimAshore(id,toward,signal){
-  const actor=this.actors.get(id),radius=this.map.navigation?.radius??0;let best=null;
-  for(let r=.5;r<=8&&!best;r+=.5)for(let i=0;i<32;i++){
-   const angle=i/32*Math.PI*2,p={x:actor.x+Math.cos(angle)*r,y:actor.y+Math.sin(angle)*r};
-   if(mapWaterDepth(this.map,p.x,p.y)>0||this.index.isPointBlocked(p.x,p.y,radius)||!continuousSegmentClear(this.index,actor,p,radius,{allowWater:true}))continue;
-   const score=r+.35*Math.hypot(toward.x-p.x,toward.y-p.y);if(!best||score<best.score)best={score,p};
-  }
-  if(!best)return Promise.reject(Error('No reachable shore.'));
-  const job=this.startSteer(id,null,'walk');job.goal=best.p;
-  if(signal){const abort=()=>this.cancelRequest(id,job.request);signal.addEventListener('abort',abort,{once:true});job.promise.finally(()=>signal.removeEventListener('abort',abort)).catch(()=>{});}
-  return job.promise;
- }
  /** A short hop from the bank into open water. */
  dive(job,actor,input){
   const radius=this.map.navigation?.radius??0,start={x:actor.x,y:actor.y};
@@ -183,11 +170,6 @@ export class MapController {
  }
  advanceSteer(job,dt){
   const actor=this.actors.get(job.actor),radius=this.map.navigation?.radius??0,v=job.velocity;
-  if(job.goal){
-   const dx=job.goal.x-actor.x,dy=job.goal.y-actor.y,distance=Math.hypot(dx,dy);
-   if(distance<.06){this.finish(job,null,{type:'map.swim.ashore',actor:job.actor,request:job.request,x:actor.x,y:actor.y});return;}
-   job.input={x:dx/distance,y:dy/distance};
-  }
   const input=job.input;
   // Swimming is slower than walking and never runs; wading eases between them.
   const depth=mapWaterDepth(this.map,actor.x,actor.y),gait=depth>0?'walk':job.gait,speed=(actor.speed??3.5)*(gait==='run'?1.8:1)*(1-.45*depth);
@@ -258,10 +240,11 @@ export class MapController {
   if(authoredTraversal&&!manual)return Promise.reject(Error('Traversal exit is blocked.'));
   const destination=prop?null:continuous?{x:target.x,y:target.y}:cell(target);
   const goals=manual?[manual.entry]:prop?approachTiles(this.map,this.index,prop):[destination];
-  if(!goals.length||goals.every(p=>continuous?this.index.isPointBlocked(p.x,p.y):this.index.isBlocked(p.x,p.y)))return Promise.reject(Error('Destination is blocked or has no accessible approach.'));
+  // People may be sent through or into open water; animals keep to land.
+  const swims=continuous&&actor.appearance?.kind!=='livestock';
+  if(!goals.length||goals.every(p=>continuous?!continuousSegmentClear(this.index,p,p,this.map.navigation.radius,{allowWater:swims}):this.index.isBlocked(p.x,p.y)))return Promise.reject(Error('Destination is blocked or has no accessible approach.'));
   if(signal?.aborted)return Promise.reject(abortError('Movement cancelled.'));
   // Routes start on land: a swimmer first swims to the shore nearest the way.
-  if(continuous&&actor.swimDepth>0&&!actor.jumping)return this.swimAshore(id,goals[0],signal).then(()=>this.moveTo(id,target,{signal,gait,allowVault}));
   if(actor.jumping||actor.rolling){
    const active=this.active.get(id),heading=Math.atan2(goals[0].y-actor.y,goals[0].x-actor.x);
    if(active?.jump&&active.gait==='run'&&Math.abs(angleDelta(active.jump.heading,heading))>.35)active.rollOnLand=true;
@@ -275,13 +258,13 @@ export class MapController {
   const skid=this.map.navigation?.mode==='continuous'&&previous?.gait==='run'&&velocity>.15&&(previous.skid||Math.abs(angleDelta(Math.atan2(momentum.y,momentum.x),desired))>.45)
    ?{velocity:{...momentum},deceleration:actor.speed*1.8*3.5}:null;
   const actorAllowsVault=allowVault??(actor.appearance?.kind!=='livestock');
-  const promise=new Promise((resolve,reject)=>{const abort=()=>this.cancelRequest(id,request);job={actor:id,request,gait,skid,target:typeof target==='string'?target:destination,prop,goals,manualTraversal:manual,start:{x:actor.x,y:actor.y},resolve,reject,signal,abort,route:null,index:1,velocity:0,allowVault:!manual&&actorAllowsVault};signal?.addEventListener('abort',abort,{once:true});this.active.set(id,job);});
+  const promise=new Promise((resolve,reject)=>{const abort=()=>this.cancelRequest(id,request);job={actor:id,request,gait,skid,target:typeof target==='string'?target:destination,prop,goals,manualTraversal:manual,start:{x:actor.x,y:actor.y},resolve,reject,signal,abort,route:null,index:1,velocity:0,allowVault:!manual&&actorAllowsVault,swims};signal?.addEventListener('abort',abort,{once:true});this.active.set(id,job);});
   promise.catch(()=>{});if(previous)this.finish(previous,abortError('Movement replaced.'));if(this.active.get(id)!==job)return promise;actor.walking=!!skid;actor.running=!!skid;actor.skidding=!!skid;actor.turning=false;if(!skid)actor.gaitWeight=0;actor.gait=gait;this.emit({type:'map.move.started',actor:id,request,target:job.target,gait});
   if(!skid)this.requestPath(job);
   return promise;
  }
  requestPath(job){
-  this.ready.then(()=>{if(this.disposed||this.active.get(job.actor)!==job)return;if(this.worker)this.worker.postMessage({type:'path',request:job.request,start:job.start,goals:job.goals,allowVault:job.allowVault!==false});else{job.planning=true;this.schedulePaths();}}).catch(error=>this.finish(job,error));
+  this.ready.then(()=>{if(this.disposed||this.active.get(job.actor)!==job)return;if(this.worker)this.worker.postMessage({type:'path',request:job.request,start:job.start,goals:job.goals,allowVault:job.allowVault!==false,allowWater:job.swims===true});else{job.planning=true;this.schedulePaths();}}).catch(error=>this.finish(job,error));
  }
  advanceSkid(job,dt){
   const actor=this.actors.get(job.actor),result=brakeMapMotion(this.index,actor,job.skid.velocity,dt,job.skid.deceleration,this.map.navigation.radius);
@@ -355,7 +338,7 @@ export class MapController {
   if(this.timer!==null||this.disposed)return;
   this.timer=setTimeout(()=>{
    this.timer=null;const deadline=performance.now()+2,pending=[...this.active.values()].filter(j=>j.planning||j.preparation);let allocated=pending.filter(j=>j.pathJob).length;
-   for(const job of pending){if(allocated>=4)break;if(job.planning&&!job.pathJob){try{job.pathJob=new (this.map.navigation?.mode==='continuous'?MapNavigationJob:MapPathJob)(this.map,this.index,job.start,job.goals,{allowVault:job.allowVault!==false});allocated++;}catch(error){job.planning=false;this.finish(job,error);}}}
+   for(const job of pending){if(allocated>=4)break;if(job.planning&&!job.pathJob){try{job.pathJob=new (this.map.navigation?.mode==='continuous'?MapNavigationJob:MapPathJob)(this.map,this.index,job.start,job.goals,{allowVault:job.allowVault!==false,allowWater:job.swims===true});allocated++;}catch(error){job.planning=false;this.finish(job,error);}}}
    const ready=pending.filter(j=>j.pathJob||j.preparation);this.pathCursor=(this.pathCursor??0)%Math.max(1,ready.length);
    for(let i=0;i<ready.length;i++){
     const job=ready[(this.pathCursor+i)%ready.length];
@@ -372,7 +355,7 @@ export class MapController {
   this.stats.expanded+=result.visited??0;
   if(result.status!=='complete'||!result.path?.length){this.finish(job,Error(result.reason||'No route to destination.'));return;}
   const actor=this.actors.get(job.actor);
-  job.preparation=new MapRoutePreparation(this.index,actor,result.path,{allowVault:job.allowVault!==false});this.schedulePaths();
+  job.preparation=new MapRoutePreparation(this.index,actor,result.path,{allowVault:job.allowVault!==false,allowWater:job.swims===true});this.schedulePaths();
  }
  completePreparation(job){
   if(this.active.get(job.actor)!==job)return;
@@ -412,8 +395,9 @@ export class MapController {
     if(Math.abs(delta)<=7*dt+1e-8)this.finish(job,null,{type:'map.actor.faced',actor:job.actor,request:job.request,facing:actor.facing});
     continue;
    }
-   const actor=this.actors.get(job.actor),startX=actor.x,startY=actor.y,speed=(actor.speed??3.5)*(job.gait==='run'?1.8:1),acceleration=speed*5;
-   if(this.map.navigation?.mode==='continuous'&&job.allowVault!==false){
+   // Routed swimmers slow with depth and cannot run, exactly as steering does.
+   const actor=this.actors.get(job.actor),startX=actor.x,startY=actor.y,depth=job.swims?mapWaterDepth(this.map,actor.x,actor.y):0,speed=(actor.speed??3.5)*(job.gait==='run'&&depth===0?1.8:1)*(1-.45*depth),acceleration=speed*5;
+   if(depth===0&&this.map.navigation?.mode==='continuous'&&job.allowVault!==false){
     const jump=planMapVault(this.index,actor,job.route,job.index,job.gait);
     if(jump&&job.velocity>speed*.4&&Math.abs(angleDelta(actor.facing,jump.heading))<.6){
      job.jump=jump;actor.jumping=true;actor.jumpProgress=0;actor.vaultId=jump.object;actor.traversalAction=jump.action;actor.traversalProgress=0;actor.facing=actor.travelFacing=jump.heading;
@@ -439,7 +423,7 @@ export class MapController {
      // into its next segment merely because look-ahead spans that corner.
      // Keep translation within 38 degrees of body facing while it turns.
      if(d>1e-9&&Math.abs(angleDelta(actor.facing,Math.atan2(dy,dx)))>.65)break;
-     if(d>1e-9&&this.map.navigation?.mode==='continuous'&&!continuousSegmentClear(this.index,actor,{x:actor.x+dx/d*length,y:actor.y+dy/d*length},this.map.navigation.radius)){
+     if(d>1e-9&&this.map.navigation?.mode==='continuous'&&!continuousSegmentClear(this.index,actor,{x:actor.x+dx/d*length,y:actor.y+dy/d*length},this.map.navigation.radius,{allowWater:job.swims===true})){
       // A short runway or blocked landing means detour, never walk through a rock.
       job.allowVault=false;job.route=null;job.start={x:actor.x,y:actor.y};actor.walking=false;actor.running=false;job.velocity=0;this.requestPath(job);break;
      }
@@ -450,6 +434,10 @@ export class MapController {
    }
    job.motion=dt>0?{x:(actor.x-startX)/dt,y:(actor.y-startY)/dt}:job.motion;
    actor.gaitWeight=dt>0?Math.min(1,travelled/(dt*speed)):0;
+   if(job.swims){
+    const entering=!(actor.swimDepth>0);actor.swimDepth=mapWaterDepth(this.map,actor.x,actor.y);actor.swimming=actor.swimDepth>0;
+    if(actor.swimming){actor.running=false;if(entering){actor.splashAt=now();this.emit({type:'map.water.entered',actor:actor.id,x:actor.x,y:actor.y});}}
+   }
    if(!this.index.isPointBlocked(actor.x,actor.y,this.map.navigation?.radius??0))actor.lastGround={x:actor.x,y:actor.y};
    this.indexActor(actor);
    if(this.active.get(job.actor)===job&&job.route&&job.index>=job.route.length){this.reachDestination(job);const pending=this.afterVault.get(actor.id);if(pending&&!job.jump){this.afterVault.delete(actor.id);pending.run();}}
