@@ -22,8 +22,8 @@ export function brakeMapMotion(index,position,velocity,dt,deceleration,radius){
 
 // Segment against expanded cell rectangles. Corner rounding must keep the
 // character's feet clear, not just keep sampled curve points outside obstacles.
-export function mapSegmentClear(index,a,b,radius=.16,{allowVault=true}={}){
- if(index.map.navigation?.mode==='continuous')return continuousSegmentClear(index,a,b,radius,{allowVault});
+export function mapSegmentClear(index,a,b,radius=.16,{allowVault=true,allowWater=false}={}){
+ if(index.map.navigation?.mode==='continuous')return continuousSegmentClear(index,a,b,radius,{allowVault,allowWater});
  for(let y=Math.floor(Math.min(a.y,b.y)-radius);y<=Math.floor(Math.max(a.y,b.y)+radius);y++)for(let x=Math.floor(Math.min(a.x,b.x)-radius);x<=Math.floor(Math.max(a.x,b.x)+radius);x++){
   if(!index.isBlocked(x,y))continue;
   let low=0,high=1;
@@ -38,8 +38,11 @@ export function mapSegmentClear(index,a,b,radius=.16,{allowVault=true}={}){
 
 /** Incremental route normalization, rounding, length and viewport indexing. */
 export class MapRoutePreparation {
- constructor(index,start,path,{allowVault=true}={}){
-  this.clear=(a,b,radius=.16)=>mapSegmentClear(index,a,b,radius,{allowVault});
+ constructor(index,start,path,{allowVault=true,allowWater=false}={}){
+  // Smoothing may swim only where the route already does: a segment between
+  // two dry points never cuts across water.
+  const wet=p=>index.map.terrain[Math.floor(p.y)*index.map.width+Math.floor(p.x)]===2;
+  this.clear=(a,b,radius=.16)=>mapSegmentClear(index,a,b,radius,{allowVault,allowWater:allowWater&&(wet(a)||wet(b))});
   this.index=index;this.source=path;this.input=[{x:start.x,y:start.y}];this.cursor=0;this.phase='normalize';
   // Replacing a command between cell centers should continue toward the next
   // waypoint when safe instead of first reversing to the cell center.

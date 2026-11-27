@@ -83,13 +83,13 @@ test('steered people wade into water, swim slower, and save on the shore',async(
  }finally{c.dispose();}
 });
 
-test('animals never swim and routed moves still refuse water',async()=>{
+test('animals never swim, even when sent into water',async()=>{
  const map=fixture();for(let y=0;y<16;y++)for(let x=7;x<16;x++)map.terrain[y*16+x]=2;
  map.actors.push({id:'cow',x:3.5,y:9.5,speed:2,appearance:{kind:'livestock',image:'cow'}});map.art={images:{cow:{src:'./cow.webp',width:64,height:48,anchorX:.5,anchorY:.9}}};
  const c=new MapController(map,{execution:'main'});
  try{
   c.steer('cow',{x:1,y:0});run(c,4);const cow=c.actorPosition('cow');assert.ok(cow.x<7&&!cow.swimming);
-  await assert.rejects(c.moveTo('hero',{x:10.5,y:5.5}),/blocked/);
+  await assert.rejects(c.moveTo('cow',{x:10.5,y:9.5}),/blocked/);
  }finally{c.dispose();}
 });
 
@@ -115,4 +115,26 @@ test('walls beyond reach cannot be grabbed',()=>{
  const map=fixture();map.terraces=[{id:'crag',x:6,y:0,width:10,height:16,heightOffset:9}];
  const c=new MapController(map,{execution:'main'});
  try{c.steer('hero',{x:1,y:0});run(c,1);c.steer('hero',null);run(c,.5);c.jump('hero');run(c,.3);assert.notEqual(c.actorPosition('hero').traversalAction,'hang');run(c,1);}finally{c.dispose();}
+});
+
+test('clicked routes swim into, across and out of water',async()=>{
+ const map=fixture();for(let y=0;y<16;y++)for(let x=7;x<11;x++)map.terrain[y*16+x]=2;
+ const events=[],c=new MapController(map,{execution:'main',onEvent:e=>events.push(e.type)});
+ const settle=async()=>{for(let i=0;i<1500&&c.active.size;i++){c.advance(1/60);if(i%10===0)await new Promise(r=>setTimeout(r,0));}};
+ try{
+  let move=c.moveTo('hero',{x:8.5,y:5.5});await settle();assert.equal((await move).type,'map.actor.arrived');
+  let hero=c.actorPosition('hero');assert.ok(hero.swimming&&Math.abs(hero.x-8.5)<1e-6,'a click in water swims there');assert.ok(events.includes('map.water.entered'));
+  move=c.moveTo('hero',{x:9.5,y:12.5});await settle();await move;hero=c.actorPosition('hero');assert.ok(hero.swimming&&Math.abs(hero.y-12.5)<1e-6,'water to water');
+  move=c.moveTo('hero',{x:13.5,y:12.5});await settle();await move;hero=c.actorPosition('hero');assert.equal(hero.swimming,false,'climbs out on the far bank');assert.ok(Math.abs(hero.x-13.5)<1e-6);
+ }finally{c.dispose();}
+});
+
+test('routes prefer a dry way round over a short swim',async()=>{
+ const map=fixture();for(let y=3;y<16;y++)for(let x=5;x<8;x++)map.terrain[y*16+x]=2;
+ const c=new MapController(map,{execution:'main'});
+ try{
+  const move=c.moveTo('hero',{x:10.5,y:5.5});let wet=false;
+  for(let i=0;i<1500&&c.active.size;i++){c.advance(1/60);if(c.actorPosition('hero').swimming)wet=true;if(i%10===0)await new Promise(r=>setTimeout(r,0));}
+  await move;assert.equal(wet,false,'walks round the top of the pool');
+ }finally{c.dispose();}
 });

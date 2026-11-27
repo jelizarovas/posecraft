@@ -7,15 +7,17 @@ class Heap{
 }
 /** Sparse quarter-cell A*. Terrain tiles remain independent of locomotion. */
 export class MapNavigationJob{
- constructor(map,index,start,goals,{allowVault=true}={}){
-  this.map=map;this.index=index;this.start={x:start.x,y:start.y};this.radius=map.navigation.radius;this.allowVault=allowVault;
-  this.goals=(Array.isArray(goals)?goals:[goals]).filter(p=>!index.isPointBlocked(p.x,p.y,this.radius));
+ constructor(map,index,start,goals,{allowVault=true,allowWater=false}={}){
+  this.map=map;this.index=index;this.start={x:start.x,y:start.y};this.radius=map.navigation.radius;this.allowVault=allowVault;this.allowWater=allowWater;
+  const blocked=p=>!continuousSegmentClear(index,p,p,this.radius,{allowWater});
+  this.goals=(Array.isArray(goals)?goals:[goals]).filter(p=>!blocked(p));
   this.result={status:'pending',path:null,reason:null,visited:0};this.open=new Heap();this.cost=new Map();this.parents=new Map();this.closed=new Set();this.width=map.width*4;
-  if(index.isPointBlocked(start.x,start.y,this.radius)){this.fail('blocked-start');return;}
+  if(blocked(start)){this.fail('blocked-start');return;}
   if(!this.goals.length){this.fail('blocked-target');return;}
   // Nearby exact destinations can be connected without a grid waypoint.
   const nearest=[...this.goals].sort((a,b)=>Math.hypot(a.x-start.x,a.y-start.y)-Math.hypot(b.x-start.x,b.y-start.y));
-  for(const goal of nearest)if(this.clear(start,goal)){this.result={status:'complete',path:[this.start,{...goal}],reason:null,visited:0};return;}
+  // The shortcut must stay dry: a swim is only taken when search prices it.
+  for(const goal of nearest)if(continuousSegmentClear(index,start,goal,this.radius,{allowVault})){this.result={status:'complete',path:[this.start,{...goal}],reason:null,visited:0};return;}
   const sx=Math.floor(start.x*4),sy=Math.floor(start.y*4);
   for(let y=sy-1;y<=sy+1;y++)for(let x=sx-1;x<=sx+1;x++){
    const p=this.point(x,y);if(!this.inside(x,y)||!this.clear(start,p))continue;
@@ -24,7 +26,7 @@ export class MapNavigationJob{
  }
  inside(x,y){return x>=0&&y>=0&&x<this.width&&y<this.map.height*4;}
  point(x,y){return{x:(x+.5)/4,y:(y+.5)/4};}
- clear(a,b){return continuousSegmentClear(this.index,a,b,this.radius,{allowVault:this.allowVault});}
+ clear(a,b){return continuousSegmentClear(this.index,a,b,this.radius,{allowVault:this.allowVault,allowWater:this.allowWater});}
  heuristic(p){return Math.min(...this.goals.map(g=>Math.hypot(g.x-p.x,g.y-p.y)));}
  fail(reason){this.result.status='failed';this.result.reason=reason;}
  step(budget=128){
@@ -42,7 +44,8 @@ export class MapNavigationJob{
     const id=(y+dy)*this.width+x+dx;if(this.closed.has(id))continue;
     const q=this.point(x+dx,y+dy);if(!this.clear(p,q))continue;
     const terrain=this.map.terrain[Math.floor(q.y)*this.map.width+Math.floor(q.x)];
-    const g=node.g+Math.hypot(dx,dy)/4*(terrain===1?1:terrain===3?1.6:1.2);
+    // Swimmers can cross water, but it is slow and they prefer a dry way round.
+    const g=node.g+Math.hypot(dx,dy)/4*(terrain===1?1:terrain===3?1.6:terrain===2?3.2:1.2);
     if(g>=(this.cost.get(id)??Infinity))continue;
     this.cost.set(id,g);this.parents.set(id,node.id);this.open.push({id,g,f:g+this.heuristic(q)});
    }
