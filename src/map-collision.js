@@ -37,7 +37,21 @@ export function propHitsSegment(prop,a,b,radius=0){
 
 /** True when the center of a coarse pathfinding cell lies in an authored shape. */
 export function propBlocksCell(prop,x,y){return propHitsSegment(prop,{x:x+.5,y:y+.5},{x:x+.5,y:y+.5});}
-export function continuousSegmentClear(index,a,b,radius=.12,{allowVault=false,ignoreProp=null,ignoreCliffs=false}={}){
+/**
+ * How far a point lies inside open water, from 0 on the shore to 1 once it is
+ * 0.45 tiles from any land. Swimmers sink and slow with this depth.
+ */
+export function mapWaterDepth(map,x,y){
+ const tx=Math.floor(x),ty=Math.floor(y),w=map.width;
+ if(tx<0||ty<0||tx>=w||ty>=map.height||map.terrain[ty*w+tx]!==2)return 0;
+ let distance=1;
+ for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+  const nx=tx+dx,ny=ty+dy;if((!dx&&!dy)||nx<0||ny<0||nx>=w||ny>=map.height||map.terrain[ny*w+nx]===2)continue;
+  distance=Math.min(distance,Math.hypot(x-Math.max(nx,Math.min(nx+1,x)),y-Math.max(ny,Math.min(ny+1,y))));
+ }
+ return Math.min(1,distance/.45);
+}
+export function continuousSegmentClear(index,a,b,radius=.12,{allowVault=false,ignoreProp=null,ignoreCliffs=false,allowWater=false}={}){
  const map=index.map;
  if([a,b].some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)||p.x<radius||p.y<radius||p.x>map.width-radius||p.y>map.height-radius))return false;
  if(!ignoreCliffs&&segmentCrossesCliff(map,a,b,radius))return false;
@@ -49,7 +63,7 @@ export function continuousSegmentClear(index,a,b,radius=.12,{allowVault=false,ig
   for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
    const cx=x+dx,cy=y+dy;if(cx<0||cy<0||cx>=map.width||cy>=map.height)continue;
    const id=cy*map.width+cx;if(cells.has(id))continue;cells.add(id);
-   if(map.terrain[id]===2&&segmentHitsRect(a,b,cx-radius,cy-radius,cx+1+radius,cy+1+radius))return false;
+   if(!allowWater&&map.terrain[id]===2&&segmentHitsRect(a,b,cx-radius,cy-radius,cx+1+radius,cy+1+radius))return false;
    for(const prop of index.propsAt(cx,cy)){
     if(props.has(prop.id))continue;props.add(prop.id);
     if(prop.id===ignoreProp||(allowVault&&prop.traversal?.kind==='vault'&&(prop.traversal.activation??'auto')==='auto'))continue;

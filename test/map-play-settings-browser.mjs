@@ -5,7 +5,7 @@ try{
  const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:2,hasTouch:true,isMobile:true});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://localhost:5246/play.html'+(process.env.MAP_SETTINGS_RENDERER==='webgl2'?'?renderer=webgl2':''));
- await page.waitForFunction(()=>window.mapPlay?.view);
+ await page.waitForFunction(()=>window.mapPlay?.view);await page.waitForSelector('#loading.done',{state:'attached'});
  await page.evaluate(()=>mapPlay.view.ready);
  await page.evaluate(()=>mapPlay.townLife?.dispose());
  const menu=page.getByRole('button',{name:'Open game settings'}),dialog=page.getByRole('dialog');
@@ -23,7 +23,7 @@ try{
  await page.mouse.click(5,5);assert.equal(await dialog.isVisible(),false,'Backdrop dismisses without passing a waypoint through');
  assert.equal(await page.evaluate(()=>mapPlay.view.controller.isMoving),false);
  assert.equal(await page.evaluate(()=>document.querySelector('#game canvas').width),390,'Low resolution uses CSS-sized backing pixels');
- await page.reload();await page.waitForFunction(()=>window.mapPlay?.view);await page.evaluate(()=>mapPlay.townLife?.dispose());
+ await page.reload();await page.waitForFunction(()=>window.mapPlay?.view);await page.waitForSelector('#loading.done',{state:'attached'});await page.evaluate(()=>mapPlay.townLife?.dispose());
  assert.deepEqual(await page.evaluate(()=>mapPlay.view.preferences()),pref,'Preferences survive reload');
  const dest=await page.evaluate(()=>{
    const {view,map}=mapPlay,a=view.controller.actorPosition(map.actors[0].id);
@@ -48,7 +48,7 @@ try{
  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('posecraft-map-play-settings-v1')).fullscreen),false);
  await page.screenshot({path:'test-results/map-settings-mobile.png'});
  await page.evaluate(()=>{const key='posecraft-map-play-settings-v1',saved=JSON.parse(localStorage.getItem(key));localStorage.setItem(key,JSON.stringify({...saved,fullscreen:true}));});
- await page.reload();await page.waitForFunction(()=>window.mapPlay?.view);
+ await page.reload();await page.waitForFunction(()=>window.mapPlay?.view);await page.waitForSelector('#loading.done',{state:'attached'});
  assert.equal(await page.evaluate(()=>!!document.fullscreenElement),false,'Restoration waits for a gesture');
  await page.mouse.click(150,200);await page.waitForFunction(()=>!!document.fullscreenElement);
  await menu.click();await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();

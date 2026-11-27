@@ -235,6 +235,6 @@ export function createMapTerrainChunks(map,doc,art,fallback,{onUpdate,externalWo
     needsBackgroundWork(){return !disposed&&deferredScale===null&&needsWork();},
     stats(){const inner=painter.stats();return{tiles:cache.size,chunks:cache.size,pixels,materials:inner.materials,builds,completed,pending,maxPixels,rasterScale,tilePixels:inner.pixels,tileBuilds:inner.builds,visibleChunks:plan.length,workingSetPixels:planPixels,workSlices,buildMs,staging:staging.size,swaps,resamples,previewBuilds,prefetched,prefetchChunks:ring.length,prefetchPixels:ringPixels,staleDraws,missingDraws};},
     clear(){cancelWork();for(const entry of cache.values())destroy(entry);for(const entry of staging.values())destroy(entry);cache.clear();byId.clear();staging.clear();descriptors.clear();allDescriptors=null;plan=[];ring=[];ringKey='';ringPixels=0;lastList=[];lastTiles=null;lastViewKey='';deferredScale=null;planPixels=0;pending=true;pendingVisualUpdate=false;painter.clear();},
-    dispose(){if(disposed)return;this.clear();workChannel?.port1.close();workChannel?.port2.close();painter.dispose();disposed=true;}
+    dispose(){if(disposed)return;this.clear();workChannel?.port1.close();workChannel?.port2.close();painter.dispose();disposed=true;pending=false;}
   };
 }

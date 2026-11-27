@@ -79,7 +79,7 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   if(execution!=='worker'&&execution!=='main')throw TypeError('Map execution must be main or worker.');
   if(!['canvas2d','webgl2','auto'].includes(renderer))throw TypeError('Map renderer must be canvas2d, webgl2 or auto.');
   const doc=element.ownerDocument,win=doc.defaultView||globalThis,canvas=doc.createElement('canvas'),status=doc.createElement('div');
-  canvas.tabIndex=0;canvas.setAttribute('role','application');canvas.setAttribute('aria-label',`${map.name||'Adventure map'}. Click to move or interact. W A S D to walk, Shift to run, Space to jump, E to interact. Double-tap or Shift-click to run. Hold or Alt-click to face a point. Drag to pan, scroll to zoom, arrow keys to pan, Enter to return to your character.`);
+  canvas.tabIndex=0;canvas.setAttribute('role','application');canvas.setAttribute('aria-label',`${map.name||'Adventure map'}. Click to move or interact. W A S D to walk, Shift to run, Space to jump or grab a ledge, E to interact, Shift or E to let go of a ledge. Double-tap or Shift-click to run. Hold or Alt-click to face a point. Drag to pan, scroll to zoom, arrow keys to pan, Enter to return to your character.`);
   canvas.style.cssText='display:block;width:100%;height:100%;touch-action:none;outline-offset:-3px;';status.style.cssText='position:absolute;left:12px;bottom:10px;padding:5px 8px;border-radius:6px;color:#eaf0df;background:#263b3bcc;font:11px/1.4 system-ui;pointer-events:none;';status.setAttribute('role','status');status.className='map-stats';
   const originalPosition=element.style.position;if(win.getComputedStyle(element).position==='static')element.style.position='relative';element.append(canvas,status);
   const ctx=canvas.getContext('2d',{alpha:renderer!=='canvas2d'});if(!ctx){canvas.remove();status.remove();element.style.position=originalPosition;throw Error('Canvas 2D is unavailable.');}
@@ -103,7 +103,7 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
   function drawActor(context,actor,{shadow=shadows}={}){
     const definition=definitions.get(actor.id),state=presentations.get(actor.id);
     const presentation=state?{...state,time:animationTime,age:Math.max(0,animationTime-state.since)}:undefined;
-    if(!drawMapNpc(context,map,actor,definition,reduced(),{shadow,art,presentation,drawBase:drawMapActor}))drawMapActor(context,map,actor,definition,reduced(),{shadow,art});
+    if(!drawMapNpc(context,map,actor,definition,reduced(),{shadow,art,presentation,drawBase:drawMapActor}))drawMapActor(context,map,actor,definition,reduced(),{shadow,art,time:animationTime});
   }
   function setActorPresentation(id,state){
     if(!definitions.has(id))throw Error(`Unknown map actor: ${id}`);
@@ -300,7 +300,8 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     }
     animationTime=now/1000;
     const actors=frame.actors.filter(a=>{const bounds=actorBounds(a);return bounds.x<rect.x+rect.width&&bounds.x+bounds.width>rect.x&&bounds.y<rect.y+rect.height&&bounds.y+bounds.height>rect.y;});
-    visibleNpcAnimation=!reduced()&&actors.some(a=>{const action=presentations.get(a.id)?.action;return action&&action!=='idle'&&definitions.get(a.id)?.appearance;});
+    // Swimmers bob and ripple even while treading water.
+    visibleNpcAnimation=!reduced()&&actors.some(a=>{const action=presentations.get(a.id)?.action;return a.swimDepth>0||action&&action!=='idle'&&definitions.get(a.id)?.appearance;});
     const animatedFalls=drawCliffWater(ctx,map,cliffs,rect,now/1000,{reduced:reduced(),art});
     const occlusion=cachedOcclusion;let occlusionCandidates=0,maskedActors=0,scratchPixels=0;
     actors.sort((a,b)=>a.x+a.y-b.x-b.y);
@@ -469,8 +470,10 @@ export function mountMap(element,map,{onEvent,onError,execution='worker',autopla
     const player=map.actors[0];
     if(STEER[e.code]){if(!e.repeat){held.add(e.code);shiftHeld=e.shiftKey;updateSteering();}return true;}
     if(e.code==='Space'){if(!e.repeat&&player){keyboardUsed=true;followActor(player.id);try{controller.jump(player.id);}catch(error){report(error);}invalidate();}return true;}
-    if(e.code==='KeyE'){if(!e.repeat)interact();return true;}
-    if(e.key==='Shift'&&held.size){shiftHeld=true;updateSteering();return true;}
+    // E or Shift lets go of a ledge; otherwise E uses things and Shift runs.
+    const letGo=()=>{try{return !!player&&controller.release(player.id);}catch(error){report(error);return false;}};
+    if(e.code==='KeyE'){if(!e.repeat&&!letGo())interact();invalidate();return true;}
+    if(e.key==='Shift'){if(!e.repeat&&letGo()){invalidate();return true;}if(held.size){shiftHeld=true;updateSteering();return true;}return false;}
     return false;
   }
   function keyup(e){

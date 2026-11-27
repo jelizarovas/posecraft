@@ -197,6 +197,6 @@ export function createMapSceneryChunks(map,doc,{drawShadow,drawProp,prepare,extr
     worldBounds:worldBounds||{x:0,y:0,width:1,height:1},
     stats(){return{chunks:cache.size,pixels:pixels+stagingPixels+coarsePixels,staging:staging.size,detailPixels:pixels,coarsePixels,coarseChunks:coarse.size,maxPixels,rasterScale,builds,pending,visibleChunks:plan.length,workingSetPixels:planPixels,buildMs,fallbackDraws,lodReuses,coarseDraws,prefetched,prefetchChunks:ring.length,prefetchPixels:ringPixels,staleDraws,missingDraws};},
     clear(){dropStaging(new Set());for(const entry of [...cache.values()])release(entry,false);for(const entry of [...coarse.values()])releaseCoarse(entry);descriptors.clear();plan=[];ring=[];ringPixels=0;planPixels=0;deferredScale=null;pending=true;},
-    dispose(){if(disposed)return;this.clear();disposed=true;}
+    dispose(){if(disposed)return;this.clear();disposed=true;pending=false;}
   };
 }

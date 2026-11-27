@@ -119,20 +119,88 @@ function drawRollingFallback(ctx,sample){
   ellipse(ctx,torso.x,torso.y,6.5,8-curl*2,sample.color);ellipse(ctx,head.x,head.y,5.2,6,'#d2a477');
 }
 
+function drawWaterRings(ctx,position,scale,swim,seconds,moving,reduced,half){
+  // Far half = upper arc (behind the swimmer); near half = lower arc.
+  const [from,to]=half==='far'?[Math.PI,Math.PI*2]:[0,Math.PI];
+  ctx.save();ctx.translate(position.x,position.y);ctx.scale(scale,scale);
+  if(half==='far'){ctx.beginPath();ctx.ellipse(0,1,10*swim,3.4*swim,0,0,Math.PI*2);ctx.fillStyle=`rgba(214,238,236,${(.2*swim).toFixed(3)})`;ctx.fill();}
+  const rings=reduced?1:2;
+  for(let i=0;i<rings;i++){
+    const t=reduced?.35:((seconds*(moving?1.3:.7)+i/rings)%1),rx=(11+t*13)*swim,ry=rx*.36;
+    ctx.beginPath();ctx.ellipse(0,1,rx,ry,0,from,to);ctx.lineWidth=1.3;ctx.strokeStyle=`rgba(226,244,240,${(.55*(1-t)*swim).toFixed(3)})`;ctx.stroke();
+  }
+  // A bright waterline where the body meets the surface.
+  if(half==='near'){ctx.beginPath();ctx.ellipse(0,1,7.5*swim,2.4*swim,0,0,Math.PI);ctx.lineWidth=1.6;ctx.strokeStyle=`rgba(240,250,248,${(.7*swim).toFixed(3)})`;ctx.stroke();}
+  ctx.restore();
+}
+/**
+ * A crown of fine spray and a widening ring where a body drops into water.
+ * Droplets on the far side are drawn behind the swimmer, near ones in front.
+ */
+function drawSplash(ctx,position,scale,age,half){
+  const t=Math.max(0,age)/.9,fade=1-t;
+  ctx.save();ctx.translate(position.x,position.y);ctx.scale(scale,scale);ctx.lineCap='round';
+  if(half==='far'){
+    const rx=9+t*28,ry=rx*.36;
+    ctx.beginPath();ctx.ellipse(0,1,rx,ry,0,0,Math.PI*2);ctx.lineWidth=1.8*fade+.4;ctx.strokeStyle=`rgba(236,248,246,${(.7*fade).toFixed(3)})`;ctx.stroke();
+  }
+  const time=Math.min(1,age/.62);
+  if(time<1)for(let i=0;i<22;i++){
+    const angle=i/22*Math.PI*2+(i*0.37%0.5),far=Math.sin(angle)<0;if(far!==(half==='far'))continue;
+    const speed=12+(i*37%11)*1.5,height=(12+(i*53%9)*2.4)*(far?1:.45),dx=Math.cos(angle)*speed,dy=Math.sin(angle)*speed*.36;
+    const at=k=>({x:dx*k,y:dy*k-height*4*k*(1-k)+1}),p=at(time),q=at(Math.max(0,time-.07));
+    // Short streaks read as flying water rather than bubbles.
+    ctx.beginPath();ctx.moveTo(q.x,q.y);ctx.lineTo(p.x,p.y);ctx.lineWidth=(i%4?.9:1.3)*(1-time*.5);ctx.strokeStyle=`rgba(242,251,250,${(.75*(1-time)).toFixed(3)})`;ctx.stroke();
+  }
+  ctx.restore();
+}
+
 /** Lightweight directional map adventurer; all joints share a projected body basis. */
-export function drawMapActor(ctx,map,actor,definition,reduced=false,{shadow=true,art}={}){
+export function drawMapActor(ctx,map,actor,definition,reduced=false,{shadow=true,art,time}={}){
   const position=projectMap(map,actor),scale=map.tileSize.width/64;
+  const swim=Math.max(0,Math.min(1,finite(actor.swimDepth)));
+  const seconds=Number.isFinite(time)?time:(globalThis.performance?.now()??0)/1000,splashAge=Number.isFinite(actor.splashAt)?seconds-actor.splashAt:Infinity;
+  if(swim>0){
+    // Placeholder swimming until a dedicated sheet exists: the walk or idle
+    // sheet sinks below a waterline with a gentle bob. Ripples sit on the
+    // surface around the body: their far half is drawn behind it, the near
+    // half in front, so they never cross the head.
+    const clip=map.art?.actors?.[actor.id]?.idle,spec=clip&&map.art.images[clip.image],stand=spec?spec.height*spec.anchorY:42;
+    const bob=reduced?0:Math.sin(seconds*3.1+finite(actor.phase))*1.1,settle=reduced||!(splashAge<.5)?0:(1-splashAge/.5)*stand*.18;
+    const sink=(stand*.6+bob-settle)*swim*scale,moving=actor.walking===true;
+    drawWaterRings(ctx,position,scale,swim,seconds,moving,reduced,'far');
+    const splashing=splashAge<.9&&!reduced;if(splashing)drawSplash(ctx,position,scale,splashAge,'far');
+    ctx.save();ctx.beginPath();ctx.rect(position.x-400*scale,position.y-800*scale,800*scale,800*scale);ctx.clip();ctx.translate(0,sink);
+    drawMapActor(ctx,map,{...actor,swimDepth:0,lift:0,splashAt:undefined},definition,reduced,{shadow:false,art,time});ctx.restore();
+    drawWaterRings(ctx,position,scale,swim,seconds,moving,reduced,'near');
+    if(splashing)drawSplash(ctx,position,scale,splashAge,'near');
+    return;
+  }
   ctx.save();ctx.translate(position.x,position.y);ctx.scale(scale,scale);
   if(shadow){ctx.save();ctx.translate(13,6);ctx.rotate(.35);ellipse(ctx,0,0,20,5,'#19271c3d');ctx.restore();ellipse(ctx,0,1,7,2.5,'#13221b66');}
   ctx.translate(0,-(actor.lift||0)*map.tileSize.height/scale);
-  const traversalClip={'vault':'vault','climb-up':'climbUp','climb-down':'climbDown'}[actor.traversalAction];
-  const clips=map.art?.actors?.[actor.id],action=traversalClip||(actor.rolling===true?'roll':actor.jumping===true?'jump':mapActorGait(actor,reduced)),clip=clips?.[action],image=clip&&art?.image(clip.image);
+  const traversalClip={'vault':'vault','climb-up':'climbUp','climb-down':'climbDown','hang':'hang','climb-ledge':'climbLedge'}[actor.traversalAction];
+  const clips=map.art?.actors?.[actor.id],ready=name=>!!(clips?.[name]&&art?.image(clips[name].image));let action=traversalClip||(actor.rolling===true?'roll':actor.jumping===true?'jump':mapActorGait(actor,reduced)),frozen=null;
+  // Ledges reuse the ridge climb until dedicated hang and pull-up sheets exist:
+  // hanging holds its reaching frame, pulling up plays it through.
+  if(action==='hang'&&!ready('hang')&&ready('climbUp')){action='climbUp';frozen=.42;}
+  if(action==='climbLedge'&&!ready('climbLedge')&&ready('climbUp'))action='climbUp';
+  // Until a traversal sheet has loaded, the jump sheet keeps the painted character.
+  if(traversalClip&&!ready(action)&&ready('jump'))action='jump';
+  const clip=clips?.[action],image=clip&&art?.image(clip.image);
   if(image){
     const spec=map.art.images[clip.image],direction=((Math.round(finite(actor.facing)/TAU*clip.directions)%clip.directions)+clip.directions)%clip.directions;
-    let progress=traversalClip?actor.traversalProgress:action==='jump'?actor.jumpProgress:action==='roll'?actor.rollProgress:null;
+    let progress=frozen??(traversalClip?actor.traversalProgress:action==='jump'?actor.jumpProgress:action==='roll'?actor.rollProgress:null);
     if(action==='climbDown')progress=1-finite(progress);
     const normalized=progress===null?null:Math.max(0,Math.min(1,finite(progress))),frame=normalized===null?Math.floor(((finite(actor.phase)/TAU)%1+1)%1*clip.frames):Math.min(clip.frames-1,Math.floor(normalized*clip.frames));
     let x=-spec.anchorX*spec.width,y=-spec.anchorY*spec.height;
+    // Ledge clips hang from the wrists: pin their midpoint to the cliff lip
+    // until the clip hands support to the feet.
+    const hand=clip.handAnchors?.[direction]?.[frame];
+    if(hand&&actor.ledgeContact&&(clip.handRelease===null||clip.handRelease===undefined||frame<clip.handRelease)){
+      const lip=projectMap(map,actor.ledgeContact);
+      x=(lip.x-position.x)/scale-hand.x/clip.frameWidth*spec.width;y=(lip.y-position.y+(actor.lift||0)*map.tileSize.height)/scale-hand.y/clip.frameHeight*spec.height;
+    }
     if(action==='vault'&&actor.supportContact&&clip.supportAnchors?.[direction]&&Array.isArray(clip.supportWindow)){
       const contact=projectMap(map,actor.supportContact),directionAnchors=clip.supportAnchors[direction],anchor=Array.isArray(directionAnchors)?directionAnchors[frame]:directionAnchors,[start,end]=clip.supportWindow,ramp=.08;
       if(anchor){

@@ -57,9 +57,12 @@ export function loadMapArt(map,{document,onUpdate=()=>{},onError=()=>{}}){
   }
   // Action sheets can be large once decoded. Only maps with the corresponding
   // crossings need the extra hand-vault and climbing artwork.
-  const vault=map.props.some(p=>p.traversal?.kind==='vault'&&(p.traversal.style==='branch'||p.traversal.activation==='click'));
-  const climb=map.props.some(p=>p.traversal?.kind==='climb');
-  const actorImages=Object.values(map.art?.actors||{}).flatMap(clips=>Object.entries(clips).filter(([name])=>name==='vault'?vault:name==='climbUp'||name==='climbDown'?climb:true).map(([,clip])=>clip.image));
+  // Every crossing except a rock hop plays the vault clip (map-vault.js uses
+  // the same default style), including fences crossed by running into them.
+  const vault=map.props.some(p=>p.traversal?.kind==='vault'&&((p.traversal.style??(p.kind==='rock'?'rock':'branch'))!=='rock'||p.traversal.activation==='click'));
+  // Ridge climbs and terrace ledges (grab, hang, pull up) share climbing art.
+  const climb=map.props.some(p=>p.traversal?.kind==='climb')||!!map.terraces?.length;
+  const actorImages=Object.values(map.art?.actors||{}).flatMap(clips=>Object.entries(clips).filter(([name])=>name==='vault'?vault:['climbUp','climbDown','hang','climbLedge'].includes(name)?climb:true).map(([,clip])=>clip.image));
   const fenceImages=map.props.some(prop=>prop.fence)&&map.art?.images?.['farm-fence-timber']?['farm-fence-timber']:[];
   const referenced=new Set([...Object.values(map.art?.props||{}).flat(),...Object.values(map.art?.terrain||{}),...Object.values(map.groundPaint||{}),...map.props.flatMap(prop=>prop.art?[prop.art]:[]),...map.actors.flatMap(actor=>actor.appearance?.image?[actor.appearance.image]:[]),...actorImages,...fenceImages]);
   for(const id of [...referenced]){const opened=map.art?.images[id]?.opened;if(opened)referenced.add(opened);}
